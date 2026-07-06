@@ -20,4 +20,4 @@
 
 **Continuity.** Context running long, or ending mid-task → write the `handoff` brief (HANDOFF.md). Prefer handoff + fresh session over pushing a degraded context.
 
-**Right-size everything.** A two-step task gets a two-line plan. Don't gold-plate past what was asked; don't stop at "superficially works" when production quality was implied. When a cheaper model/tier could do the task well, say so (see playbooks/ROUTING.md).
+**Right-size everything.** A two-step task gets a two-line plan. Don't gold-plate past what was asked; don't stop at "superficially works" when production quality was implied. When a cheaper model/tier could do the task well, say so (routing judgment: the fable-quality-library ROUTING playbook).

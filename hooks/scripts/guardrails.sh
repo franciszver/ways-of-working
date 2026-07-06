@@ -24,16 +24,16 @@ block() {
   exit 2
 }
 
-# Recursive delete of root or home
-if printf '%s' "$CMD" | grep -Eq '(^|[;&|[:space:]])rm[[:space:]]+(-[a-zA-Z]*[rf][a-zA-Z]*[[:space:]]+)+("?\$HOME"?|~|/)[[:space:]]*($|[;&|])'; then
+# Recursive delete of root, root glob, or home
+if printf '%s' "$CMD" | grep -Eq '(^|[;&|[:space:]])rm[[:space:]]+(-[a-zA-Z]*[rf][a-zA-Z]*[[:space:]]+)+("?\$HOME"?|~|/|/\*)[[:space:]]*($|[;&|])'; then
   block "recursive delete of / or the home directory"
 fi
 
-# Force-push to main/master
-if printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+push[[:space:]]+.*(--force([^-]|$)|-f([[:space:]]|$)).*[[:space:]](main|master)([[:space:]]|$|:)'; then
+# Force-push to main/master (branch argument or refspec destination)
+if printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+push[[:space:]]+.*(--force([^-]|$)|-f([[:space:]]|$)).*([[:space:]]|:)(main|master)([[:space:]]|$)'; then
   block "force-push to main/master (use --force-with-lease on a feature branch instead)"
 fi
-if printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+push[[:space:]]+.*[[:space:]](main|master)([[:space:]]|$).*(--force([^-]|$)|-f([[:space:]]|$))'; then
+if printf '%s' "$CMD" | grep -Eq 'git[[:space:]]+push[[:space:]]+.*([[:space:]]|:)(main|master)([[:space:]]|$).*(--force([^-]|$)|-f([[:space:]]|$))'; then
   block "force-push to main/master (use --force-with-lease on a feature branch instead)"
 fi
 

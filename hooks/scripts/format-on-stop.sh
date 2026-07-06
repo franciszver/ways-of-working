@@ -20,7 +20,7 @@ filter_ext() { printf '%s\n' "$CHANGED" | grep -E "$1" || true; }
 if [ -f .prettierrc ] || [ -f .prettierrc.json ] || [ -f .prettierrc.yaml ] || [ -f .prettierrc.yml ] || [ -f .prettierrc.js ] || [ -f prettier.config.js ] || { [ -f package.json ] && grep -q '"prettier"' package.json 2>/dev/null; }; then
   FILES="$(filter_ext '\.(js|jsx|ts|tsx|css|scss|json|md|html|yml|yaml)$')"
   if [ -n "$FILES" ] && command -v npx >/dev/null 2>&1; then
-    printf '%s\n' "$FILES" | tr '\n' '\0' | xargs -0 -r npx --no-install prettier --write >/dev/null 2>&1 || true
+    printf '%s\n' "$FILES" | tr '\n' '\0' | xargs -0 npx --no-install prettier --write >/dev/null 2>&1 || true
   fi
 fi
 
@@ -29,9 +29,9 @@ if [ -f pyproject.toml ]; then
   PYFILES="$(filter_ext '\.py$')"
   if [ -n "$PYFILES" ]; then
     if grep -q '\[tool\.ruff' pyproject.toml 2>/dev/null && command -v ruff >/dev/null 2>&1; then
-      printf '%s\n' "$PYFILES" | tr '\n' '\0' | xargs -0 -r ruff format >/dev/null 2>&1 || true
+      printf '%s\n' "$PYFILES" | tr '\n' '\0' | xargs -0 ruff format >/dev/null 2>&1 || true
     elif grep -q '\[tool\.black\]' pyproject.toml 2>/dev/null && command -v black >/dev/null 2>&1; then
-      printf '%s\n' "$PYFILES" | tr '\n' '\0' | xargs -0 -r black -q >/dev/null 2>&1 || true
+      printf '%s\n' "$PYFILES" | tr '\n' '\0' | xargs -0 black -q >/dev/null 2>&1 || true
     fi
   fi
 fi
@@ -39,7 +39,7 @@ fi
 # Go
 GOFILES="$(filter_ext '\.go$')"
 if [ -n "$GOFILES" ] && command -v gofmt >/dev/null 2>&1; then
-  printf '%s\n' "$GOFILES" | tr '\n' '\0' | xargs -0 -r gofmt -w >/dev/null 2>&1 || true
+  printf '%s\n' "$GOFILES" | tr '\n' '\0' | xargs -0 gofmt -w >/dev/null 2>&1 || true
 fi
 
 # Rust

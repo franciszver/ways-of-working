@@ -41,7 +41,8 @@ Updated: <date> · State: <in progress | blocked | ready for review>
 - <decision> — because <reason>. (Stops the successor from relitigating or undoing it.)
 
 ## Gotchas
-- <the expensive lessons: what looked right but wasn't, flaky check, invariant that must hold, misleading name>
+- <what looked right but wasn't; flaky checks; invariants that must hold;
+  refuted approaches a successor would plausibly retry, and why they fail>
 
 ## Map
 - <file:line> — <what lives there / why it matters to this task>
