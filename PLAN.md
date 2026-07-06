@@ -66,7 +66,7 @@ README.md         library index + per-environment quickstart
 
 Author in batches; commit and push at every checkpoint. User interrupts anytime with corrections. After Fable access ends, Sonnet/Opus maintain the library following its own conventions.
 
-**Optional housekeeping:** repo has outgrown "ideas" — renaming (e.g. `fable-quality-library`) is safe; GitHub redirects the old URL.
+**Optional housekeeping:** ~~repo has outgrown "ideas" — renaming (e.g. `fable-quality-library`) is safe; GitHub redirects the old URL.~~ *Done 2026-07-06: renamed `fable-skills-ideas` → `fable-quality-library`; old URLs redirect.*
 
 ## Status log
 
