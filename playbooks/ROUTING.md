@@ -32,7 +32,7 @@ Output tokens dominate agentic cost (5× input price), so verbose tiers cost mor
 - the task needs judgment the tier can't verify itself producing (novel design, subtle concurrency, security).
 A truthful "stuck, here's the state" from a cheap model costs cents; a confident wrong answer costs the redo *plus* the debugging of trust.
 
-**5. Effort is a routing dimension inside a model.** On Claude 4.6+, `effort` (low/medium/high/xhigh/max) reshapes cost more than switching between adjacent tiers: low effort produces fewer, more consolidated tool calls and terser output. Sonnet at high effort often beats Opus at low. Defaults: `high` for most work, `xhigh` for hard coding/agentic runs, `low`/`medium` for mechanical tasks and subagents. In Claude Code: `/effort`.
+**5. Effort is a routing dimension inside a model.** On Claude 4.6+, `effort` (low/medium/high/max; `xhigh` from Opus 4.7 / Sonnet 5 on) reshapes cost more than switching between adjacent tiers: low effort produces fewer, more consolidated tool calls and terser output. Sonnet at high effort often beats Opus at low. Defaults: `high` for most work, `xhigh` for hard coding/agentic runs, `low`/`medium` for mechanical tasks and subagents. In Claude Code: `/effort`.
 
 ## Task → tier
 

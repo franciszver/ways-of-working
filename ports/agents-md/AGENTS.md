@@ -33,7 +33,7 @@ Derive cases from the contract, not the code: normal, boundary (empty/single/man
 
 ## When reviewing code
 
-Diff first, then enough callers/callees to judge in context. State the change's intent in one sentence and check it against the code — requirement mismatch is the top defect class. Hunt: unhandled failure paths at every external boundary; state/races/idempotency; off-by-one and boundary values; injection and authz on every path; leaks on error paths; callers not updated; tests that would pass with the fix reverted. **Report only findings you verified** — concrete trigger scenario or discard. Format: `SEVERITY path:line — defect — trigger — fix`, most severe first. A clean report states what was checked; a bare LGTM is not a review.
+Diff first, then enough callers/callees to judge in context. State the change's intent in one sentence and check it against the code — requirement mismatch is the top defect class. Hunt: unhandled failure paths at every external boundary; state/races/idempotency; off-by-one and boundary values; injection and authz on every path; leaks on error paths; callers not updated; tests that would pass with the fix reverted. **Report only findings you verified** — concrete trigger scenario or discard; label each CONFIRMED (traced) or PLAUSIBLE (say what would confirm it). Format: `SEVERITY [CONFIRMED|PLAUSIBLE] path:line — defect — trigger — fix`, most severe first. A clean report states what was checked; a bare LGTM is not a review.
 
 ## Before claiming done
 
