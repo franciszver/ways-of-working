@@ -64,11 +64,17 @@ done
 case "$PROFILE" in frontier|local) ;; *) echo "Invalid --profile: $PROFILE"; exit 1 ;; esac
 
 copy_skill_dirs() { # $1 = source root (skills|skills-local), $2 = dest skills dir
+  # Safe-by-default like every other target: existing skill dirs are skipped
+  # (users tune installed skills), --force refreshes them from the library.
   local src="$1" dest="$2" dir name
   run mkdir -p "$dest"
   for dir in "$LIB/$src"/*/; do
     [ -f "${dir}SKILL.md" ] || continue
     name="$(basename "$dir")"
+    if [ -d "$dest/$name" ] && [ "$FORCE" -eq 0 ]; then
+      note "skill exists, skipping (use --force to refresh): $dest/$name"
+      continue
+    fi
     note "skill: $name -> $dest/$name"
     run rm -rf "${dest:?}/$name"
     run cp -R "$dir" "$dest/$name"

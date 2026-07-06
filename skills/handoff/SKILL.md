@@ -11,7 +11,7 @@ Context is the most expensive thing an agent builds and the easiest thing to los
 
 - Context is running long and quality will degrade before the task ends.
 - Session is ending with the task incomplete.
-- Work is downshifting to a cheaper/smaller model (see `playbooks/ROUTING.md`) — the handoff is what makes the downshift safe.
+- Work is downshifting to a cheaper/smaller model (the fable-quality-library ROUTING playbook governs when) — the handoff is what makes the downshift safe.
 - A subtask is being delegated to a subagent or parallel session.
 
 ## Where
