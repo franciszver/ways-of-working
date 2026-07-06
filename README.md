@@ -1,10 +1,69 @@
-# Fable Skills Ideas
+# fable-quality-library
 
-A dumping ground for skill ideas to propose to Fable before losing access.
+A library of quality-process skills, playbooks, rules, and configs — authored by Claude Fable 5 while access lasted — that makes **cheaper models produce near-frontier output**: Opus/Sonnet in Claude Code, free local models via claude-code-router, Antigravity, Cursor, Gemini CLI, and any MCP-capable agent.
 
-Each idea gets its own entry (or file) describing the skill, what it should do, and why it'd be useful.
+The premise: most of the gap between a mediocre run and a frontier run is **process, not raw intelligence** — dropped requirements, unverified "done", shotgun debugging, premature stopping. Process can be written down. This repo is that writing, plus the judgment about which model should do what (`playbooks/ROUTING.md`).
 
-## Skills
+## Map
 
-- [`skills-local/`](skills-local/) — always-on quality workflow (`quality`) plus a manual extra-rounds skill (`iterate`) that make local models plan, verify, and self-review before declaring a task done.
-- [`skills/lean-max-effort`](skills/lean-max-effort) — Capture → Plan → Execute lean → Verify discipline for getting frontier-quality output at minimum token cost from Sonnet/Opus.
+```
+skills/          12 canonical skills — source of truth, tuned for Opus/Sonnet
+skills-local/    compact imperative variants for local models (quality, iterate,
+                 debug, deep-review, prove) — free tokens change the discipline
+agents/          Claude Code subagents: code-reviewer, verifier, researcher, architect
+claude-md/       always-on CLAUDE.md layers: global-frontier, global-local, project template
+playbooks/       ROUTING.md (which model for what) · HANDOFF.md (cross-tool continuity)
+hooks/           Claude Code hooks: guardrails, opt-in test gate, format-on-stop
+antigravity/     .agent/ port: 4 rules + 7 workflows
+ports/           AGENTS.md (generic single-file port) · cursor/ (.mdc rules) · gemini/ (commands)
+mcp-server/      the library as an MCP server (skills as prompts + list/get/route tools)
+install.sh       one command per environment (run with --dry-run first)
+```
+
+## Quickstarts
+
+**Claude Code, frontier models (Opus/Sonnet):**
+```bash
+./install.sh --claude-user --profile frontier      # skills + agents + CLAUDE.md rules
+./install.sh --claude-project ~/code/myrepo        # per-repo instead / additionally
+./install.sh --hooks ~/code/myrepo                 # optional automation
+```
+
+**Claude Code, local models (claude-code-router):**
+```bash
+./install.sh --claude-user --profile local         # on the machine/config running local models
+```
+One profile per setup — the packs share skill names by design (same muscle memory, opposite token economics; see below).
+
+**Antigravity:** `./install.sh --antigravity ~/code/myrepo` → rules + `/spec /architect /breakdown /debug /deep-review /prove /handoff`
+
+**Any AGENTS.md tool (Codex, Amp, Zed, Jules, …):** `./install.sh --agents-md ~/code/myrepo`
+
+**Cursor:** `./install.sh --cursor ~/code/myrepo` · **Gemini CLI:** `./install.sh --gemini global` (context-file options: `ports/gemini/README.md`)
+
+**Any MCP agent:** `./install.sh --mcp` prints registration; smoke-test first per `mcp-server/README.md`.
+
+## The skills (canonical)
+
+| | | |
+|---|---|---|
+| `lean-max-effort` — process backbone | `spec` — requirements ledger | `architect` — tradeoffs & ADRs |
+| `breakdown` — verifiable task cards | `debug` — hypothesis-driven | `deep-review` — verified findings |
+| `prove` — evidence before "done" | `refactor` — behavior-preserving | `testgen` — tests that hunt bugs |
+| `research` — triangulate & cite | `write` — one structured revision | `handoff` — cold-resume briefs |
+
+Full catalog and composition map: [`skills/README.md`](skills/README.md).
+
+## Design principles
+
+- **Token-cost asymmetry.** Paid models get the lean discipline (cut narration, surgical reads); free local models get the opposite ("token usage is not a concern" — mandatory self-review loops). Same goals, opposite budgets. This is why profiles exist and why installing both on one setup is wrong.
+- **Verification gates everything.** Every variant of every skill ends in evidence: run the real thing, quote the decisive line, "I verified / I did not verify".
+- **Judgment serialized, then executed cheaply.** Expensive models write specs, breakdowns, and handoffs; cheap models execute well-specified cards; review closes the loop (`ROUTING.md`).
+- **Canonical + compressions.** `skills/` is the source of truth; `skills-local/`, `antigravity/`, `ports/` are compressions. Edits to judgment propagate outward (`ports/README.md` lists the sync points).
+- **Names dodge builtins.** `deep-review`, `prove`, `iterate` avoid colliding with Claude Code's `/review`, `/verify`, `/loop`.
+
+## Maintenance after Fable
+
+Any capable model maintains this library *using the library itself*: follow `skills/write` + `skills/deep-review` when editing skills; keep ports in sync (`ports/README.md`); re-verify dated facts (ROUTING.md pricing, external formats) before trusting them. The MCP server and install.sh were authored but never executed — their READMEs carry the smoke tests to run on first use.
+
+History and phase log: [`PLAN.md`](PLAN.md).

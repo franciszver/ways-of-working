@@ -56,11 +56,11 @@ README.md         library index + per-environment quickstart
 
 ## Phases
 
-- [ ] **Phase 1 — Canonical skills** *(needs Fable most)*: restructure repo; author the ~12 canonical skills, SE trio (`debug`, `review`, `verify`) first.
-- [ ] **Phase 2 — Judgment artifacts**: `ROUTING.md` playbook, `HANDOFF.md`, CLAUDE.md templates, subagent definitions, local skill variants.
-- [ ] **Phase 3 — Ports & automation**: Antigravity `.agent/` rules + workflows (verify current format via web search first), hooks.
-- [ ] **Phase 4 — Plumbing** *(any model can finish)*: MCP server (skills as MCP prompts + `list`/`get`/`route` tools), `install.sh`, per-environment quickstarts in README.
-- [ ] **Day-2 reserve — Tuning on contact**: run real tasks in each environment (real bug on a local model, real task in Antigravity); tune skills based on observed friction.
+- [x] **Phase 1 — Canonical skills** *(needs Fable most)*: restructure repo; author the ~12 canonical skills, SE trio first. *(Names shifted to dodge Claude Code builtins: `deep-review`, `prove`; local `loop`→`iterate`.)*
+- [x] **Phase 2 — Judgment artifacts**: `ROUTING.md` playbook, `HANDOFF.md`, CLAUDE.md templates, subagent definitions, local skill variants.
+- [x] **Phase 3 — Ports & automation**: Antigravity `.agent/` rules + workflows (format verified via web search 2026-07), hooks; scope grew per user decision to include AGENTS.md, Cursor, and Gemini CLI ports (`ports/`).
+- [x] **Phase 4 — Plumbing** *(authored, not executed — smoke tests in the READMEs)*: MCP server (skills as MCP prompts + `list`/`get`/`route` tools), `install.sh`, per-environment quickstarts in README.
+- [ ] **Day-2 reserve — Tuning on contact**: run real tasks in each environment (real bug on a local model, real task in Antigravity); tune skills based on observed friction. Also: first-run smoke tests for mcp-server and install.sh.
 
 ## Working method
 
@@ -71,3 +71,5 @@ Author in batches; commit and push at every checkpoint. User interrupts anytime 
 ## Status log
 
 - 2026-07-05 — Plan written. Repo contains seed skills: `claude-local-quality` (quality + loop) and `lean-max-effort`.
+- 2026-07-05 — Restructured into library layout; Phase 1 complete (12 canonical skills); Phase 2 complete (playbooks, CLAUDE.md templates, 4 subagents, local trio).
+- 2026-07-06 — Phase 3 complete (Antigravity rules+workflows, AGENTS.md/Cursor/Gemini ports, hooks). Phase 4 complete (MCP server, install.sh, README) — plumbing authored, not executed. Improvement loop running until 3 consecutive clean passes.
