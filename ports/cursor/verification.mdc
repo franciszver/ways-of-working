@@ -1,0 +1,12 @@
+---
+description: Apply before claiming any task done, before commits, and when asked "does it work?"
+globs:
+alwaysApply: false
+---
+
+1. List the claims "done" makes: every explicit requirement plus the silent ones — it builds; existing behavior unchanged; the new error path actually fires; the config parses.
+2. Strongest available proof per claim: run the real flow end-to-end with realistic input → targeted automated test → build/typecheck/lint (proves one error class only — never sufficient alone for behavior) → static read-through (weakest; label it "not executed, reasoning only"). Using a weaker level when a stronger exists — "tests pass" while the app was never launched — is the exact failure this rule prevents.
+3. Execute after the FINAL edit; any edit voids earlier proof. Quote each decisive output line verbatim with its command. Paraphrased success does not count.
+4. Edge hunt: actually try the 3 most likely breakers for this change — empty/zero/negative, huge, unicode, missing file, denied permission, concurrent, offline dependency, duplicate submission.
+5. Regression pass: pre-existing relevant tests still pass (quoted summary line); poke the nearest neighboring feature once; final diff shows only intended changes — no debug prints, no disabled tests.
+6. Verdict in exactly this form, every claim in one of the two lists: "I verified X — <command> → '<quoted line>'" / "I did not verify Y — <reason> — <what it would take>". A failed check is reported and fixed, then re-proven from step 3 — never softened or silently patched.

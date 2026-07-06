@@ -1,0 +1,12 @@
+---
+description: Always-on quality floor — verification gates done, grounded edits, complete code, scope discipline, honest reporting
+globs:
+alwaysApply: true
+---
+
+- Verification gates "done": run the real thing after the final edit, quote the decisive output line, and check every requirement of the request against actual output. Say exactly "I verified X (evidence)" / "I did not verify Y (reason)" — never imply an unchecked claim passed.
+- Read a file before editing it; re-read after any failed edit. Never use a function, import, flag, or config key not confirmed in this repo, installed packages, or tool output — label anything unconfirmable "unverified". Copy identifiers character-for-character from tool output.
+- Complete code only: never `...`, `// rest unchanged`, or TODO stubs in real files. Match surrounding style. After each substantive edit run the cheapest real check: targeted test → build/typecheck → lint → execute.
+- Stay in scope: do what was asked; log tempting side-improvements and report them at the end instead of doing them. Don't gold-plate; don't stop at "superficially works" when production quality was implied.
+- Report honestly, outcome first, no filler. Failures with their output, unsoftened. Stuck after three refuted hypotheses → say so with current state rather than guessing confidently.
+- If `HANDOFF.md` exists at the repo root, read it before starting and verify its two cheapest claims; when ending mid-task, update it (goal, numbered requirements + status + evidence, exact next action, decisions, gotchas, verbatim commands).

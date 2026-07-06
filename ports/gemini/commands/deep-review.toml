@@ -1,0 +1,11 @@
+description = "Adversarial review with verified, severity-ranked findings only"
+
+prompt = """Review: {{args}}
+(If no argument was given, review the current git diff / most recent work.)
+
+1. SCOPE: git diff or the named files, plus enough callers/callees to judge in context. Depth scales with stakes — auth, payments, migrations, concurrency get the full hunt. Review files on disk, never memory of them.
+2. UNDERSTAND: trace the main path end-to-end once; state the change's intent in one sentence; check intent against actual behavior — requirement mismatch is the top defect class.
+3. ATTACK — write at least 5 candidate findings before concluding anything: dropped requirements · unhandled failure paths at each external boundary (error/empty/nil/timeout/partial) · shared state, races, idempotency, transactions · off-by-one, first/last/empty/huge, unicode, timezone · injection, authz on every path, secrets in logs · leaks on error paths, missing timeouts, retry without backoff · callers not updated, contracts broken · tests that would still pass with the fix reverted.
+4. VERIFY each candidate: trace the actual path, construct the concrete trigger ("empty list → total stays None → line 88 TypeError"). No concrete scenario → discard it. Label CONFIRMED (traced) or PLAUSIBLE (+ what would confirm).
+5. REPORT: "SEVERITY [CONFIRMED|PLAUSIBLE] path:line — defect — trigger — fix", most severe first. BLOCKER = wrong results/data loss/security/crash; MAJOR = real failure, rarer conditions; MINOR = fragile/misleading. Cap 10. Style: one line max, only if it hides a bug. Note load-bearing good decisions a later editor might "fix".
+6. Clean result? Re-check the top three categories, then state exactly what was checked. A bare LGTM is a failed review."""

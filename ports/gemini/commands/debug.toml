@@ -1,0 +1,14 @@
+description = "Hypothesis-driven debugging: reproduce, localize, one change at a time, fix the cause, prove the fix"
+
+prompt = """Debug this failure: {{args}}
+(If no argument was given, debug the most recent failure in this conversation.)
+
+1. REPRODUCE: run the failing thing; record exact command and output. NO edits before a re-runnable reproduction exists. Can't reproduce → gather evidence (logs, inputs, environment diff vs. a working instance) and report; never guess-fix.
+2. READ THE ERROR: whole message, whole stack, the FIRST error not the last. Quote the key line verbatim.
+3. STATE THE GAP: "expected A because <contract>; observed B."
+4. LOCALIZE mechanically: stack-trace line → recent changes (git diff / git bisect) → binary-search the data flow with one probe at the midpoint → differential against the closest working analog.
+5. HYPOTHESIS LOOP (max 3 rounds): write "H: cause | test | prediction" → ONE change → observe → confirmed/refuted. Revert refuted changes immediately. The same fix failing twice = wrong hypothesis, never a third try. After 3 refutations: re-read the code with no theory, build a smaller repro, question one thing assumed good (input, config, the test itself) — then report state honestly if still stuck.
+6. FIX THE CAUSE: state the chain root cause → mechanism → symptom before writing it. Forbidden: widening catch blocks, deleting failing asserts, sleep() for races.
+7. PROVE: original repro passes (quote output) · regression test fails with the fix reverted · neighboring tests pass · final diff contains only the fix.
+
+Report: root-cause chain, the fix, quoted proof, regression test, blast radius checked. No journey narration."""

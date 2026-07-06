@@ -1,0 +1,12 @@
+---
+description: Apply when writing or improving tests, adding regression tests, or asked to add coverage
+globs: **/*.test.*, **/*.spec.*, **/*_test.*, **/test_*.py, **/tests/**
+alwaysApply: false
+---
+
+- Derive cases from the contract, not the implementation: per promise — normal case, boundary cases (empty/single/many/huge; zero/negative/max; exactly-at-limit and one-past), violation cases (invalid input → the promised failure behavior). The unit's behavior when wronged is its most bug-dense, least-tested promise.
+- Sweep applicable boundaries: unicode and injection-shaped strings · missing/malformed/duplicate · time (timezone, DST, leap day, epoch) · concurrency (same operation twice in flight) · dependency failure (collaborator throws / times out / returns partial).
+- One behavior per test; the name states the rule (`rejects_expired_token`, not `test_2`). Assert observable behavior — return values, events, persisted state — never internals or call sequences. Deterministic: inject clocks, seed randomness, fake the network at the boundary. Independent: any subset, any order.
+- Prove each load-bearing test can fail: break the code once (revert the fix, mutate the condition), watch it fail for the stated reason, restore. Mandatory for regression tests.
+- Oracles: exact expected values > property checks (round-trip, idempotence, invariants) > snapshots (last resort, must be read). Never compute the expected value with the implementation's own logic — that's a tautology.
+- Spend tests where bugs are expensive: boundaries, error paths, money/time/auth/concurrency, anything that just had a bug. Skip framework behavior, trivial getters, mock-talks-to-mock. Mock only at system boundaries. No `sleep()` — await a condition.

@@ -1,0 +1,35 @@
+description = "Write or update HANDOFF.md so any session, model, or tool can resume this work cold"
+
+prompt = """Write or update HANDOFF.md at the repo root for the current work. {{args}}
+
+Write for a reader with ZERO context from this conversation, possibly a weaker model. Replace stale content — current state only, never an appended diary. Use exactly this structure:
+
+# Handoff: <task, one line>
+Updated: <date> · State: <in progress | blocked | ready for review>
+
+## Goal
+<one sentence: what done looks like, and for whom/why>
+
+## Ledger
+1. [DONE] <requirement> — evidence: <command + decisive output line>
+2. [IN PROGRESS] <requirement> — exact state: <what's built, what's not>
+3. [TODO] <requirement>
+4. [BLOCKED] <requirement> — on: <precisely what unblocks it>
+
+## Next action
+<the single next step, executable without thinking: "Run X. Expect Y. If Z instead, cause is likely W — check path:line.">
+
+## Decisions
+- <decision> — because <reason>
+
+## Gotchas
+- <what looked right but wasn't; flaky checks; invariants that must hold; refuted approaches a successor would retry, and why they fail>
+
+## Map
+- <file:line> — <why it matters>
+- Build: `<verbatim>` · Test: `<verbatim>` · Run: `<verbatim>`
+
+## Verification state
+I verified: <claims + evidence>. I did not verify: <claims + why>.
+
+Rules: commands, paths, and identifiers VERBATIM from tool output — never retyped from memory. No journey narrative (exception: refuted approaches go under Gotchas with why they fail). Self-test before saving: could a stranger reach full working speed from this file alone? If asked to RESUME instead: read the whole brief, spot-check its two cheapest load-bearing claims (run the test claimed green, confirm pointers exist), then execute Next action and keep the ledger current."""
