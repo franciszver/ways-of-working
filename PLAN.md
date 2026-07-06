@@ -73,3 +73,4 @@ Author in batches; commit and push at every checkpoint. User interrupts anytime 
 - 2026-07-05 — Plan written. Repo contains seed skills: `claude-local-quality` (quality + loop) and `lean-max-effort`.
 - 2026-07-05 — Restructured into library layout; Phase 1 complete (12 canonical skills); Phase 2 complete (playbooks, CLAUDE.md templates, 4 subagents, local trio).
 - 2026-07-06 — Phase 3 complete (Antigravity rules+workflows, AGENTS.md/Cursor/Gemini ports, hooks). Phase 4 complete (MCP server, install.sh, README) — plumbing authored, not executed. Improvement loop running until 3 consecutive clean passes.
+- 2026-07-06 — Improvement loop complete: 14 passes, 16 fixes (passes 1–7, 9, 11), then 3 consecutive clean passes (12–14). Every file re-read in full since authoring; mechanical suite (frontmatter, links, fences, TOML/JSON shape, bash/python syntax parse) green; guardrails + route() regexes statically behavior-checked. Remaining: Day-2 reserve only.
