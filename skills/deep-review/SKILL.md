@@ -40,7 +40,7 @@ If you cannot articulate a failure scenario, it is not a finding — it is a vib
 ## 5. Report
 
 ```
-SEVERITY path:line — defect — failure scenario — suggested fix
+SEVERITY [CONFIRMED|PLAUSIBLE] path:line — defect — failure scenario — suggested fix
 ```
 
 - **BLOCKER** — wrong results, data loss, security hole, crash on realistic input.
