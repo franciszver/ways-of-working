@@ -159,7 +159,9 @@ _ROUTE_HINTS: list[tuple[str, str]] = [
         "signals gnarly debugging → high tier",
     ),
     (
-        r"\b(security|auth[nz]?|payment|billing|secret)\w*\b",
+        # "auth" variants deliberately exclude author/authoring
+        r"\b(security|payment|billing|secret)\w*\b"
+        r"|\bauth(n|z|entication|orization|enticate|orize[sd]?)?\b",
         "signals high-stakes review → high tier with fresh context",
     ),
     (
