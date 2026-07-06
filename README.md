@@ -64,6 +64,6 @@ Full catalog and composition map: [`skills/README.md`](skills/README.md).
 
 ## Maintenance after Fable
 
-Any capable model maintains this library *using the library itself*: follow `skills/write` + `skills/deep-review` when editing skills; keep ports in sync (`ports/README.md`); re-verify dated facts (ROUTING.md pricing, external formats) before trusting them. The MCP server and install.sh were authored but never executed — their READMEs carry the smoke tests to run on first use.
+Any capable model maintains this library *using the library itself*: follow `skills/write` + `skills/deep-review` when editing skills; keep ports in sync (`ports/README.md`); re-verify dated facts (ROUTING.md pricing, external formats) before trusting them. The MCP server, install.sh, and hooks were smoke-tested end-to-end on 2026-07-06 (details in their READMEs); what remains untested is sustained real-world use — PLAN.md's Day-2 tuning.
 
 History and phase log: [`PLAN.md`](PLAN.md).

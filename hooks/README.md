@@ -24,7 +24,7 @@ echo "npm test" > <repo>/.claude/test-command
 
 Then restart the Claude Code session (hooks config is captured at startup) and run `/hooks` to confirm they're registered.
 
-**These scripts ship untested by design** (authored, not executed). Before trusting them on a real project, spend two minutes verifying:
+**Smoke-tested 2026-07-06**: guardrails block/allow/fail-open paths, test-gate block-on-fail/allow-on-pass/opt-in gating, and format-on-stop's always-exit-0 no-op paths were all exercised end-to-end (the formatter-invoking paths ran only as no-ops — no formatters were installed on the test machine). To confirm the install landed correctly in *your* project:
 
 1. `echo '{"tool_input":{"command":"rm -rf /"}}' | .claude/hooks/guardrails.sh; echo "exit=$?"` → expect the BLOCKED message and `exit=2`.
 2. `echo '{"tool_input":{"command":"ls"}}' | .claude/hooks/guardrails.sh; echo "exit=$?"` → expect silence and `exit=0`.

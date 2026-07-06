@@ -10,19 +10,20 @@ Exposes the skills and playbooks to **any MCP-capable agent** (Claude Code, Clau
 | tool `route(task_description)` | Keyword first-pass hints + the full ROUTING playbook to apply |
 | prompts (one per canonical skill) | `/debug`, `/prove`, `/spec`, … inject the skill text + your task |
 
-## Status: authored, not executed
+## Status: smoke-tested 2026-07-06
 
-This server was written as plumbing (any model can finish/fix it using the library itself). Before first use, run the two-minute smoke test:
+Verified end-to-end over real stdio transport (mcp SDK on Python 3.12, 11/11 checks): tool registration, all 12 canonical prompts, canonical + local profiles, unknown-name error paths, `route()` hints, and prompt injection with a task argument. Not yet exercised: long-running use inside a real agent session.
+
+To re-verify after changes, the interactive route is:
 
 ```bash
 cd mcp-server
 uv run --with "mcp[cli]" mcp dev server.py   # opens the MCP inspector
-# in the inspector: call list_skills → expect the catalog;
-# call get_skill("debug") → expect the full skill text;
-# check the prompts tab lists the 12 canonical skills.
+# call list_skills → expect the catalog; get_skill("debug") → full skill text;
+# prompts tab → the 12 canonical skills.
 ```
 
-Likely first-run issues, should they occur: the `Prompt.from_function`/`add_prompt` calls track the `mcp` SDK's FastMCP API — if the SDK has drifted, `mcp dev` will name the missing symbol; adjust per current SDK docs.
+Requires `uv` (or any Python ≥3.10 with the `mcp` package) — the machine this library was authored on shipped only Python 3.9, so check yours before registering.
 
 ## Register
 

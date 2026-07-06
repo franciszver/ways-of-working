@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # install.sh — deploy the fable-quality-library into your environments.
 #
-# Authored as plumbing (written, not executed) — run with --dry-run first.
+# Smoke-tested 2026-07-06 (all targets, idempotent reruns, error cases,
+# against a scratch HOME). --dry-run previews any run.
 #
 # Usage:
 #   ./install.sh --claude-user [--profile frontier|local]

@@ -60,7 +60,7 @@ README.md         library index + per-environment quickstart
 - [x] **Phase 2 — Judgment artifacts**: `ROUTING.md` playbook, `HANDOFF.md`, CLAUDE.md templates, subagent definitions, local skill variants.
 - [x] **Phase 3 — Ports & automation**: Antigravity `.agent/` rules + workflows (format verified via web search 2026-07), hooks; scope grew per user decision to include AGENTS.md, Cursor, and Gemini CLI ports (`ports/`).
 - [x] **Phase 4 — Plumbing** *(authored, not executed — smoke tests in the READMEs)*: MCP server (skills as MCP prompts + `list`/`get`/`route` tools), `install.sh`, per-environment quickstarts in README.
-- [ ] **Day-2 reserve — Tuning on contact**: run real tasks in each environment (real bug on a local model, real task in Antigravity); tune skills based on observed friction. Also: first-run smoke tests for mcp-server and install.sh.
+- [ ] **Day-2 reserve — Tuning on contact**: run real tasks in each environment (real bug on a local model, real task in Antigravity); tune skills based on observed friction. *(Smoke tests done 2026-07-06 — see status log.)*
 
 ## Working method
 
@@ -74,3 +74,4 @@ Author in batches; commit and push at every checkpoint. User interrupts anytime 
 - 2026-07-05 — Restructured into library layout; Phase 1 complete (12 canonical skills); Phase 2 complete (playbooks, CLAUDE.md templates, 4 subagents, local trio).
 - 2026-07-06 — Phase 3 complete (Antigravity rules+workflows, AGENTS.md/Cursor/Gemini ports, hooks). Phase 4 complete (MCP server, install.sh, README) — plumbing authored, not executed. Improvement loop running until 3 consecutive clean passes.
 - 2026-07-06 — Improvement loop complete: 14 passes, 16 fixes (passes 1–7, 9, 11), then 3 consecutive clean passes (12–14). Every file re-read in full since authoring; mechanical suite (frontmatter, links, fences, TOML/JSON shape, bash/python syntax parse) green; guardrails + route() regexes statically behavior-checked. Remaining: Day-2 reserve only.
+- 2026-07-06 — Smoke tests executed, all green, zero fixes needed: install.sh (every target against a scratch HOME, dry-run, idempotent reruns, error cases), guardrails/test-gate/format-on-stop hooks end-to-end, MCP server 11/11 over real stdio (uv + Python 3.12 + mcp SDK). Note: authoring machine has only Python 3.9 and no uv — real MCP registration needs uv (or Python ≥3.10) installed first. Remaining: tuning on contact.
