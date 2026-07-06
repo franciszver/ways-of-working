@@ -28,7 +28,7 @@ Most severe first. Cap at ~10 — say "further minor issues omitted" past that. 
 
 ## The clean report
 
-Zero findings on a nontrivial change usually means a shallow pass — re-check hunt categories 1–3 before concluding clean. A clean verdict must state what was checked, so it's informative: "Traced both retry paths; checked all callers of the renamed function; ran the suite (quote the summary line)." Never a bare LGTM.
+Zero findings on a nontrivial change usually means a shallow pass — re-check the three highest-yield hunt areas (claim-vs-behavior, failure paths, state/races) before concluding clean. A clean verdict must state what was checked, so it's informative: "Traced both retry paths; checked all callers of the renamed function; ran the suite (quote the summary line)." Never a bare LGTM.
 
 ## Rules
 
