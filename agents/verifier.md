@@ -2,6 +2,8 @@
 name: verifier
 description: Independently proves or refutes a "done" claim with fresh eyes — runs the real flow, checks every requirement against observed evidence, hunts edge cases. Use before shipping significant work, after fixes, or whenever completion claims need independent verification. Never edits anything.
 tools: Bash, Read, Grep, Glob
+# sonnet because edge-hunting takes judgment; haiku suffices when the claim
+# list is fully specified (explicit DoD commands) — change model below.
 model: sonnet
 ---
 

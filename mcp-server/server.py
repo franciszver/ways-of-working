@@ -128,10 +128,7 @@ def get_skill(name: str, profile: str = "canonical") -> str:
     return skill.body()
 
 
-@mcp.tool()
-def get_playbook(name: str = "") -> str:
-    """Fetch a playbook. 'routing' = which model/tier for which task;
-    'handoff' = cross-tool session-continuity convention. Empty name lists them."""
+def _read_playbook(name: str) -> str:
     if not PLAYBOOK_DIR.is_dir():
         return f"No playbooks directory at {PLAYBOOK_DIR}."
     books = {p.stem.lower(): p for p in sorted(PLAYBOOK_DIR.glob("*.md"))}
@@ -141,6 +138,13 @@ def get_playbook(name: str = "") -> str:
     if book is None:
         return f"Unknown playbook '{name}'. Available: {', '.join(books)}"
     return book.read_text(encoding="utf-8")
+
+
+@mcp.tool()
+def get_playbook(name: str = "") -> str:
+    """Fetch a playbook. 'routing' = which model/tier for which task;
+    'handoff' = cross-tool session-continuity convention. Empty name lists them."""
+    return _read_playbook(name)
 
 
 # Deterministic first-pass hints; the real judgment lives in ROUTING.md, which
@@ -184,7 +188,7 @@ def route(task_description: str) -> str:
         if hints
         else "No keyword hints matched — apply the playbook's principles directly."
     )
-    playbook = get_playbook("routing")
+    playbook = _read_playbook("routing")
     return (
         f"{hint_text}\n\n"
         "Apply the routing playbook below (principles beat keywords; "

@@ -71,6 +71,8 @@ This is the mechanism behind ROUTING.md's downshift principle: frontier judgment
 ## Per-environment notes
 
 - **Claude Code (frontier)**: `/handoff` skill writes it; the resume protocol is in the same skill.
-- **Claude Code (local models)**: the `quality` skill's scratch-ledger feeds the brief. Tell the model explicitly: "write the handoff per HANDOFF.md before ending".
-- **Antigravity**: the always-on rule tells the agent to check for `HANDOFF.md` at task start and offer to resume; the `/handoff` workflow writes one.
-- **Anything else**: paste the template; it's plain markdown by design.
+- **Claude Code (local models)**: the `quality` skill's scratch-ledger feeds the brief; the global-local CLAUDE.md rules require writing it when stuck or stopping mid-task.
+- **Antigravity**: the always-on baseline rule honors an existing `HANDOFF.md`; the `/handoff` workflow writes one.
+- **Gemini CLI**: the `/handoff` command (ports/gemini) writes or resumes one.
+- **Cursor**: the always-on baseline rule (ports/cursor) honors and updates it.
+- **AGENTS.md tools / anything else**: the Session continuity section of the AGENTS.md port covers it — or paste the template; it's plain markdown by design.

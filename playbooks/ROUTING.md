@@ -56,7 +56,7 @@ A truthful "stuck, here's the state" from a cheap model costs cents; a confident
 
 - **Architect–executor split.** Frontier model produces spec + breakdown + handoff; cheap models execute task cards; frontier reviews the assembled result once (`deep-review`). This is the highest-leverage pattern in the playbook — it converts frontier judgment into artifacts cheap models can follow.
 - **Supervisor.** Local model works free under `skills-local/quality`; a paid model periodically runs `deep-review` on the accumulated diff. Cadence by stakes: every task card for production code, every session for tooling.
-- **Fresh-context verifier.** Before shipping up-tier work, a *separate* cheap-model session (or `verifier` subagent) runs `prove` against the ledger. Fresh eyes at Haiku prices catch what the author's context can't see.
+- **Fresh-context verifier.** Before shipping up-tier work, a *separate* cheap-model session (or the `verifier` subagent) runs `prove` against the ledger. Fresh eyes at a cheaper tier catch what the author's context can't see — Sonnet by default; Haiku suffices when the DoD is fully specified.
 - **Subagent economics.** In Claude Code, subagents can run cheaper models (`model:` in the agent definition). Delegate mechanical legwork down; keep synthesis in the main thread. Note: a subagent starts cold — the task description must carry the context (mini-handoff).
 - **Batch the batchable.** Non-interactive bulk work (classification, extraction over many files) through the Batches API is 50% off; overnight is fine for non-blocking work.
 
