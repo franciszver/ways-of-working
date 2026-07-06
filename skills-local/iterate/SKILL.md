@@ -1,11 +1,11 @@
 ---
-name: loop
-description: Explicit critique-and-revise quality loop, run on demand. Re-reads the actual files from disk, attacks them as a hostile reviewer, fixes what it finds, verifies, and repeats until acceptance criteria pass or the round budget is spent. Invoked by the user as /loop [rounds] [focus].
+name: iterate
+description: Explicit critique-and-revise quality loop, run on demand. Re-reads the actual files from disk, attacks them as a hostile reviewer, fixes what it finds, verifies, and repeats until acceptance criteria pass or the round budget is spent. Invoked by the user as /iterate [rounds] [focus].
 disable-model-invocation: true
 argument-hint: "[rounds] [focus, e.g. 'error handling']"
 ---
 
-# /loop — iterate until it is actually good
+# /iterate — loop until it is actually good
 
 Arguments: "$ARGUMENTS"
 

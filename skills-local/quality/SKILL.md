@@ -67,4 +67,4 @@ Escalate in order instead of looping: (1) re-read the exact error text, (2) buil
 
 ## Related
 
-If the user runs `/loop`, follow the `loop` skill: it re-runs the Phase 4 loop with a user-specified round budget and focus area.
+If the user runs `/iterate`, follow the `iterate` skill: it re-runs the Phase 4 loop with a user-specified round budget and focus area.
