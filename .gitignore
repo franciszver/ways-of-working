@@ -1,0 +1,7 @@
+# Python (mcp-server)
+__pycache__/
+*.pyc
+.venv/
+
+# OS noise
+.DS_Store
