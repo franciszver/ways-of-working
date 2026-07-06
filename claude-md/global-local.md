@@ -1,7 +1,9 @@
-<!-- Append this block to ~/.claude/CLAUDE.md (global) or a project's CLAUDE.md.
-     CLAUDE.md is loaded unconditionally at session start, so these rules apply even
-     if the model fails to auto-invoke the `quality` skill — a known weakness of
-     smaller local models. Keep this block short; it is read on every session. -->
+<!-- Append this block to ~/.claude/CLAUDE.md on machines running LOCAL models via
+     claude-code-router. CLAUDE.md is loaded unconditionally at session start, so these
+     rules apply even if the model fails to auto-invoke the `quality` skill — a known
+     weakness of smaller local models. Keep this block short; it is read on every
+     session. Frontier-model machines use global-frontier.md instead (opposite token
+     economics — never install both). -->
 
 ## Quality rules (always apply)
 
@@ -14,3 +16,5 @@
 - The same command failing the same way twice means your hypothesis is wrong: stop, re-read the full error, re-plan. Never retry the same fix a third time.
 - Before saying "done": confirm the check actually ran and passed (quote the output line), list where each part of the request was handled, disclose anything unverified or untested, and remove unrelated edits and debug prints.
 - Report with no filler. Lead with what changed and why. Use the phrases "I verified …" and "I did not verify …".
+- If truly stuck after two failed approaches, or ending a session mid-task: write `HANDOFF.md` (goal, numbered requirements with status, exact next step, decisions, gotchas, verbatim commands) and say you are stopping. A truthful "stuck" is a good outcome; a guess presented as done is not.
+- If `HANDOFF.md` exists when you start, read it first and verify its two cheapest claims before building on it.

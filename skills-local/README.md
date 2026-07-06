@@ -16,6 +16,12 @@ iterate/SKILL.md        /iterate [rounds] [focus] — manual extra critique-and-
                         rounds when you want to push harder on something specific.
                         User-invoked only (disable-model-invocation), so the model
                         can never recurse into it on its own.
+debug/SKILL.md          Reproduce → read the error → localize → one hypothesis at a
+                        time (max 3 rounds, hard revert rules) → fix cause → prove.
+deep-review/SKILL.md    Adversarial review: minimum-candidates rule, verify every
+                        finding against disk, severity-ranked report format.
+prove/SKILL.md          Gate before "done": strongest check per claim, verbatim
+                        quotes, edge hunt, regression pass, I-verified verdict.
 ```
 
 The compact always-on rules for CLAUDE.md live at [`../claude-md/global-local.md`](../claude-md/global-local.md) — install them too (see "Why the snippet" below).
@@ -24,7 +30,7 @@ The compact always-on rules for CLAUDE.md live at [`../claude-md/global-local.md
 
 ```bash
 mkdir -p ~/.claude/skills
-cp -r quality iterate ~/.claude/skills/
+cp -r quality iterate debug deep-review prove ~/.claude/skills/
 
 # strongly recommended:
 cat ../claude-md/global-local.md >> ~/.claude/CLAUDE.md
