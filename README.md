@@ -84,6 +84,48 @@ One profile per setup — the packs share skill names by design (same muscle mem
 
 Full catalog and composition map: [`skills/README.md`](skills/README.md).
 
+## How to Use & Maximize the Library
+
+To get the most out of this library, follow these standard operation models for typical development workflows.
+
+### 1. How to Invoke Skills in Your Tool
+* **Claude Code**: Type `/name` (e.g., `/debug`, `/prove`) or simply refer to the skill's name and intent in your prompt.
+* **Antigravity CLI**: Call workflows as slash commands directly in the terminal (e.g. `/sec-audit`, `/perf`, `/api-design`). Baseline rules are always active in `.agent/rules/baseline.md`.
+* **Cursor**: The `.mdc` rules in `.cursor/rules/` are loaded contextually based on their triggers (or applied manually).
+* **Gemini CLI**: Run customized TOML commands (e.g., `/spec "design a user system"`, `/debug "compilation error"`, `/prove`).
+* **MCP Agents**: Call `list_skills` to discover skills and `get_skill` to inject a skill's full text directly into your context, or call `route` for prompt-based direction.
+
+### 2. Recommended Skill Chains (Workflows)
+
+* **Feature Implementation (The Full Pipeline)**:
+  1. Capture requirements with `spec` to build a clean ledger and eliminate fuzzy goals.
+  2. Map out tradeoffs and define one-way doors with `architect`.
+  3. Decompose the plan into clear task cards with `breakdown`.
+  4. Implement the feature.
+  5. Run `prove` to assert evidence-based verification before declaring completion.
+* **Hypothesis-Driven Debugging**:
+  1. Run `debug` to diagnose failures, construct a localized hypothesis, and implement a focused fix.
+  2. Gate the fix with `prove` to verify it against the original problem and watch for regressions.
+  3. Sweep the clean diff with `declutter` to remove leftover prints, commented-out logic, and minor clutter.
+* **Pre-flight & Shipping Review**:
+  1. Run `sec-audit` on the diff to check for high-confidence security vulnerabilities.
+  2. Perform a general adversarial pass with `deep-review` to locate logical bugs.
+  3. Clean up formatting and dead weight with `declutter`.
+
+### 3. The Architect-Executor Split (Multi-Model Pattern)
+This is the highest-leverage pattern in the library for saving API costs:
+1. **Frontier Model (e.g., Opus/Sonnet)**: Draft the `spec`, write the `architect` design, and compile the `breakdown` cards.
+2. **Handoff**: Write a `HANDOFF.md` brief specifying the context, ledger, and next actions.
+3. **Cheap Executor (e.g., Haiku or Local Model)**: Load `skills-local/quality` and execute individual `breakdown` task cards one at a time.
+4. **Frontier Model (e.g., Sonnet)**: Spin up a fresh session to review the accumulated diffs using `deep-review` or `prove` before merging.
+
+### 4. Continuity and ESCALATION Protocol
+Keep sessions token-lean. As context windows grow, LLM instruction-following degrades:
+* Avoid running massive single sessions. If a task spans multiple hours or shifts models, use the `handoff` skill to serialize the workspace state into a `HANDOFF.md` file.
+* If a cheap model or executor fails to resolve a debugging problem after **3 hypothesis-driven loops** (`debug`), escalate the task up-tier. Pass the `HANDOFF.md` explaining what was tried to avoid repeating failed paths.
+
+---
+
 ## Design principles
 
 - **Token-cost asymmetry.** Paid models get the lean discipline (cut narration, surgical reads); free local models get the opposite ("token usage is not a concern" — mandatory self-review loops). Same goals, opposite budgets. This is why profiles exist and why installing both on one setup is wrong.
