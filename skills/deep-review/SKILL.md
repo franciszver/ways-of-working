@@ -9,7 +9,9 @@ A review's value is real defects found minus false alarms raised. An unverified 
 
 ## 1. Scope and stakes
 
-Review the *change*, not the codebase: diff first, then read enough surrounding code (callers, callees, the contract of the modified functions) to judge the change in context. Set depth by stakes — auth, payments, data migration, and concurrency get the full hunt; a README fix gets a proportional glance.
+Review the *change*, not the codebase. Default scope when none is given: the branch's commits ahead of its upstream **plus** uncommitted changes in the working tree — that is "the work being shipped". An explicit target (files, PR, branch, ref range) overrides it. Diff first, then read enough surrounding code (callers, callees, the contract of the modified functions) to judge the change in context. Set depth by stakes — auth, payments, data migration, and concurrency get the full hunt; a README fix gets a proportional glance.
+
+If the repo has a `REVIEW.md` (or review guidance in `CLAUDE.md`), read it first and let it recalibrate severity, skip-paths, and repo-specific checks — the repo's definition of "Important" outranks the defaults below.
 
 ## 2. Understand before attacking
 
@@ -47,7 +49,7 @@ SEVERITY [CONFIRMED|PLAUSIBLE] path:line — defect — failure scenario — sug
 - **MAJOR** — real failure under realistic-but-less-common conditions; correctness debt that will bite.
 - **MINOR** — works, but fragile, misleading, or needlessly expensive.
 
-Most severe first. Cap at ~10 findings — beyond that, signal drowns; pick the ones that matter and say "further minor issues omitted". Separate "must fix before merge" from "consider". Style feedback gets at most one line total ("consider running the linter — naming and spacing are inconsistent") unless the style issue *hides a bug*.
+A verified bug that the diff did **not** introduce gets reported too — appended `(PRE-EXISTING)` and listed after the diff's own findings, so the author isn't blamed for it and it isn't lost. Most severe first. Cap at ~10 findings — beyond that, signal drowns; pick the ones that matter and say "further minor issues omitted". Separate "must fix before merge" from "consider". Style feedback gets at most one line total ("consider running the linter — naming and spacing are inconsistent") unless the style issue *hides a bug*.
 
 If something is done well and load-bearing — a subtle lock order, a deliberate off-spec behavior — say so in one line, so a later editor doesn't "fix" it.
 
@@ -63,4 +65,4 @@ Zero findings on a nontrivial change usually means a shallow pass, not clean cod
 - Tests passing is evidence, not proof — tests only cover what someone thought to test. Say what the tests *don't* cover when it matters.
 - Self-review counts only after a context break — attack your own work as if a stranger wrote it, from the files on disk.
 
-After fixes land, run `prove` on the fixed state; for independent fresh-context review, use the `code-reviewer` subagent.
+After fixes land, run `prove` on the fixed state; for independent fresh-context review, use the `code-reviewer` subagent. Cleanup opportunities the hunt turns up (duplication, dead code, needless indirection) are one summary line here, not findings — the apply-fixes sweep for those is `declutter`.
