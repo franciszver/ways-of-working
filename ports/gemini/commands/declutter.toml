@@ -1,0 +1,11 @@
+description = "Cleanup-only pass applying behavior-preserving simplifications to a diff — no bug fixes, no redesign"
+
+prompt = """Declutter: {{args}}
+(If no argument was given, sweep the branch's commits ahead of upstream plus uncommitted changes.)
+
+1. NET FIRST: run the tests, record the result. Red → stop and say so. No coverage over the diff → only zero-risk subtractions (dead code, unused imports, debug leftovers).
+2. SCOPE: the diff only — cleaning untouched code turns a reviewable diff into archaeology; note pre-existing clutter separately.
+3. SWEEP in value order: duplication of what already exists (SEARCH before believing new code is new — folding into an existing helper is the top move) · dead weight (unreachable branches, unused vars/imports, commented-out code, debug prints, done TODOs) · speculative abstraction (one-implementation interfaces, never-varying config, forwarding layers) · needless indirection (nothing-wrappers, assign-once-use-once, classes that should be functions) · simpler equivalents (guard clauses, stdlib idioms, the boring two lines over the clever one) · free inefficiency fixes (hoist from loop, list→set) only when also cleaner.
+4. STAY IN YOUR LANE: apply each change, run affected tests as you go. Found a bug → do NOT fix here; report it ("SEVERITY [CONFIRMED|PLAUSIBLE] path:line — defect — trigger — fix") — behavior changes hidden in cleanup diffs are the dangerous kind. Don't touch public API surface, commented workarounds, performance-shaped code; unsure → check callers/history, else leave and note.
+5. PROVE: full suite after equals before (quote both). Report removals by category · net line delta · bugs noticed-not-fixed · deliberately left. Nothing found → state what was checked.
+6. Never: behavior changes "while here", golfing, restyling against the file's idiom, trusting "obviously equivalent" without the test run."""

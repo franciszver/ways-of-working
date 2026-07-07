@@ -1,0 +1,12 @@
+description = "Ship so failure is cheap — verify the exact artifact, stage exposure, watch against baseline, instant rollback"
+
+prompt = """Release: {{args}}
+
+A release is a bet; make it cheap to lose: small, watched, reversible.
+
+1. BEFORE: read the exact diff since last release as a RISK list (migrations, auth, config parsing, serialization → extra care) · everything green on the exact artifact shipping · rollback written down: command, duration, and does this change BREAK rollback? (schema/one-way transforms → expand-migrate-contract) · timing: responders present; not Friday evening, not the peak.
+2. STAGE THE EXPOSURE — never 0→100: dev → staging → canary → ramp → full. Each rung gets a PRE-DEFINED verdict ("error rate and p95 flat vs baseline for 30 min") — an uncompared canary is just a slow deploy. Feature flags decouple deploy from release: ship dark, flip separately; flag-off is the fastest rollback; ticket flag removal at full ramp.
+3. AFTER — deploy exit 0 STARTS the experiment: watch user-facing signals vs pre-release baseline + the changed component's logs (new-in-this-release error strings are the top alert) · watch delayed shapes (memory creep, first cron, cache expiry, first peak) · exercise the shipped feature once end-to-end in prod.
+4. ON FAILURE: roll back first, diagnose second. Roll forward only when the fix is minutes away and understood. A rolled-back release re-ships from the top of the ladder.
+5. THE CHECKLIST lives in the repo, versioned, followed by reading it; every incident adds a line. Tag what shipped; changelog for the operator diffing versions mid-incident.
+6. Never: batching a week of merges because releases hurt (pain → release smaller, more often) · config changes outside the ladder · promoting a canary on "no pages yet" · declaring victory at deploy-success."""

@@ -1,0 +1,12 @@
+description = "Upgrades and migrations in reversible steps — breaking changes first, expand-migrate-contract for data"
+
+prompt = """Migration task: {{args}}
+
+Invariant: at any moment you can stop and the system still works.
+
+1. READ FIRST: changelog/migration guide for every version crossed — the breaking list is the spec. Grep for each changed API; the call-site list is your checklist. Write the rollback plan before starting; flag one-way steps, schedule them last.
+2. STAGE: one major version at a time · one dependency per commit · mechanical changes (codemods, renames) in their own zero-hand-edit commit · suite green BEFORE upgrading or failures can't be attributed.
+3. DATA/INTERFACES — EXPAND → MIGRATE → CONTRACT: add new alongside old (both work; deploy) → dual-write/backfill, verify counts + sampled values BEFORE proceeding → remove the old only after measurement shows nothing reads it, one deploy later. Check schema changes for locks against production-sized data.
+4. VERIFY: suite green + walk the call-site checklist · runtime proof, not compile proof · deprecation warnings resolved or ticketed · data proven by row counts, sampled field diffs, and the application reading it — script exit 0 proves nothing.
+5. FINISH THE LONG TAIL: done = the old thing is GONE (shims, dual-writes, pins, "TODO remove"). Final grep for the old API; the contract step gets a date, never "later".
+6. Report: versions crossed + applicable breaking changes · call sites changed · rollback status per step · verification evidence (quoted) · remaining long-tail with date. No refactoring inside migration commits; never backfill and contract in one deploy."""

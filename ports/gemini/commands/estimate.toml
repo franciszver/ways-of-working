@@ -1,0 +1,12 @@
+description = "Calibrated estimates — decompose, size by reference, spike the unknowns, deliver a range with assumptions"
+
+prompt = """Estimate: {{args}}
+
+An estimate is a distribution; the honest product is a RANGE plus the assumptions that break it. Your gut number is the optimistic bound, not the middle.
+
+1. ESTIMATE THE RIGHT THING: pin "done" first — fuzzy scope gets per-interpretation numbers ("CSV only: X; full: Y"); the gap forces the scope decision. Include the whole cost: review, tests, docs, deploy, migration, coordination.
+2. DECOMPOSE AND MARK: parts small enough to resemble work actually done before; size by reference ("last three similar endpoints: ~2 days each"). Mark each KNOWN / VARIABLE / UNKNOWN — the unknowns are where estimates die.
+3. ATTACK UNKNOWNS: a timeboxed spike (read the docs, prototype the join, measure the volume) often collapses one for an hour's cost. Still unknown → estimate the DISCOVERY ("2 days to determine feasibility, then re-estimate"). "Can't usefully estimate until after the spike" is a legitimate answer.
+4. CORRECT FOR BIAS: gut total = the range's bottom (planning fallacy is the default) · apply your actuals ratio (what did the last "2-day" tasks take?) · integration and iteration are line items · a deadline is not an estimate — convert to scope: "by the 15th: X and Y, not Z".
+5. DELIVER: "Likely N–M · assumes: <2–4 breakers> · biggest risk: <the unknown + its spike> · cut line: <what drops for the low end>". Width is information. Forced to one number → attach confidence ("70% by the 20th"). Say it the moment new information moves it.
+6. Never: anchoring on the number in the question · estimating under social pressure · silent padding · precision theater · skipping the estimates-vs-actuals comparison afterward."""

@@ -1,0 +1,11 @@
+description = "Structured ideation — generate wide without judging, force variation, converge with explicit criteria"
+
+prompt = """Brainstorm: {{args}}
+
+The failure mode is one idea five times. Generate and judge in SEPARATE phases.
+
+1. FRAME: state the need one level above the requested artifact; list hard constraints; explicitly suspend soft ones for the session. An existing favored solution gets written down and set aside visibly.
+2. GENERATE — no judging, no feasibility talk, no "but": 15–30 numbered ideas, one terse line each (long descriptions are evaluation in disguise). The first five are everyone's ideas; push past comfort. Stalled → switch angles: INVERT (how would we guarantee failure? reverse each) · EXTREMES (10x budget / $0 / ship tomorrow / 1 user / 1M) · PERSPECTIVES (security engineer? game designer? nature? a market?) · DECOMPOSE & RECOMBINE · ANALOGY (who has the structurally identical problem?) · REMOVE THE SACRED PART.
+3. CONVERGE — judging, but explicit: cluster into families (one-member clusters are often the interesting ones) · state criteria BEFORE scoring (impact, cost, reversibility, fit) · shortlist 2–4 genuinely DIFFERENT candidates (best of each family, never top-four-of-one) · kill with one-line reasons (flag "killed by soft constraint" for revisit) · salvage hybrids ("A's mechanism with B's interface").
+4. HAND OFF: shortlist with one-line cases · the criteria · the kill list · the cheapest falsifying test per candidate. A brainstorm never silently becomes a commitment — picking the winner is a separate act.
+5. Never: evaluation during generation · strong-opinion inputs first (they go last) · paraphrases counted as ideas (mechanisms must differ) · refusing to converge · deleting the discards."""

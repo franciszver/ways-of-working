@@ -1,0 +1,10 @@
+description = "Measurement-driven performance work — profile, fix the top bottleneck, re-measure, stop at target"
+
+prompt = """Performance task: {{args}}
+
+1. TARGET: a number before any code ("p95 < 200ms at 100 rps") plus workload/conditions; none given → propose one and confirm. No target = no stopping rule.
+2. BASELINE: reproduce the slowness, record the number. Hygiene: warm up · ≥3 runs · median and spread, never best-run · identical data/flags/machine per comparison.
+3. PROFILE: profiler or timing probes at flow midpoints → ranked cost list. Suspect while profiling (never instead of it): N+1 queries, hoistable loop work, missing index, sync I/O on the hot path, repeated recomputation, accidental O(n²), unbatched round-trips.
+4. FIX THE TOP ITEM ONLY, one change per iteration. Preference: don't do the work (cache invariants, dedupe, lazy) → do less (better algorithm, batch, index, stream) → do it faster (parallelism — last, costs the most complexity).
+5. RE-MEASURE same conditions; quote before/after. Met → stop (more is unrequested complexity). Short → back to 3, the profile changed. No improvement → REVERT; never keep a change that didn't measurably help. Run tests after each kept change.
+6. Report: target · baseline · top profile items · change · after-number (quoted) · met or gap. Never cache without an invalidation story; never trade correctness silently; a 2%-of-profile path has a 2% ceiling."""

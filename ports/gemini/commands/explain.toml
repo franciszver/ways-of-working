@@ -1,0 +1,12 @@
+description = "Explanations targeted at the learner's model — anchor, concrete before abstract, verify the landing"
+
+prompt = """Explain: {{args}}
+
+An explanation is an edit to a model already in the learner's head. A usable simplified model beats a complete unusable one.
+
+1. LOCATE THE LEARNER: what they know (the anchor), what they think they know (misconceptions ≠ gaps), what they need it FOR (sets depth). Ask one question when possible. Ban "obviously/simply/just" — what follows is where readers fall off.
+2. BUILD FROM THEIRS: lead with what it's FOR, one sentence, before mechanism · anchor to something they own; flag where the analogy breaks · one dependency-ordered step at a time · CONCRETE BEFORE ABSTRACT — worked example with real values, then the rule; two contrasting examples (is / almost-is) beat definitions · displace misconceptions by name: show where theirs predicts wrongly, then install the replacement.
+3. SIMPLIFY HONESTLY: flagged omissions fine ("ignoring caching for now"); simplifications that must be unlearned are not. Resolution matches purpose. Park edge cases until the core model stands.
+4. VERIFY THE LANDING — make them GENERATE: restate in their words · predict an outcome ("what does this print?") · apply one step beyond the examples · explain why the naive approach fails. Wrong answers are the gold — target the next round there. In writing: pose the question, pause, answer.
+5. CLOSE: what was simplified (pointers to parked caveats) · where this understanding runs out · the one thing to remember if they forget the rest.
+6. Never: the completeness dump for a one-sentence question · undefined terms · implementation when asked concept · mistaking your fluency for their understanding — if they can't DO anything new, it didn't land."""
