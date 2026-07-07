@@ -1,0 +1,12 @@
+---
+description: Apply when writing a postmortem or retrospective after an incident, outage, data loss, or near-miss
+globs:
+alwaysApply: false
+---
+
+- The test of the document: would its action items, had they existed before, have prevented the incident or materially shortened it?
+- Timeline first, facts only: timestamped observable events — no causes, no "mistakenly" yet. Measure the gaps (impact-start → detection → mitigation → resolution); a 4-hour detection gap usually outranks the bug.
+- Blameless as method, not courtesy: people as roles ("the on-call") — they acted on what the system gave them and the next person gets the same. "Human error" as a conclusion means the analysis stopped early: ask what made the error easy (misleading dashboard, twin configs, alert fatigue, missing runbook). "Be more careful" is not an action item.
+- Causes are plural: several defenses failed together (bug existed AND review missed AND tests didn't cover AND canary didn't catch AND alert didn't fire) — each failed defense is a candidate fix, usually cheaper than eliminating the bug class. Separate trigger from conditions; list what went well.
+- Action items bind: specific (a system change, not vigilance) · owned by a name · dated · connected to the gap they close. Bug-class fixes beat this-bug fixes; three funded items beat twelve aspirational; schedule the follow-up check.
+- Document shape: Summary · Impact (user terms, measured) · Timeline (gaps called out) · Causes · What went well · Action items (owner/date/gap) · Appendix. Quote exact error messages for the future searcher; circulate the draft before the meeting; near-misses get postmortems too.

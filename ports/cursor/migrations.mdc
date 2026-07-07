@@ -1,0 +1,12 @@
+---
+description: Apply when upgrading dependencies/frameworks or running schema and data migrations
+globs:
+alwaysApply: false
+---
+
+- The invariant: at any moment you can stop and the system still works. Write the rollback plan before starting; flag one-way steps and schedule them last.
+- Read the changelog/migration guide for every version crossed — the breaking-changes list is the spec. Grep for each changed API; the call-site list is the verification checklist.
+- One major version at a time; one dependency per commit (a 40-package lockfile diff is unbisectable); mechanical changes (codemods, renames) in their own zero-hand-edit commit; suite green BEFORE upgrading or failures can't be attributed.
+- Persisted state and public interfaces: expand → migrate → contract. Add the new alongside the old (deploy); dual-write/backfill and verify counts + sampled values before proceeding; remove the old only after measurement shows nothing reads it, one deploy later. Never backfill and contract in the same deploy. Check schema changes for locks against production-sized data.
+- Verify at runtime, not just compile: walk the call-site checklist, resolve or ticket deprecation warnings, prove data by row counts + sampled diffs + the application reading it — script exit 0 proves nothing.
+- Done = the old thing is gone (shims, dual-writes, pins, "TODO remove") — final grep, and the contract step gets a date, never "later". No refactoring inside migration commits.

@@ -20,12 +20,18 @@ Global rules are managed through Antigravity's settings UI ("Manage Rules") — 
 
 ```
 rules/
-  baseline.md      trigger: always_on — the quality floor: verify-before-done,
-                   read-before-edit, hypothesis debugging, honest reporting
-  debugging.md     trigger: model_decision — full debug protocol, loads when a failure is being investigated
-  reviewing.md     trigger: model_decision — verified-findings review protocol
-  testing.md       trigger: model_decision — bug-hunting test design
-workflows/         slash-invoked: /spec /architect /breakdown /debug /deep-review /prove /handoff
+  baseline.md        trigger: always_on — the quality floor: verify-before-done,
+                     read-before-edit, hypothesis debugging, honest reporting
+  debugging.md       trigger: model_decision — full debug protocol, loads when a failure is being investigated
+  reviewing.md       trigger: model_decision — verified-findings review protocol
+  security.md        trigger: model_decision — high-confidence-only vuln reporting, loads for security-sensitive code
+  testing.md         trigger: model_decision — bug-hunting test design
+workflows/           slash-invoked: 24 commands
+  Core:    /spec /architect /breakdown /debug /deep-review /prove /handoff
+  SE gaps: /sec-audit /perf /ci-triage /migrate /api-design /declutter
+  Ops:     /incident /postmortem /release
+  Nav:     /onboard /estimate /pr-workflow
+  Other:   /data-analysis /brainstorm /explain /prompt-eng /research-codebase
 ```
 
 ## Design notes

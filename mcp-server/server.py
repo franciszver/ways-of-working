@@ -34,11 +34,16 @@ PLAYBOOK_DIR = LIBRARY_ROOT / "playbooks"
 mcp = FastMCP(
     "fable-quality",
     instructions=(
-        "Quality-process library: judgment-dense skills (debug, deep-review, prove, "
-        "spec, architect, breakdown, refactor, testgen, research, write, handoff, "
-        "lean-max-effort), model-routing and handoff playbooks. Call list_skills to "
-        "see the catalog; get_skill/get_playbook to load one; route for "
-        "model-selection guidance. Prompts named after skills inject the skill text "
+        "Quality-process library: 29 judgment-dense skills covering software engineering, "
+        "ops/incidents, codebase navigation, and non-engineering work. "
+        "Core: debug, deep-review, prove, spec, architect, breakdown, refactor, testgen, research, write, handoff, lean-max-effort. "
+        "SE gaps: sec-audit, perf, ci-triage, migrate, api-design, declutter. "
+        "Ops: incident, postmortem, release. "
+        "Navigation: onboard, estimate, pr-workflow. "
+        "Non-engineering: data-analysis, brainstorm, explain, prompt-eng, research-codebase. "
+        "Also: model-routing and handoff playbooks. "
+        "Call list_skills to see the full catalog; get_skill/get_playbook to load one; "
+        "route for model-selection guidance. Prompts named after skills inject the skill text "
         "plus your task."
     ),
 )
@@ -162,7 +167,63 @@ _ROUTE_HINTS: list[tuple[str, str]] = [
         # "auth" variants deliberately exclude author/authoring
         r"\b(security|payment|billing|secret)\w*\b"
         r"|\bauth(n|z|entication|orization|enticate|orize[sd]?)?\b",
-        "signals high-stakes review → high tier with fresh context",
+        "signals high-stakes review → high tier with fresh context (skill: sec-audit)",
+    ),
+    (
+        r"\b(incident|outage|down|degraded|pager|on.?call|alert)\w*\b",
+        "signals production incident → use incident skill, mitigate before diagnosing",
+    ),
+    (
+        r"\b(postmortem|retrospective|blameless|root.?cause)\w*\b",
+        "signals incident retrospective → postmortem skill",
+    ),
+    (
+        r"\b(deploy|release|rollout|canary|feature.?flag|publish)\w*\b",
+        "signals release work → release skill, verify + stage + watch",
+    ),
+    (
+        r"\b(onboard|unfamiliar|new.?repo|picking.?up|orient)\w*\b",
+        "signals codebase orientation → onboard skill",
+    ),
+    (
+        r"\b(estimat|how.?long|how.?big|scope|effort|deadline)\w*\b",
+        "signals estimation → estimate skill, deliver a range not a number",
+    ),
+    (
+        r"\b(pull.?request|PR|branch|commit|code.?review.?workflow)\w*\b",
+        "signals PR prep/review work → pr-workflow skill",
+    ),
+    (
+        r"\b(optim|slow|latency|throughput|memory.?leak|profile|bottleneck)\w*\b",
+        "signals performance work → perf skill, profile before touching code",
+    ),
+    (
+        r"\b(CI|pipeline|build.?red|build.?fail|flak)\w*\b",
+        "signals broken build → ci-triage skill",
+    ),
+    (
+        r"\b(upgrad|migrat|deprecat|breaking.?change|data.?migration|schema.?change)\w*\b",
+        "signals migration/upgrade work → migrate skill",
+    ),
+    (
+        r"\b(simplif|clean.?up|declutter|dead.?code|unused|remove.?boilerplate)\w*\b",
+        "signals cleanup pass → declutter skill (behavior-preserving only)",
+    ),
+    (
+        r"\b(dataset|metric|dashboard|experiment|A/B|analyze.?data|SQL.?query)\w*\b",
+        "signals data analysis work → data-analysis skill",
+    ),
+    (
+        r"\b(brainstorm|ideation|options|alternative|stuck|generate.?ideas?)\w*\b",
+        "signals ideation → brainstorm skill, generate wide before judging",
+    ),
+    (
+        r"\b(prompt.?engineer|system.?prompt|LLM.?feature|eval.?set)\w*\b",
+        "signals prompt engineering → prompt-eng skill",
+    ),
+    (
+        r"\b(how.?does.+work|where.+live|research.+codebase|document.+behavior)\w*\b",
+        "signals codebase research → research-codebase skill, documentarian stance",
     ),
     (
         r"\b(rename|boilerplate|scaffold|convert|reformat|bulk|batch)\w*\b",

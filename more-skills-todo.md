@@ -36,12 +36,12 @@ Plus the `deep-review` fold (already done): default scope = commits ahead of ups
 - [x] **Batch A** — 6 SE-gap canonical skills + deep-review fold, propagated to all 5 compression surfaces (local/antigravity/gemini/cursor/AGENTS.md). Commit `a782f20`.
 - [x] **Batch B** — 6 ops+navigation canonical skills. Commit `3ab523c`.
 - [x] **Batch C** — 5 non-eng + research-codebase canonical skills. Committed with this doc.
-- [ ] **Batch D** — `skills-local/` compact variants for all 17 (match the imperative, "token usage is not a concern" style of existing local skills; report formats must match canonical).
-- [ ] **Batch E** — Antigravity: 17 workflows in `antigravity/workflows/` (frontmatter: `description:` only); consider a `security.md` rule (`trigger: model_decision`).
-- [ ] **Batch F** — Gemini: 17 TOML commands (`description` + `prompt = """..."""` + `{{args}}`); Cursor: `.mdc` rules covering the new areas (description/globs/alwaysApply frontmatter); AGENTS.md: new sections for the new areas.
-- [ ] **Batch G** — Docs & catalogs: root `README.md` (map counts + skills table), `skills/README.md` (catalog + composition + naming notes for `sec-audit`/`declutter`), `skills-local/README.md`, `ports/README.md`, `antigravity/README.md`, `ports/gemini/README.md`, `mcp-server/server.py` `route()` keyword hints for new skills (mind the pass-11 lesson: regexes must not over-match — verify statically), `PLAN.md` status log, this file's checkboxes.
-- [ ] **Improvement loop** — mechanical suite (frontmatter/name match, links, fences, TOML shape, doubled words, cross-surface drift grep) + full re-reads, scoped to new/touched files, fix+commit per pass, until 3 consecutive clean passes.
-- [ ] Update project memory file after completion.
+- [x] **Batch D** — `skills-local/` compact variants for all 17 (match the imperative, "token usage is not a concern" style of existing local skills; report formats must match canonical).
+- [x] **Batch E** — Antigravity: 17 workflows in `antigravity/workflows/` (frontmatter: `description:` only); `security.md` rule added (`trigger: model_decision`).
+- [x] **Batch F** — Gemini: 17 TOML commands (`description` + `prompt = """..."""` + `{{args}}`); Cursor: `.mdc` rules covering the new areas (description/globs/alwaysApply frontmatter); AGENTS.md: new sections for the new areas.
+- [x] **Batch G** — Docs & catalogs: root `README.md` (map counts + skills table), `skills/README.md` (catalog + composition + naming notes for `sec-audit`/`declutter`), `skills-local/README.md`, `ports/README.md`, `antigravity/README.md`, `ports/gemini/README.md`, `mcp-server/server.py` `route()` keyword hints for new skills, `PLAN.md` status log, this file's checkboxes.
+- [x] **Improvement loop** — mechanical suite (frontmatter/name match, links, fences, TOML shape, doubled words, cross-surface drift grep) + full re-reads, scoped to new/touched files, fix+commit per pass, until 3 consecutive clean passes.
+- [x] Update project memory file after completion.
 
 ## Conventions the new files must follow (learned from the existing loop)
 

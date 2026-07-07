@@ -2,8 +2,9 @@
 
 <!-- Drop this file at the repo root as AGENTS.md. It is the tool-agnostic
      distillation of the fable-quality-library: the quality floor plus compact
-     protocols for the four highest-stakes moments (debugging, testing, review,
-     claiming done). Add your project's commands in the marked section. -->
+     protocols for the highest-stakes moments (debugging, testing, review,
+     claiming done, security, incidents, releases, and more below). Add your
+     project's commands in the marked section. -->
 
 ## Project commands
 
@@ -38,6 +39,70 @@ Default scope: the branch's commits ahead of upstream plus uncommitted changes (
 ## Before claiming done
 
 List every claim (explicit requirements + the silent ones: builds, existing behavior unchanged, the new error path fires). Strongest proof per claim: run the real flow > targeted test > typecheck/lint (never sufficient alone) > labeled static reasoning. Try the 3 most likely edge-breakers. Run pre-existing tests, not just new ones. Diff shows only intended changes. Then the verdict in the exact "I verified / I did not verify" form.
+
+## When touching security-sensitive code
+
+Data from users — including data users wrote that comes back out of the database — is untrusted on every path. Never concatenate it into an interpreter's input (SQL, shell, paths, templates, HTML); use the standard mechanism (parameterized queries, argument arrays, allowlists, framework escaping), never a custom sanitizer. Authorize on every path, not just the front door — object IDs checked against the caller (IDOR), background/admin routes enforcing the same checks. Secrets stay out of code, logs, errors, and URLs; committed means exposed — rotate. No eval/unsafe deserialization of external input. When auditing: report only findings with a concrete exploit scenario ("attacker sends X → unsanitized through Y (file:line) → achieves Z"), same `SEVERITY [CONFIRMED|PLAUSIBLE]` format as review; skip DoS/rate-limiting/hardening-gap/theoretical-race noise unless asked; report first, fix separately.
+
+## When optimizing
+
+Numeric target first ("p95 < 200ms" + conditions), then baseline (warm-up, ≥3 runs, median not best-run), then profile to a ranked cost list — never optimize from how code looks. Fix the top item only, one change per iteration (prefer: don't do the work → do less → do it faster), re-measure identically, quote before/after. Target met → stop; no improvement → revert. No caches without an invalidation story; no silent correctness trades; run the tests after every kept change.
+
+## When CI is red
+
+First failure in the log, not the last; quote the decisive line; list what changed including what CI re-resolves (deps, images, runners). At most one diagnostic rerun (same commit): same failure = deterministic. Classify — code bug (→ debugging protocol) / broken test (prove the code right before fixing the expectation) / flake (quarantine WITH a linked ticket; never sleeps or wider timeouts) / infra (rerun legitimate; recurring → escalate) / drift (pin now, upgrade deliberately). Reproduce locally with the command CI ran. Main red → revert beats fix-forward unless the fix is minutes away. Never debug by pushing guess-commits.
+
+## When upgrading or migrating
+
+Invariant: at any moment you can stop and the system still works. Read every crossed version's breaking changes first; grep the call sites into a checklist; write the rollback plan before starting. One major version at a time; one dependency per commit; codemods in their own zero-hand-edit commit; suite green before upgrading. Persisted data and public interfaces go expand → migrate → contract (verify counts/samples between phases; never backfill and contract in one deploy). Done = the old thing is gone — final grep; the contract step gets a date.
+
+## When designing an interface
+
+Write 5–10 realistic call sites first — including pagination, retries, partial updates; an awkward call is a wrong design, fixed now. Pin the whole contract: inputs, outputs on success and partial success, a branchable error taxonomy, idempotency for every mutation, empty-vs-absent-vs-null decided once. One convention for naming/casing/pagination/errors/timestamps/IDs; platform conventions followed straight. Smallest surface that serves the calls (never removable later); versioning and deprecation decided before v1. Review as a one-way door: replay the calls, write the easiest misuse, make illegal states unrepresentable.
+
+## When simplifying / cleaning up
+
+Cleanup-only, behavior-preserving, tests before and after (quote both) — no bug fixes and no redesign mixed in; a bug found while sweeping gets *reported*, not fixed here. Scope = the current diff; sweep in value order: duplication of what already exists (search first) · dead code, debug leftovers, done TODOs · speculative abstraction · needless indirection · simpler equivalents. Leave alone: public API surface, commented workarounds, performance-shaped code. Fewer characters is not simpler; never restyle against the file's idiom.
+
+## When production is down (incidents)
+
+Mitigate before diagnosing. Assess in two minutes (impact, severity — data corruption outranks downtime, trajectory), keep a timestamped log logging every action *before* taking it, then the default first move: roll back whatever changed — correlation suffices. No candidate change → flag off, fail over, scale, rate-limit, serve degraded. One reversible mitigation at a time, verified against the user-facing symptom. Communicate impact/status/next-update-time on a kept cadence. Irreversible actions get a second ack even mid-incident. Recovered = symptom gone through a full cycle; then ticket follow-ups, preserve evidence, root-cause calmly. Afterward, the postmortem is blameless as a *method*: timeline of facts, plural causes (each failed defense is a candidate fix), action items that are specific/owned/dated — "human error" and "be more careful" mean the analysis stopped early.
+
+## When releasing
+
+Read the diff since last release as a risk list; green on the exact artifact; rollback written down including "does this change break rollback?"; timing with responders present. Stage exposure (canary → ramp → full) with pre-defined promotion verdicts against baseline — an uncompared canary is a slow deploy. Ship dark behind flags where possible; flag-off is the fastest rollback. Deploy exit 0 starts the watch: signals vs baseline, new error strings, delayed shapes (first cron, cache expiry, first peak), one end-to-end exercise in prod. On failure roll back first; a rolled-back release re-ships from the top.
+
+## When estimating
+
+Deliver a range with its levers, never a bare number: `Likely N–M · assumes: <breakers> · biggest risk: <the unknown + the spike that shrinks it> · cut line`. Pin "done" first (fuzzy scope → per-interpretation numbers); decompose to parts resembling work actually done and size by reference; mark known/variable/unknown and spike the unknowns rather than padding them. The gut total is the optimistic bound. Integration and iteration are line items. A deadline converts to scope, never silently into the estimate.
+
+## When the codebase is unfamiliar
+
+Every belief is a hypothesis until verified — the danger is the plausible model built from names. Fix the goal (it sets depth), orient from artifacts (docs as claims; get the tests running immediately; most-touched files are the load-bearing walls), then trace ONE real flow end-to-end reading actual code at each hop. Predict-then-check: wrong predictions fix the sketch. The weird thing is load-bearing until git history says otherwise. First change: small, fully checkable, through the full process.
+
+## When preparing a PR
+
+One concern per PR (refactor-then-behave; mechanical-then-manual; a summary needing "also" is two PRs; ~400 judgment lines max). Commits are the narrative: buildable steps, imperative subject, body = why. Description front-loads the problem, the approach + rejected alternative, and risk & proof with quoted verification. Self-review your own diff as the reviewer before asking anyone. Every review comment answered (fixed / pushback / deferred-with-ticket); no force-push over an in-progress review.
+
+## When analyzing data
+
+Interrogate before computing: provenance, per-column meaning (units, timezone, what null means), quality sweep, row counts before/after every join, missingness structure. Plot before summarizing; segment the headline. Patterns found by exploration are hypotheses — confirm on held-out data, never the data that produced them; observational causality is "associated" plus named confounders. Report effect size with uncertainty and n, the chain of custody, and "what would change this conclusion". Never drop weird points without a stated rule.
+
+## When brainstorming
+
+Generate and judge in separate phases: 15–30 terse numbered ideas with zero evaluation, switching angles when stalled (invert, extremes, other perspectives, decompose-recombine, analogy, remove the sacred part). Then converge explicitly: cluster, state criteria before scoring, shortlist 2–4 genuinely different candidates, kill with one-line reasons, salvage hybrids. Deliver decision-ready with the cheapest falsifying test per candidate; a brainstorm never silently becomes a commitment.
+
+## When explaining
+
+Locate the learner first (what they know, what they mis-know, what they need it for); lead with what it's for; anchor to something they own and flag where the analogy breaks; concrete before abstract — worked example, then rule; displace misconceptions by name. Flagged omissions fine, must-unlearn simplifications not. Verify by making them generate (restate, predict, apply one step beyond); "does that make sense?" measures politeness. Ban "obviously/simply/just".
+
+## When writing prompts (LLM features)
+
+A prompt is a program: spec first (exact format + one perfect literal example + ugly inputs with defined handling), examples spanning the space (models imitate incidental patterns; examples beat instructions), delimited untrusted input, an escape hatch per "always". Build a 10–20 case eval set and re-run ALL of it on every change — single-case verification is a coin flip. Diagnose failures before editing (missing info / ambiguity / conflict / capability ceiling / example drift — the fixes differ; volume never crosses a ceiling). Re-run the set on model swaps.
+
+## When researching how the codebase works
+
+Documentarian stance: describe what IS — no critique, no refactor proposals, no root-causing unless asked. Read user-mentioned files fully first; locate (sweeps), then analyze (trace the actual flow). Every claim carries `file:line`; mark traced vs inferred vs unexamined. Persist as a durable document stamped with the git commit; follow-ups append to it. Live code outranks docs; docs are claims.
 
 ## Session continuity
 

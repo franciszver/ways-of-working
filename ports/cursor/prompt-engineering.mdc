@@ -1,0 +1,12 @@
+---
+description: Apply when writing or debugging prompts, system prompts, agent instructions, or LLM-powered features
+globs:
+alwaysApply: false
+---
+
+- A prompt is a program run by a stochastic interpreter — it gets a spec, tests, and evidence-driven debugging. Iterating on vibes (rewrite, eyeball one output) is the shotgun debugging of prompts.
+- Spec first: the task in one sentence, the exact output format with one literal perfect example, the consumer of the output, and 3–5 representative inputs including the ugly ones (empty, adversarial, off-topic, too long) with correct handling defined.
+- Mechanics that reliably matter: observable behaviors, not quality adjectives · 1–5 input→output examples spanning the space (models imitate incidental patterns too; examples beat instructions when they conflict) · unambiguous delimiting of instructions vs context vs untrusted input · an escape hatch for every "always do X" (unspecified impossible-cases are where hallucination lives) · reasoning before verdict for judgment tasks · cut rules that don't change behavior.
+- Test like code: an eval set of 10–20 cases (every production failure joins permanently), graded against stated criteria (rubrics for anything subjective), the FULL set re-run on every prompt change — the fix for case 7 silently breaks cases 2 and 9. A case passing 3-of-5 runs is a clarity bug, not noise.
+- Debug by diagnosis, the fixes differ: missing info → add context · ambiguous → tighten · conflicting rules → decide the priority yourself · capability ceiling → decompose, worked examples, or a stronger model (rewording and ALL CAPS won't cross it) · example drift → fix the examples. One change per iteration; keep only net-positive.
+- Ship as an artifact: versioned with the code, eval set re-run on model swaps (a model upgrade is a major-version bump), production I/O logged, parse/refusal/length drift monitored. Untrusted text gets delimiter discipline plus an injection test case.

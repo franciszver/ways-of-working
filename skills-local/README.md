@@ -24,13 +24,55 @@ prove/SKILL.md          Gate before "done": strongest check per claim, verbatim
                         quotes, edge hunt, regression pass, I-verified verdict.
 ```
 
+**SE gaps** (compact imperative variants of the canonical skills):
+
+```
+sec-audit/     High-confidence vuln report — trace untrusted flows, exploit scenario mandatory.
+perf/          Profile-first optimization — baseline, ranked cost list, one fix at a time.
+ci-triage/     Red-build triage — first failure, classify, reproduce locally, fix or quarantine.
+migrate/       Reversible upgrades — breaking changes read first, expand→migrate→contract.
+api-design/    Consumer-first interface — sample calls before contract, smallest surface.
+declutter/     Cleanup-only pass — no bug fixes, no redesign, sweep in value order.
+```
+
+**Ops & incidents:**
+
+```
+incident/      Mitigate before diagnosing — smallest reversible action, timestamped log.
+postmortem/    Blameless retrospective — factual timeline, plural causes, owned action items.
+release/       Staged exposure — verify artifact, ramp, watch signals against baseline.
+```
+
+**Codebase navigation:**
+
+```
+onboard/       Orient fast — artifacts → trace one real flow → predict-then-check.
+estimate/      Calibrated ranges — decompose, size by reference, spike unknowns.
+pr-workflow/   Branch-to-merge hygiene — one concern, commits that tell the story.
+```
+
+**Non-engineering:**
+
+```
+data-analysis/    Interrogate before computing; plot before summarizing; report uncertainty.
+brainstorm/       Generate wide without judging; converge with explicit criteria.
+explain/          Anchor to what they know; concrete before abstract; verify the landing.
+prompt-eng/       Spec + examples + eval set; test all cases on every change.
+research-codebase/ Documentarian stance; file:line evidence; durable research doc.
+```
+
 The compact always-on rules for CLAUDE.md live at [`../claude-md/global-local.md`](../claude-md/global-local.md) — install them too (see "Why the snippet" below).
 
 ## Install
 
 ```bash
 mkdir -p ~/.claude/skills
-cp -r quality iterate debug deep-review prove ~/.claude/skills/
+cp -r quality iterate debug deep-review prove \
+   sec-audit perf ci-triage migrate api-design declutter \
+   incident postmortem release \
+   onboard estimate pr-workflow \
+   data-analysis brainstorm explain prompt-eng research-codebase \
+   ~/.claude/skills/
 
 # strongly recommended:
 cat ../claude-md/global-local.md >> ~/.claude/CLAUDE.md

@@ -1,8 +1,10 @@
 # skills/ — canonical skills (source of truth)
 
-Judgment-dense skills tuned for frontier models (Opus, Sonnet) in Claude Code. Each is a directory with a `SKILL.md`; each doubles as a slash command (`/debug`, `/prove`, …). Compact local-model variants of the coding skills live in [`../skills-local/`](../skills-local/) — install one profile per setup, not both.
+Judgment-dense skills tuned for frontier models (Opus, Sonnet) in Claude Code. Each is a directory with a `SKILL.md`; each doubles as a slash command (`/debug`, `/prove`, …). Compact local-model variants live in [`../skills-local/`](../skills-local/) — install one profile per setup, not both.
 
 ## Catalog
+
+### Core process
 
 | Skill | One line | Reach for it when |
 |---|---|---|
@@ -19,9 +21,46 @@ Judgment-dense skills tuned for frontier models (Opus, Sonnet) in Claude Code. E
 | [`write`](write/) | Audience → thesis → outline → draft → one revision pass | Prose is the product |
 | [`handoff`](handoff/) | Continuation brief a cold session can resume from | Context pressure, session end, model downshift |
 
+### SE gaps
+
+| Skill | One line | Reach for it when |
+|---|---|---|
+| [`sec-audit`](sec-audit/) | High-confidence vuln report with concrete exploit scenarios | Security review, before shipping auth/payment/input-handling code |
+| [`perf`](perf/) | Profile-first optimization to a numeric target | Something is slow/expensive; performance budgets |
+| [`ci-triage`](ci-triage/) | Red-build triage — classify, reproduce, fix or quarantine | CI fails, build is red, test is flaky |
+| [`migrate`](migrate/) | Reversible upgrades and migrations, expand→migrate→contract for data | Dependency/framework/language/schema migrations |
+| [`api-design`](api-design/) | Consumer-first interface design, full contract before v1 | Designing or reviewing an API, library surface, CLI, event schema |
+| [`declutter`](declutter/) | Cleanup-only pre-PR pass — no bug fixes, no redesign | Before opening a PR; simplifying AI-written code |
+
+### Ops & incidents
+
+| Skill | One line | Reach for it when |
+|---|---|---|
+| [`incident`](incident/) | Production incident response — mitigate before diagnosing | Production down/degraded, alert firing, users impacted |
+| [`postmortem`](postmortem/) | Blameless retrospective — plural causes, owned action items | After any incident, outage, data loss, or near-miss |
+| [`release`](release/) | Staged-exposure deploys — verify, ramp, watch, rollback-ready | Deploying, releasing, publishing, flipping major flags |
+
+### Codebase navigation
+
+| Skill | One line | Reach for it when |
+|---|---|---|
+| [`onboard`](onboard/) | Fast accurate codebase orientation, one real flow end-to-end | Joining a project or picking up an unfamiliar repo |
+| [`estimate`](estimate/) | Calibrated range estimates with stated uncertainty | Scoping work, negotiating a deadline |
+| [`pr-workflow`](pr-workflow/) | Branch-to-merge hygiene — one concern, commits that tell the story | Creating commits/PRs, responding to review |
+
+### Non-engineering
+
+| Skill | One line | Reach for it when |
+|---|---|---|
+| [`data-analysis`](data-analysis/) | Analysis that survives scrutiny — interrogate before computing | Exploring datasets, answering questions with data, evaluating experiments |
+| [`brainstorm`](brainstorm/) | Structured ideation — generate wide, converge with criteria | Brainstorming, generating options/names, un-sticking a plan |
+| [`explain`](explain/) | Learner-targeted explanations — anchor, concrete before abstract | Teaching concepts, writing tutorials/onboarding docs |
+| [`prompt-eng`](prompt-eng/) | Prompts engineered like software — spec, examples, eval set | Writing/debugging prompts, system prompts, LLM features |
+| [`research-codebase`](research-codebase/) | Documentarian codebase mapping with file:line evidence | "How does X work / where does Y live" — before planning changes |
+
 ## How they compose
 
-`lean-max-effort` is the backbone; the others deepen one of its phases: **Capture** → `spec` · **Plan** → `architect`, `breakdown` · **Execute** → `debug`, `refactor`, `testgen` · **Verify** → `prove`, `deep-review` · **Continuity** → `handoff`, with `research` and `write` covering the non-coding workflows. Skills reference each other by name where the seams are (`debug` ends in `prove`; `breakdown` cards carry `spec`-style criteria).
+`lean-max-effort` is the backbone; the others deepen one of its phases: **Capture** → `spec` · **Plan** → `architect`, `breakdown` · **Execute** → `debug`, `refactor`, `testgen`, `declutter`, `migrate`, `api-design` · **Verify** → `prove`, `deep-review`, `sec-audit`, `perf`, `ci-triage` · **Continuity** → `handoff`, `onboard`, `pr-workflow`, `estimate` · **Non-engineering** → `research`, `research-codebase`, `write`, `data-analysis`, `brainstorm`, `explain`, `prompt-eng` · **Ops** → `incident`, `postmortem`, `release`. Skills cross-reference each other by name (`debug` ends in `prove`; `breakdown` cards carry `spec`-style criteria; `incident` leads to `postmortem`).
 
 ## Install
 
@@ -37,4 +76,4 @@ Or use [`../install.sh`](../install.sh). If `~/.claude/skills/` didn't exist bef
 
 ## Naming notes
 
-`deep-review`, `prove`, and `iterate` (local pack) dodge Claude Code's built-in `/review`, `/verify`, and `/loop` commands. If your Claude Code version has no conflict and you prefer the short names, rename the directory and the frontmatter `name:` together.
+`deep-review`, `prove`, and `iterate` (local pack) dodge Claude Code's built-in `/review`, `/verify`, and `/loop` commands. `sec-audit` dodges `/security-review`; `declutter` dodges `/simplify`. If your Claude Code version has no conflict and you prefer the short names, rename the directory and the frontmatter `name:` together.

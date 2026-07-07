@@ -1,0 +1,12 @@
+---
+description: Apply when something is slow, memory-heavy, or expensive, or when asked to optimize
+globs:
+alwaysApply: false
+---
+
+- No code changes without measurements — intuition about where time goes is usually wrong. Set a numeric target first ("p95 < 200ms" + workload/conditions); no target = no stopping rule.
+- Baseline with hygiene: warm up, ≥3 runs, median and spread (never the best run), identical data/flags/machine for every comparison.
+- Profile to a ranked cost list (profiler, or timing probes at flow midpoints). Suspect while profiling, never instead of it: N+1 queries, hoistable loop work, missing indexes, sync I/O on the hot path, repeated recomputation, accidental O(n²), unbatched round-trips.
+- Fix the top item only, one change per iteration. Preference: don't do the work (cache invariants, dedupe, lazy) → do less work (better algorithm, batch, index, stream) → do the work faster (parallelism — last; it costs the most complexity per unit of speedup).
+- Re-measure identically and quote before/after. Target met → stop. No improvement → revert; a kept non-fix is pure complexity debt. Run the tests after every kept change.
+- Never cache without a profile justifying it and an invalidation story; never trade correctness for speed silently; a path the profile shows at 2% has a 2% ceiling.

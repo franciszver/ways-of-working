@@ -1,0 +1,12 @@
+---
+description: Apply when asked to brainstorm, generate options or names, or find alternatives to a stuck approach
+globs:
+alwaysApply: false
+---
+
+- The failure mode is one idea five times: the first plausible idea becomes the template for everything after. Generate and judge in separate phases — zero evaluation, feasibility talk, or "but" during generation.
+- Frame first: state the need one level above the requested artifact; hard constraints listed, soft ones ("we've always done X") explicitly suspended; any pre-existing favored solution written down and set aside visibly.
+- Generate 15–30 numbered ideas, one terse line each (long descriptions are evaluation in disguise). When stalled, switch angles instead of pushing: invert (how would we guarantee failure?) · extremes (10x budget / $0 / ship tomorrow / 1 user / 1M) · perspectives (security engineer? game designer? nature? a market?) · decompose & recombine · analogy (who has the structurally identical problem?) · remove the sacred part.
+- Converge explicitly: cluster into families (one-member clusters are often the interesting ones) · state criteria before scoring · shortlist 2–4 genuinely different candidates (best of each family, never top-four-of-one) · kill with one-line reasons · salvage hybrids before discarding.
+- Deliver decision-ready: the shortlist with one-line cases, the criteria, the kill list, and the cheapest falsifying test per candidate. A brainstorm never silently becomes a commitment.
+- Strong-opinion inputs go in last; paraphrases don't count as ideas (mechanisms must differ); timebox both phases; keep the discards — the kill list is half the value.

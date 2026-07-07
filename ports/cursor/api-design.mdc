@@ -1,0 +1,12 @@
+---
+description: Apply when designing or reviewing an API, library public surface, CLI, or event schema
+globs:
+alwaysApply: false
+---
+
+- An API is a promise you can't unmake — every quirk becomes load-bearing. Design from the caller's side: write 5–10 realistic call sites first (including pagination loops, retries, partial updates); an awkward call site is a wrong design, fixed now. Then derive the interface.
+- Pin the whole contract per operation: inputs (types, units, ranges, on-invalid) · outputs on success AND partial success · a branchable error taxonomy (machine code + human detail; caller-can-fix / retry / can't-help) · idempotency for every mutation · pagination stability · concurrent-update behavior · empty-vs-absent-vs-null decided once.
+- Consistency beats cleverness: one naming convention, casing, pagination scheme, error shape, timestamp format (ISO 8601 UTC), ID type; platform conventions followed straight. Novelty is a defect unless it pays for itself.
+- Plan evolution before v1: smallest surface that serves the sample calls (add later; never remove; in doubt, leave out) · additive changes require consumers to ignore unknown fields — state it · versioning mechanism and deprecation promise decided now.
+- Review as a one-way door: replay the sample calls against the final design; write the easiest misuse and make illegal states unrepresentable where possible; every error path has a defined shape. Extending an existing API: its conventions win over your preferences.
+- Never: designing outward from the database schema, mode-parameter god endpoints, booleans that will grow a third state, errors as parseable strings or 200-with-error-body.

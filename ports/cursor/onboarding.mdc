@@ -1,0 +1,12 @@
+---
+description: Apply when working in an unfamiliar repo, service, or module for the first time
+globs:
+alwaysApply: false
+---
+
+- Every belief about an unfamiliar codebase is a hypothesis until verified — the danger is the plausible-but-wrong model built from file names and vibes.
+- Fix the goal first; it sets depth: a bug → one flow; a feature → the module's contracts and neighbors; ownership → architecture + operations.
+- Orient breadth-first from the artifacts: README/docs/ADRs as claims to verify (docs rot) · build/run/test entry points — get the tests running immediately for a green baseline · top two directory levels + dependency manifest · git history (most-touched files are the load-bearing walls; recent PRs show the conventions). Label the resulting sketch UNVERIFIED.
+- Trace one real flow end-to-end (entry → dispatch → logic → persistence → response), reading the actual code at each hop, with logging/debugger where reading gets speculative (DI, dynamic dispatch, middleware). One verified vertical slice beats any breadth pass; for a feature, the closest existing sibling is also the template.
+- Predict-then-check: say what a file will contain before opening it; a wrong prediction means fix the sketch. Keep a question ledger instead of chasing every "why"; Chesterton's fence — the weird thing is load-bearing until `git log -p` says otherwise.
+- Never trust names over evidence ("utils/ is trivial", "legacy/ is unused"); no redesign opinions before one traced flow; never "read around" a broken build. First change: small, fully checkable, shipped through the project's full process.
