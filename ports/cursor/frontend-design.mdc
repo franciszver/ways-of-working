@@ -1,0 +1,15 @@
+---
+description: Apply when building or restyling any UI — web app, landing page, dashboard, component library — or when a working interface "looks off"
+globs: *.css,*.scss,*.tsx,*.jsx,*.vue,*.svelte,*.html
+alwaysApply: false
+---
+
+- Bad frontend design is skipped decisions, not missing talent: no design language chosen (framework defaults decide), decoration before hierarchy, never looking at the rendered result.
+- Design language first: pick 2–3 personality adjectives from the product's actual purpose, then derive tokens before any component — type scale (one ratio, ≤2 typefaces), spacing scale (4/8px steps), color system (neutral ramp + one accent), radius/shadow scales. Any hard-coded value off-scale is a design bug.
+- Hierarchy before decoration: one primary action per screen; everything else subordinate. Spend size/weight/color/position in proportion to importance. Squint test — what still pops must be what matters.
+- Typography and spacing carry the design: line length 45–75ch, line-height ~1.5 body / tighter headings, whitespace groups (proximity beats borders), everything grid-aligned. Doubling whitespace is the cheapest upgrade.
+- Color is a system: neutrals do the work, the accent is scarce, contrast ≥ 4.5:1 for text, never meaning by color alone, light and dark themes designed together from the start.
+- Design the real states: empty, loading, error, overflow (47-char name, 0 items, 10,000 items) — not just the happy path. Realistic content, never lorem ipsum.
+- Responsive is layout, not shrinking: content-driven breakpoints, no horizontal body scroll ever, touch targets ≥ 44px, test at 320px and at ultrawide.
+- Escape the default look: avoid the purple-gradient hero, identical rounded 3-card grid, everything centered, emoji icons, shadow soup. Make one deliberate distinctive move; restraint everywhere else.
+- Verify by looking: UI work is unverified until rendered and screenshotted. Resize test, keyboard-tab test (focus visible), squint test, both themes, real-data states. "It works" is not a design verdict.

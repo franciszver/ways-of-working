@@ -30,6 +30,7 @@ Judgment-dense skills tuned for frontier models (Opus, Sonnet) in Claude Code. E
 | [`ci-triage`](ci-triage/) | Red-build triage — classify, reproduce, fix or quarantine | CI fails, build is red, test is flaky |
 | [`migrate`](migrate/) | Reversible upgrades and migrations, expand→migrate→contract for data | Dependency/framework/language/schema migrations |
 | [`api-design`](api-design/) | Consumer-first interface design, full contract before v1 | Designing or reviewing an API, library surface, CLI, event schema |
+| [`frontend-design`](frontend-design/) | Designed, not defaulted — tokens, hierarchy, real states, verify by looking | Building or restyling any UI, or when it "looks off" |
 | [`declutter`](declutter/) | Cleanup-only pre-PR pass — no bug fixes, no redesign | Before opening a PR; simplifying AI-written code |
 
 ### Ops & incidents
@@ -60,7 +61,7 @@ Judgment-dense skills tuned for frontier models (Opus, Sonnet) in Claude Code. E
 
 ## How they compose
 
-`lean-max-effort` is the backbone; the others deepen one of its phases: **Capture** → `spec` · **Plan** → `architect`, `breakdown` · **Execute** → `debug`, `refactor`, `testgen`, `declutter`, `migrate`, `api-design` · **Verify** → `prove`, `deep-review`, `sec-audit`, `perf`, `ci-triage` · **Continuity** → `handoff`, `onboard`, `pr-workflow`, `estimate` · **Non-engineering** → `research`, `research-codebase`, `write`, `data-analysis`, `brainstorm`, `explain`, `prompt-eng` · **Ops** → `incident`, `postmortem`, `release`. Skills cross-reference each other by name (`debug` ends in `prove`; `breakdown` cards carry `spec`-style criteria; `incident` leads to `postmortem`).
+`lean-max-effort` is the backbone; the others deepen one of its phases: **Capture** → `spec` · **Plan** → `architect`, `breakdown` · **Execute** → `debug`, `refactor`, `testgen`, `declutter`, `migrate`, `api-design`, `frontend-design` · **Verify** → `prove`, `deep-review`, `sec-audit`, `perf`, `ci-triage` · **Continuity** → `handoff`, `onboard`, `pr-workflow`, `estimate` · **Non-engineering** → `research`, `research-codebase`, `write`, `data-analysis`, `brainstorm`, `explain`, `prompt-eng` · **Ops** → `incident`, `postmortem`, `release`. Skills cross-reference each other by name (`debug` ends in `prove`; `breakdown` cards carry `spec`-style criteria; `incident` leads to `postmortem`).
 
 ## Install
 

@@ -46,6 +46,7 @@ mkdir -p <repo>/.gemini/commands && cp commands/*.toml <repo>/.gemini/commands/
 | `/ci-triage` | Red-build triage — classify, reproduce, fix or quarantine |
 | `/migrate [plan]` | Reversible upgrade/migration in expand→migrate→contract steps |
 | `/api-design [spec]` | Consumer-first interface design, full contract before v1 |
+| `/frontend-design [target]` | Designed, not defaulted — tokens, hierarchy, real states, verify by looking |
 | `/declutter [target]` | Cleanup-only pre-PR pass — no bug fixes, no redesign |
 
 **Ops & incidents**

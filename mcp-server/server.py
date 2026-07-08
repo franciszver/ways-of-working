@@ -34,10 +34,10 @@ PLAYBOOK_DIR = LIBRARY_ROOT / "playbooks"
 mcp = FastMCP(
     "fable-quality",
     instructions=(
-        "Quality-process library: 29 judgment-dense skills covering software engineering, "
+        "Quality-process library: 30 judgment-dense skills covering software engineering, "
         "ops/incidents, codebase navigation, and non-engineering work. "
         "Core: debug, deep-review, prove, spec, architect, breakdown, refactor, testgen, research, write, handoff, lean-max-effort. "
-        "SE gaps: sec-audit, perf, ci-triage, migrate, api-design, declutter. "
+        "SE gaps: sec-audit, perf, ci-triage, migrate, api-design, frontend-design, declutter. "
         "Ops: incident, postmortem, release. "
         "Navigation: onboard, estimate, pr-workflow. "
         "Non-engineering: data-analysis, brainstorm, explain, prompt-eng, research-codebase. "
@@ -158,6 +158,10 @@ _ROUTE_HINTS: list[tuple[str, str]] = [
     (
         r"\b(architect|design|schema|data model|api design|migration plan)\b",
         "signals architecture/one-way-door work → highest available tier",
+    ),
+    (
+        r"\b(frontend|ui|ux|css|layout|responsive|component|styling|stylesheet|design.?system|theme|accessib)\w*\b",
+        "signals UI/visual design work → frontend-design skill, commit to tokens before components",
     ),
     (
         r"\b(race|deadlock|heisenbug|flaky|intermittent|concurren)\w*\b",

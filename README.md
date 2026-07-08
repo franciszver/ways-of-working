@@ -7,14 +7,14 @@ The premise: most of the gap between a mediocre run and a frontier run is **proc
 ## Map
 
 ```
-skills/          29 canonical skills — source of truth, tuned for Opus/Sonnet
+skills/          30 canonical skills — source of truth, tuned for Opus/Sonnet
 skills-local/    compact imperative variants for local models (quality, iterate,
                  debug, deep-review, prove, + 17 new skills) — free tokens change the discipline
 agents/          Claude Code subagents: code-reviewer, verifier, researcher, architect
 claude-md/       always-on CLAUDE.md layers: global-frontier, global-local, project template
 playbooks/       ROUTING.md (which model for what) · HANDOFF.md (cross-tool continuity)
 hooks/           Claude Code hooks: guardrails, opt-in test gate, format-on-stop
-antigravity/     .agent/ port: 5 rules + 24 workflows
+antigravity/     .agent/ port: 5 rules + 25 workflows
 ports/           AGENTS.md (generic single-file port) · cursor/ (22 .mdc rules) · gemini/ (22 commands)
 mcp-server/      the library as an MCP server (skills as prompts + list/get/route tools)
 install.sh       one command per environment (run with --dry-run first)
@@ -35,7 +35,7 @@ install.sh       one command per environment (run with --dry-run first)
 ```
 One profile per setup — the packs share skill names by design (same muscle memory, opposite token economics; see below).
 
-**Antigravity:** `./install.sh --antigravity ~/code/myrepo` → rules + 24 workflows (`/spec /architect /breakdown /debug /deep-review /prove /handoff /sec-audit /perf /ci-triage /migrate /api-design /declutter /incident /postmortem /release /onboard /estimate /pr-workflow /data-analysis /brainstorm /explain /prompt-eng /research-codebase`)
+**Antigravity:** `./install.sh --antigravity ~/code/myrepo` → rules + 25 workflows (`/spec /architect /breakdown /debug /deep-review /prove /handoff /sec-audit /perf /ci-triage /migrate /api-design /frontend-design /declutter /incident /postmortem /release /onboard /estimate /pr-workflow /data-analysis /brainstorm /explain /prompt-eng /research-codebase`)
 
 **Any AGENTS.md tool (Codex, Amp, Zed, Jules, …):** `./install.sh --agents-md ~/code/myrepo`
 
@@ -60,6 +60,7 @@ One profile per setup — the packs share skill names by design (same muscle mem
 |---|---|---|
 | `sec-audit` — high-confidence vuln report | `perf` — profile-first optimization | `ci-triage` — red-build triage |
 | `migrate` — reversible upgrades & migrations | `api-design` — consumer-first interface design | `declutter` — cleanup-only pre-PR pass |
+| `frontend-design` — designed, not defaulted, UI | | |
 
 **Ops & incidents**
 
@@ -90,7 +91,7 @@ To get the most out of this library, follow these standard operation models for 
 
 ### 1. How to Invoke Skills in Your Tool
 * **Claude Code**: Type `/name` (e.g., `/debug`, `/prove`) or simply refer to the skill's name and intent in your prompt.
-* **Antigravity CLI**: Call workflows as slash commands directly in the terminal (e.g. `/sec-audit`, `/perf`, `/api-design`). Baseline rules are always active in `.agent/rules/baseline.md`.
+* **Antigravity CLI**: Call workflows as slash commands directly in the terminal (e.g. `/sec-audit`, `/perf`, `/api-design`, `/frontend-design`). Baseline rules are always active in `.agent/rules/baseline.md`.
 * **Cursor**: The `.mdc` rules in `.cursor/rules/` are loaded contextually based on their triggers (or applied manually).
 * **Gemini CLI**: Run customized TOML commands (e.g., `/spec "design a user system"`, `/debug "compilation error"`, `/prove`).
 * **MCP Agents**: Call `list_skills` to discover skills and `get_skill` to inject a skill's full text directly into your context, or call `route` for prompt-based direction.

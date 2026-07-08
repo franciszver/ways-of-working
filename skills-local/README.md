@@ -32,6 +32,7 @@ perf/          Profile-first optimization — baseline, ranked cost list, one fi
 ci-triage/     Red-build triage — first failure, classify, reproduce locally, fix or quarantine.
 migrate/       Reversible upgrades — breaking changes read first, expand→migrate→contract.
 api-design/    Consumer-first interface — sample calls before contract, smallest surface.
+frontend-design/ Designed, not defaulted — tokens before components, hierarchy before decoration, verify by looking.
 declutter/     Cleanup-only pass — no bug fixes, no redesign, sweep in value order.
 ```
 
@@ -68,7 +69,7 @@ The compact always-on rules for CLAUDE.md live at [`../claude-md/global-local.md
 ```bash
 mkdir -p ~/.claude/skills
 cp -r quality iterate debug deep-review prove \
-   sec-audit perf ci-triage migrate api-design declutter \
+   sec-audit perf ci-triage migrate api-design frontend-design declutter \
    incident postmortem release \
    onboard estimate pr-workflow \
    data-analysis brainstorm explain prompt-eng research-codebase \
