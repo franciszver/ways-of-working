@@ -22,6 +22,8 @@ deep-review/SKILL.md    Adversarial review: minimum-candidates rule, verify ever
                         finding against disk, severity-ranked report format.
 prove/SKILL.md          Gate before "done": strongest check per claim, verbatim
                         quotes, edge hunt, regression pass, I-verified verdict.
+apply-working-process/SKILL.md  The owner's operating process: roles, board-as-plan,
+                        red-first, three gates, decision log. Session start, any env.
 ```
 
 **SE gaps** (compact imperative variants of the canonical skills):
@@ -68,7 +70,7 @@ The compact always-on rules for CLAUDE.md live at [`../claude-md/global-local.md
 
 ```bash
 mkdir -p ~/.claude/skills
-cp -r quality iterate debug deep-review prove \
+cp -r quality iterate debug deep-review prove apply-working-process \
    sec-audit perf ci-triage migrate api-design frontend-design declutter \
    incident postmortem release \
    onboard estimate pr-workflow \

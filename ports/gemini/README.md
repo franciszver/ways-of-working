@@ -36,6 +36,7 @@ mkdir -p <repo>/.gemini/commands && cp commands/*.toml <repo>/.gemini/commands/
 | `/deep-review [target]` | Verified, severity-ranked review |
 | `/prove [claim]` | Evidence-based verification before "done" |
 | `/handoff` | Write/update the cross-tool HANDOFF.md brief |
+| `/apply-working-process` | Adopt the owner's standard operating process for the session |
 
 **SE gaps**
 

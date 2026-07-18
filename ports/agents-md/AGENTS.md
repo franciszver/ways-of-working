@@ -19,6 +19,13 @@
 - **Stay in scope.** Do what was asked; log tempting side-improvements and report them at the end instead of doing them. Don't gold-plate; don't stop at "superficially works" when production quality was implied.
 - **Report honestly, outcome first.** Failures reported with their output, unsoftened. No filler, no narration of the journey. Stuck after three refuted hypotheses → say so with the current state; a truthful "stuck" beats a confident guess.
 
+## Standard working process
+
+- Phase-separate roles: plan → implement → review; every diff reviewed cold (fresh context) before it lands. Delegate implementation to cheaper models where the tool supports it.
+- The plan lives on a board (or `WORKPLAN.md`): tasks as issues with a Red-first line, Done-when criteria, and a DoD checklist. Work discovered mid-task gets an issue *first*, then a branch. One issue = one branch = one PR (`Closes #N`); nothing to main without a PR; conventional commits + `Assisted-by:` trailer.
+- Red first, strictly: the failing artifact (test / eval case / browser scenario) is committed visibly failing before implementation. Three gates on the full PR diff before merge: simplify → security review → code review; every finding fixed, suite re-run green, docs PRs included.
+- Log every owner decision the session it's made in local gitignored `prd/DECISIONS.md` (`Decision / Alternatives rejected / Why`); surface autonomous judgment calls for review. Never game a metric; never publish strategy notes or unverified vulnerability claims.
+
 ## When something fails (debugging)
 
 1. Reproduce first — exact command, exact output, re-runnable on demand. No edits before a repro exists. Can't reproduce → gather evidence (logs, env diff vs. a working instance); don't guess-fix.

@@ -1,0 +1,18 @@
+---
+description: Load the owner's standard working process — roles, board-as-plan, red-first TDD, three gates, decision logging — and follow it for this session
+---
+
+# /apply-working-process
+
+Work the way the library's owner works. The visible process is the deliverable.
+
+## Steps
+
+1. **Roles:** plan → implement → review as separate phases. Delegate implementation to cheaper tiers where subagents exist; otherwise phase-separate yourself. Every diff gets a cold review (`/deep-review`) before it lands.
+2. **Board-as-plan:** tasks are issues (`P<phase>.<seq>`) carrying scope, a Red-first line, Done-when criteria, and a DoD checklist. Work discovered mid-task gets an issue *first*, then a branch. No board → `WORKPLAN.md`, same structure.
+3. **One issue = one branch = one PR.** Nothing to main without a PR; every PR `Closes #N`. Branches `feat/p<N>-<slug>`; conventional commits + `Assisted-by:` trailer.
+4. **Red first:** commit the failing artifact (test / eval case / browser scenario) visibly failing before implementing. Pair mock-based tests with real-stack scenarios. Model evals record locally, replay in CI.
+5. **Three gates on the full PR diff, in order:** `/declutter` → `/sec-audit` → `/deep-review`. Fix every finding, re-run the suite green after fixes. Docs PRs included. Fix-first beats ship-with-follow-up.
+6. **Log decisions same-session** in local gitignored `prd/DECISIONS.md` (`Decision / Alternatives rejected / Why`). Surface your own judgment calls to the owner. Never publish strategy notes or unverified findings.
+7. **Norms:** do-now bias; never game a metric; in unattended runs self-merge only after gates and leave owner-gated items open+annotated.
+8. **New environment:** state once how each element maps to available tooling, then follow the mapping — don't silently drop awkward parts.

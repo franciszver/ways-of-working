@@ -20,6 +20,7 @@ Judgment-dense skills tuned for frontier models (Opus, Sonnet) in Claude Code. E
 | [`research`](research/) | Triangulated sources, citation log, disconfirmation | Evaluations, landscape questions, costly facts |
 | [`write`](write/) | Audience → thesis → outline → draft → one revision pass | Prose is the product |
 | [`handoff`](handoff/) | Continuation brief a cold session can resume from | Context pressure, session end, model downshift |
+| [`apply-working-process`](apply-working-process/) | The owner's standard operating process — roles, board-as-plan, red-first, three gates, decision log | Start of any project session, in any environment |
 
 ### SE gaps
 
@@ -61,7 +62,7 @@ Judgment-dense skills tuned for frontier models (Opus, Sonnet) in Claude Code. E
 
 ## How they compose
 
-`lean-max-effort` is the backbone; the others deepen one of its phases: **Capture** → `spec` · **Plan** → `architect`, `breakdown` · **Execute** → `debug`, `refactor`, `testgen`, `declutter`, `migrate`, `api-design`, `frontend-design` · **Verify** → `prove`, `deep-review`, `sec-audit`, `perf`, `ci-triage` · **Continuity** → `handoff`, `onboard`, `pr-workflow`, `estimate` · **Non-engineering** → `research`, `research-codebase`, `write`, `data-analysis`, `brainstorm`, `explain`, `prompt-eng` · **Ops** → `incident`, `postmortem`, `release`. Skills cross-reference each other by name (`debug` ends in `prove`; `breakdown` cards carry `spec`-style criteria; `incident` leads to `postmortem`).
+`lean-max-effort` is the backbone; the others deepen one of its phases: **Capture** → `spec` · **Plan** → `architect`, `breakdown` · **Execute** → `debug`, `refactor`, `testgen`, `declutter`, `migrate`, `api-design`, `frontend-design` · **Verify** → `prove`, `deep-review`, `sec-audit`, `perf`, `ci-triage` · **Continuity** → `handoff`, `onboard`, `pr-workflow`, `estimate`, `apply-working-process` · **Non-engineering** → `research`, `research-codebase`, `write`, `data-analysis`, `brainstorm`, `explain`, `prompt-eng` · **Ops** → `incident`, `postmortem`, `release`. Skills cross-reference each other by name (`debug` ends in `prove`; `breakdown` cards carry `spec`-style criteria; `incident` leads to `postmortem`).
 
 ## Install
 
