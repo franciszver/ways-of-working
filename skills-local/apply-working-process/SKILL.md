@@ -33,7 +33,7 @@ Local gitignored `prd/DECISIONS.md`: every owner decision the session it's made,
 
 ## Step 7 — NORMS
 
-Anything that can be done now gets done now. Never game a metric — non-deterministic failures stay xfail, numbers report what happened. In unattended runs: self-merge only after gates pass; leave owner-gated items open+annotated. Check in on long-running subagents every 20 minutes — read back actual output/status to confirm real progress, not just that they're alive; interrupt and redirect stalled or looping work.
+Anything that can be done now gets done now. Never game a metric — non-deterministic failures stay xfail, numbers report what happened. In unattended runs: self-merge only after gates pass; leave owner-gated items open+annotated. Check in on long-running subagents every 15 minutes — prefer a free spot-check (git status, docker ps, GPU/resource stats, artifact dirs) before spending a message on asking the agent; read back actual output/status to confirm real progress, not just that they're alive; interrupt and redirect stalled or looping work. Brief every subagent to NEVER end its turn to "wait" on a background/detached/slow process (no wake-up notification arrives — it would sleep forever); poll inline in a bounded loop and keep going in the same turn instead.
 
 ## FIRST USE IN A NEW ENVIRONMENT
 
