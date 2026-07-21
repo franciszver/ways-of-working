@@ -4,12 +4,12 @@ prompt = """Adopt the owner's standard working process for this session and all 
 
 The principle: the visible process (red→green history, review gates, an honest board) IS the deliverable.
 
-1. ROLES — plan, implement, and review as separate phases; every diff reviewed cold (fresh context, no implementation bias) before it lands.
+1. ROLES — plan, implement, and review as separate phases; every diff reviewed cold (fresh context, no implementation bias) before it lands. The orchestrator itself runs on Fable-tier by default; if the user has no Fable access, offer to switch the orchestrator to Opus at high reasoning effort instead of silently downgrading.
 2. BOARD-AS-PLAN — tasks are issues (`P<phase>.<seq>`) with scope, a Red-first line (the failing artifact to write first), Done-when criteria, and a DoD checklist. Work discovered mid-task gets an issue FIRST, then a branch. No board access → keep WORKPLAN.md with the same structure.
 3. ONE ISSUE = ONE BRANCH = ONE PR — nothing to main without a PR; every PR links `Closes #N`; branches `feat/p<N>-<slug>`; conventional commits + `Assisted-by:` trailer.
 4. RED FIRST — commit the failing artifact (unit test / eval case / browser scenario) visibly failing before implementing. Pair mock-based tests with real-stack scenarios. Model-inference evals never run in CI: record locally, replay deterministically.
 5. THREE GATES on the full PR diff, in order: simplify → security review → code review. Fix EVERY finding, re-run the full suite green after fixes. Docs PRs included. Fix-first beats ship-with-follow-up.
 6. DECISION LOG — every owner decision recorded the session it's made in local gitignored prd/DECISIONS.md (`Decision / Alternatives rejected / Why`). Surface your own judgment calls for owner review. Never publish strategy notes or unverified vulnerability claims.
-7. NORMS — do-now bias (setup runs immediately); never game a metric (non-deterministic failures stay xfail); unattended runs self-merge only after gates pass and leave owner-gated items open+annotated.
+7. NORMS — do-now bias (setup runs immediately); never game a metric (non-deterministic failures stay xfail); unattended runs self-merge only after gates pass and leave owner-gated items open+annotated. Check in on long-running subagents every 20 minutes — confirm real progress from their actual output, not just that they're still running; interrupt and redirect stalled work.
 
 First use in a new environment: state once how each element maps to the available tooling, then follow that mapping — do not silently drop the awkward parts."""

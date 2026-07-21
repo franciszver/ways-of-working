@@ -5,11 +5,11 @@ alwaysApply: false
 ---
 
 - Work the way the owner works: the visible process (red→green history, review gates, honest board) is itself the deliverable.
-- Phase-separate roles: plan first, implement second, review third — every diff reviewed cold (fresh context) before it lands; delegate implementation to cheaper models where the tool supports it.
+- Phase-separate roles: plan first, implement second, review third — every diff reviewed cold (fresh context) before it lands; delegate implementation to cheaper models where the tool supports it. The orchestrator itself runs on Fable-tier by default; no Fable access → offer to switch it to Opus at high reasoning effort instead of silently downgrading.
 - The plan lives on a board: tasks as issues (`P<phase>.<seq>`) with scope, a Red-first line (the failing artifact), Done-when criteria, and a DoD checklist. Work discovered mid-task gets an issue first, then a branch — the board never lags reality. No board → `WORKPLAN.md`, same structure.
 - One issue = one branch = one PR; nothing to main without a PR; every PR `Closes #N`. Branches `feat/p<N>-<slug>`; conventional commits + `Assisted-by:` trailer.
 - Red first, strictly: the failing artifact (unit test / eval case / browser scenario) is committed and visibly failing before implementation. Mock-based tests are paired with real-stack scenarios. Model-inference evals never run in CI — record locally, replay deterministically.
 - Three gates on the full PR diff, in order: simplify → security review → code review. Every finding fixed (no follow-up triage), full suite re-run green after fixes, docs PRs included. Fix-first beats ship-with-follow-up.
 - Log every owner decision the session it's made, in local gitignored `prd/DECISIONS.md` (`Decision / Alternatives rejected / Why`); surface autonomous judgment calls for review. Never publish strategy notes or unverified vulnerability claims.
-- Norms: anything that can be done now gets done now; never game a metric (non-deterministic failures stay xfail); unattended runs self-merge only after the gates pass, leaving owner-gated items open+annotated.
+- Norms: anything that can be done now gets done now; never game a metric (non-deterministic failures stay xfail); unattended runs self-merge only after the gates pass, leaving owner-gated items open+annotated. Check in on long-running subagents every 20 minutes — confirm real progress from actual output, not just liveness; interrupt and redirect stalled work.
 - First use in a new environment: state once how each element maps to available tooling (gates, board, role split), then follow the mapping — don't silently drop the awkward parts.

@@ -9,7 +9,7 @@ You are working for the library's owner. Follow this process exactly — the vis
 
 ## Step 1 — ROLES
 
-Plan first, implement second, review third — never blended. If subagents exist: orchestrator delegates and never edits files; implementation on cheaper tiers; a FRESH agent on an equal-or-better model reviews every diff before it lands. If not: do the phases yourself, and review your own diff cold with the deep-review skill before committing. The fable-quality-library ROUTING playbook governs tier selection.
+Plan first, implement second, review third — never blended. If subagents exist: orchestrator delegates and never edits files; implementation on cheaper tiers; a FRESH agent on an equal-or-better model reviews every diff before it lands. If not: do the phases yourself, and review your own diff cold with the deep-review skill before committing. The orchestrator itself runs on Fable-tier by default; no Fable access → offer to switch the orchestrator to Opus at high reasoning effort instead of silently downgrading. The fable-quality-library ROUTING playbook governs tier selection.
 
 ## Step 2 — THE PLAN LIVES ON A BOARD
 
@@ -33,7 +33,7 @@ Local gitignored `prd/DECISIONS.md`: every owner decision the session it's made,
 
 ## Step 7 — NORMS
 
-Anything that can be done now gets done now. Never game a metric — non-deterministic failures stay xfail, numbers report what happened. In unattended runs: self-merge only after gates pass; leave owner-gated items open+annotated.
+Anything that can be done now gets done now. Never game a metric — non-deterministic failures stay xfail, numbers report what happened. In unattended runs: self-merge only after gates pass; leave owner-gated items open+annotated. Check in on long-running subagents every 20 minutes — read back actual output/status to confirm real progress, not just that they're alive; interrupt and redirect stalled or looping work.
 
 ## FIRST USE IN A NEW ENVIRONMENT
 

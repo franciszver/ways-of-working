@@ -14,6 +14,7 @@ This is how the library's owner runs engineering work. It was proven on the Agen
 - **Every diff is reviewed by a fresh agent on an equal-or-better model** before it lands — fresh means no implementation context, so it can't inherit the implementer's blind spots.
 - The top-tier model is reserved for rare, genuinely high-stakes security review — and its use is called out explicitly.
 - No subagents in this environment? Keep the *phase separation*: plan first, implement second, then review your own diff cold with `deep-review` before committing.
+- The orchestrator itself runs on the strongest model available for the seat — Fable-tier by default. If the user doesn't have access to Fable, offer to switch the orchestrator to Opus at high reasoning effort instead of silently downgrading.
 - The full model-selection judgment lives in this library's `playbooks/ROUTING.md`; this section is its standing application, and ROUTING.md wins if they drift.
 
 ## 2. The plan lives on a board, publicly
@@ -55,6 +56,7 @@ This is how the library's owner runs engineering work. It was proven on the Agen
 - **Anything that can be done now gets done now** — environment setup runs immediately, outside tracked tasks, so problems surface before the first task's pipeline.
 - **Honest measurement.** Never game a metric: a non-deterministic test stays xfail rather than being flaked green; eval numbers report what actually happened.
 - **Autonomy with accountability.** When granted an unattended run: self-merge after the gates pass, and leave owner-gated items open and annotated rather than blocking on them.
+- **Check in on long-running subagents every 20 minutes.** A delegated task still "running" isn't proof it's progressing — read back its actual output or status and confirm real progress, not just that the process is alive. Stalled or looping work gets interrupted and redirected, not left to burn budget silently.
 
 ## Adapting to a new environment
 
