@@ -1,0 +1,13 @@
+---
+description: Make a captioned demo video (mp4 + gif with music) of a running app and commit the gif into the README — capture ordered screenshots, caption, synthesize a soundtrack, publish
+globs:
+alwaysApply: false
+---
+
+- A demo video is an argument the product works, made to someone who won't run it: compress a real session into a few captioned frames and publish it in the README, not as an attachment.
+- Capture the RUNNING app in order → `01-*.png … 0N-*.png` (filename order = play order) into a gitignored dir. Warm it first (curl 2x — free tiers cold-start). Log in with creds from an env var / `.env` key BY NAME, never the value. On async/AI screens wait for the FINISHED content (a completion marker), not a fixed sleep. Seed real demo data if the account is empty.
+- Build with tools that are actually present: `Pillow` for images/gif, `imageio-ffmpeg` for mp4 (it BUNDLES ffmpeg via `imageio_ffmpeg.get_ffmpeg_exe()` — no system ffmpeg). Synthesize audio with the STDLIB `wave`+`math` only — do NOT assume numpy.
+- Captions are the point: semi-transparent dark bar (~12% height) at the bottom of each frame, centered light text auto-shrunk to fit, TrueType font if available else `ImageFont.load_default()` (never crash). Same captions on mp4 AND gif; normalize to one canvas size; handle odd dimensions. Keep captions in a `demo_captions.json` sidecar.
+- Music (mp4 only; gif silent): gentle low-volume arpeggio, calm progression (e.g. C–G–Am–F), sine + attack/decay ramps (no clicks), amplitude with headroom + clamp, fade in/out, sized to the video. Mux via the bundled ffmpeg (`-i video -i wav -c:v copy -c:a aac -shortest`); on failure keep the silent mp4. Temp files in a TemporaryDirectory; close all handles before cleanup (Windows locks files).
+- Verify by looking, not by trusting: OPEN one captioned frame (legible/correct), probe the mp4 for an `Audio:` stream, confirm the gif frame count + animation.
+- Publish + ship: commit the gif to a TRACKED path (`docs/assets/demo.gif`, <~2 MB), embed near the top of the README (`![demo](docs/assets/demo.gif)`); GITIGNORE the mp4 + raw frames (large, regenerating — deliver the mp4 as a file / Release attachment). No secrets committed; scope the formatter to changed files; red-first pipeline tests gated with `pytest.importorskip`; branch → PR → review → CI → merge.

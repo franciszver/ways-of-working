@@ -7,15 +7,15 @@ The premise: most of the gap between a mediocre run and a frontier run is **proc
 ## Map
 
 ```
-skills/          31 canonical skills — source of truth, tuned for Opus/Sonnet
+skills/          32 canonical skills — source of truth, tuned for Opus/Sonnet
 skills-local/    compact imperative variants for local models (quality, iterate,
-                 debug, deep-review, prove, + 17 new skills) — free tokens change the discipline
+                 debug, deep-review, prove, + 18 new skills) — free tokens change the discipline
 agents/          Claude Code subagents: code-reviewer, verifier, researcher, architect
 claude-md/       always-on CLAUDE.md layers: global-frontier, global-local, project template
 playbooks/       ROUTING.md (which model for what) · HANDOFF.md (cross-tool continuity)
 hooks/           Claude Code hooks: guardrails, opt-in test gate, format-on-stop
-antigravity/     .agent/ port: 5 rules + 26 workflows
-ports/           AGENTS.md (generic single-file port) · cursor/ (24 .mdc rules) · gemini/ (24 commands)
+antigravity/     .agent/ port: 5 rules + 27 workflows
+ports/           AGENTS.md (generic single-file port) · cursor/ (25 .mdc rules) · gemini/ (25 commands)
 mcp-server/      the library as an MCP server (skills as prompts + list/get/route tools)
 install.sh       one command per environment (run with --dry-run first)
 ```
@@ -35,7 +35,7 @@ install.sh       one command per environment (run with --dry-run first)
 ```
 One profile per setup — the packs share skill names by design (same muscle memory, opposite token economics; see below).
 
-**Antigravity:** `./install.sh --antigravity ~/code/myrepo` → rules + 26 workflows (`/spec /architect /breakdown /debug /deep-review /prove /handoff /apply-working-process /sec-audit /perf /ci-triage /migrate /api-design /frontend-design /declutter /incident /postmortem /release /onboard /estimate /pr-workflow /data-analysis /brainstorm /explain /prompt-eng /research-codebase`)
+**Antigravity:** `./install.sh --antigravity ~/code/myrepo` → rules + 27 workflows (`/spec /architect /breakdown /debug /deep-review /prove /handoff /apply-working-process /sec-audit /perf /ci-triage /migrate /api-design /frontend-design /declutter /incident /postmortem /release /onboard /estimate /pr-workflow /data-analysis /brainstorm /explain /prompt-eng /research-codebase /demo-video`)
 
 **Any AGENTS.md tool (Codex, Amp, Zed, Jules, …):** `./install.sh --agents-md ~/code/myrepo`
 
@@ -80,7 +80,7 @@ One profile per setup — the packs share skill names by design (same muscle mem
 | | | |
 |---|---|---|
 | `data-analysis` — scrutiny-proof analysis | `brainstorm` — structured ideation | `explain` — learner-targeted explanations |
-| `prompt-eng` — prompts engineered like software | `research-codebase` — documentarian codebase mapping | |
+| `prompt-eng` — prompts engineered like software | `research-codebase` — documentarian codebase mapping | `demo-video` — captioned demo video + README gif |
 
 > **Naming notes:** `sec-audit` dodges the `/security-review` builtin; `declutter` dodges `/simplify`; `deep-review`/`prove`/`iterate` dodge `/review`/`verify`/`loop`. See `skills/README.md`.
 
