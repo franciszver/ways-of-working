@@ -21,6 +21,7 @@ Judgment-dense skills tuned for frontier models (Opus, Sonnet) in Claude Code. E
 | [`write`](write/) | Audience → thesis → outline → draft → one revision pass | Prose is the product |
 | [`handoff`](handoff/) | Continuation brief a cold session can resume from | Context pressure, session end, model downshift |
 | [`apply-working-process`](apply-working-process/) | The owner's standard operating process — roles, board-as-plan, red-first, three gates, decision log | Start of any project session, in any environment |
+| [`ste-writing`](ste-writing/) | Simplified Technical English spirit for all prose — one word per idea, short active sentences | Start of any session; whenever you write prose |
 
 ### SE gaps
 

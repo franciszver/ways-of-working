@@ -7,15 +7,15 @@ The premise: most of the gap between a mediocre run and a frontier run is **proc
 ## Map
 
 ```
-skills/          32 canonical skills — source of truth, tuned for Opus/Sonnet
+skills/          33 canonical skills — source of truth, tuned for Opus/Sonnet
 skills-local/    compact imperative variants for local models (quality, iterate,
-                 debug, deep-review, prove, + 18 new skills) — free tokens change the discipline
+                 debug, deep-review, prove, + 21 new skills) — free tokens change the discipline
 agents/          Claude Code subagents: code-reviewer, verifier, researcher, architect
 claude-md/       always-on CLAUDE.md layers: global-frontier, global-local, project template
 playbooks/       ROUTING.md (which model for what) · HANDOFF.md (cross-tool continuity)
 hooks/           Claude Code hooks: guardrails, opt-in test gate, format-on-stop
-antigravity/     .agent/ port: 5 rules + 27 workflows
-ports/           AGENTS.md (generic single-file port) · cursor/ (25 .mdc rules) · gemini/ (25 commands)
+antigravity/     .agent/ port: 6 rules + 27 workflows
+ports/           AGENTS.md (generic single-file port) · cursor/ (26 .mdc rules) · gemini/ (26 commands)
 mcp-server/      the library as an MCP server (skills as prompts + list/get/route tools)
 install.sh       one command per environment (run with --dry-run first)
 ```
@@ -53,7 +53,7 @@ One profile per setup — the packs share skill names by design (same muscle mem
 | `breakdown` — verifiable task cards | `debug` — hypothesis-driven | `deep-review` — verified findings |
 | `prove` — evidence before "done" | `refactor` — behavior-preserving | `testgen` — tests that hunt bugs |
 | `research` — triangulate & cite | `write` — one structured revision | `handoff` — cold-resume briefs |
-| `apply-working-process` — the owner's standard operating process | | |
+| `apply-working-process` — the owner's standard operating process | `ste-writing` — Simplified Technical English prose | |
 
 **SE gaps**
 

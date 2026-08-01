@@ -26,6 +26,7 @@ rules/
   reviewing.md       trigger: model_decision — verified-findings review protocol
   security.md        trigger: model_decision — high-confidence-only vuln reporting, loads for security-sensitive code
   testing.md         trigger: model_decision — bug-hunting test design
+  ste-writing.md     trigger: always_on — prose style: Simplified Technical English spirit for all text
 workflows/           slash-invoked: 26 commands
   Core:    /spec /architect /breakdown /debug /deep-review /prove /handoff /apply-working-process
   SE gaps: /sec-audit /perf /ci-triage /migrate /api-design /frontend-design /declutter
@@ -36,6 +37,6 @@ workflows/           slash-invoked: 26 commands
 
 ## Design notes
 
-- `always_on` is used exactly once (baseline) — always-on context is a tax on every request; the domain rules load via `model_decision` when their description matches the situation.
+- `always_on` is used exactly twice (baseline + ste-writing) — both are floors that apply to every request; always-on context is a tax, so the domain rules load via `model_decision` when their description matches the situation.
 - Workflows deliberately contain no `// turbo` annotations (auto-run without approval). If you trust a step — e.g. the test-run steps in `/prove` — add `// turbo` on the line above it yourself.
 - The `handoff` workflow + baseline rule implement the cross-tool continuity convention in [`../playbooks/HANDOFF.md`](../playbooks/HANDOFF.md): work started in Claude Code resumes here, and vice versa.

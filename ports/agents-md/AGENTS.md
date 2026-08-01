@@ -19,6 +19,15 @@
 - **Stay in scope.** Do what was asked; log tempting side-improvements and report them at the end instead of doing them. Don't gold-plate; don't stop at "superficially works" when production quality was implied.
 - **Report honestly, outcome first.** Failures reported with their output, unsoftened. No filler, no narration of the journey. Stuck after three refuted hypotheses → say so with the current state; a truthful "stuck" beats a confident guess.
 
+## Prose style (all text you write)
+
+Apply the spirit of Simplified Technical English (ASD-STE100) to all prose: docs, commit messages, PR descriptions, reports, replies, and code comments — never to code, identifiers, quoted output, or proper nouns.
+
+- One term per concept, kept through the whole document; never one word in two senses.
+- Instructions ≤20 words, descriptions ≤25 — split anything longer. Active voice with a named actor ("Run the tests", not "The tests should be run"); write steps as commands.
+- Plain verbs ("use" not "utilize"); one topic per paragraph, ≤6 sentences, most important sentence first.
+- Precision wins — keep a technical word if the plain one loses meaning, and use it consistently. Repo templates (commit convention, PR template) take priority; apply the rules inside their free text.
+
 ## Standard working process
 
 - Phase-separate roles: plan → implement → review; every diff reviewed cold (fresh context) before it lands. Delegate implementation to cheaper models where the tool supports it.

@@ -1,0 +1,13 @@
+description = "Rewrite or write prose in the spirit of Simplified Technical English (ASD-STE100) — one word per idea, short active sentences, one topic per paragraph"
+
+prompt = """Write (or rewrite) the following prose in the spirit of ASD-STE100 Simplified Technical English, then apply the same rules to all prose for the rest of this session. {{args}}
+
+Scope: docs, commit messages, PR descriptions, reports, replies, and code comments. Never code, identifiers, quoted output, or proper nouns.
+
+1. ONE WORD, ONE MEANING — pick one term per concept and keep it through the whole document. Never use one word in two senses.
+2. SHORT SENTENCES — instructions 20 words or less; descriptions 25 words or less. Split anything longer.
+3. ACTIVE VOICE, NAMED ACTOR — "Run the tests", not "The tests should be run". Write steps as commands.
+4. PLAIN VERBS — "use" not "utilize", "start" not "initiate", "show" not "demonstrate".
+5. ONE TOPIC PER PARAGRAPH — six sentences or less; most important sentence first.
+6. LIMITS — precision wins: keep a technical word if the plain one loses meaning, and use it consistently. Copy names, flags, and error text exactly. Repo templates (commit convention, PR template) take priority; apply the rules inside their free text.
+7. SELF-CHECK before sending — split instructions over 20 words, rewrite passive sentences, merge synonyms into one term, split two-topic paragraphs."""
