@@ -13,6 +13,6 @@ Claude Code doesn't use these — it gets the full-fidelity versions ([`../skill
 
 ## Maintenance note
 
-These are compressions of the canonical skills, not independent documents. When a canonical skill's judgment changes (a new rule, a changed threshold), propagate to every compression: the matching `../skills-local/` variant, the `AGENTS.md` section, the matching `cursor/*.mdc`, the matching `gemini/commands/*.toml`, and the Antigravity rule/workflow. The improvement-loop checklist treats cross-surface drift as a defect.
+These are compressions of the canonical skills, not independent documents. When a canonical skill's judgment changes (a new rule, a changed threshold), propagate to every compression: the matching `../skills-local/` variant, the `AGENTS.md` section, the matching `cursor/*.mdc`, the matching `gemini/commands/*.toml`, the Antigravity rule/workflow, and — for always-on floors — the `../claude-md/` layers. The improvement-loop checklist treats cross-surface drift as a defect.
 
 Formats verified 2026-07: AGENTS.md is plain markdown by design; Cursor rules are `.mdc` with `description`/`globs`/`alwaysApply` frontmatter; Gemini CLI commands are TOML with `description` + `prompt` (`{{args}}` substitution) per [geminicli.com/docs/cli/custom-commands](https://geminicli.com/docs/cli/custom-commands/).

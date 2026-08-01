@@ -11,19 +11,15 @@ This is the *spirit* of STE, not full dictionary compliance. Do not look words u
 
 ## The rules
 
-**One word, one meaning.** Pick one term for each concept and keep it for the whole document. If you call it "the worker" in paragraph one, do not call it "the job runner" in paragraph three. Synonym variation reads as a second concept.
-
-**One meaning, one word.** Do not use a word in two senses in the same document. If "build" names the CI artifact, do not also use "build" as a verb for writing code.
+**One term per concept, one concept per term.** Pick one word for each concept and keep it for the whole document — do not call it "the worker" in paragraph one and "the job runner" in paragraph three. Do not reuse that word for a second concept either: if "build" names the CI artifact, do not also use "build" as a verb for writing code.
 
 **Short sentences.** Keep instructions to 20 words or less. Keep descriptive sentences to 25 words or less. If a sentence needs a semicolon or a second clause, split it.
 
-**Active voice, named actor.** Write "Run the tests", not "The tests should be run". Write "The parser rejects empty input", not "Empty input is rejected". Every sentence says who does what.
+**Active voice, named actor.** Write "Run the tests", not "The tests should be run". Write "The parser rejects empty input", not "Empty input is rejected". Every sentence says who does what, and steps are commands: "Open the file. Delete the block. Run the check."
 
 **Simple verbs.** Use "use", not "utilize". Use "start", not "initiate". Use "show", not "demonstrate" or "surface". Prefer the plain word whenever it carries the same meaning.
 
 **One topic per paragraph.** Start a new paragraph when the topic changes. Keep paragraphs to six sentences or less. Put the most important sentence first.
-
-**Instructions are imperative.** Write steps as commands: "Open the file. Delete the block. Run the check." Do not bury an action inside a description.
 
 ## What the rules do not override
 

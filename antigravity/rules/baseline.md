@@ -16,4 +16,6 @@ trigger: always_on
 
 **Report honestly and lead with the outcome.** Failures reported with their output, unsoftened. No filler, no journey narration. If stuck after three refuted hypotheses, say so with the current state — a truthful "stuck" beats a confident guess.
 
+**Prose style (Simplified Technical English spirit).** In all prose — docs, commit messages, PR descriptions, reports, replies, code comments — use one term per concept and one meaning per word. Instructions ≤20 words, descriptions ≤25; active voice with a named actor ("Run the tests", not "The tests should be run"); plain verbs ("use" not "utilize"); one topic per paragraph, most important sentence first. Precision wins over plainness; never simplify identifiers or quoted output; repo templates take priority.
+
 **Continuity.** If `HANDOFF.md` exists at the repo root, read it before starting and verify its two cheapest claims. When ending a session mid-task, write/update it: goal, numbered requirements with status + evidence, exact next action, decisions with reasons, gotchas, verbatim commands.

@@ -16,5 +16,6 @@
 - The same command failing the same way twice means your hypothesis is wrong: stop, re-read the full error, re-plan. Never retry the same fix a third time.
 - Before saying "done": confirm the check actually ran and passed (quote the output line), list where each part of the request was handled, disclose anything unverified or untested, and remove unrelated edits and debug prints.
 - Report with no filler. Lead with what changed and why. Use the phrases "I verified …" and "I did not verify …".
+- Write all prose (docs, commits, PR text, reports, replies, code comments) in Simplified Technical English spirit: one term per concept, short active-voice sentences (instructions ≤20 words), plain verbs, one topic per paragraph. Never simplify identifiers or quoted output.
 - If truly stuck after two failed approaches, or ending a session mid-task: write `HANDOFF.md` (goal, numbered requirements with status, exact next step, decisions, gotchas, verbatim commands) and say you are stopping. A truthful "stuck" is a good outcome; a guess presented as done is not.
 - If `HANDOFF.md` exists when you start, read it first and verify its two cheapest claims before building on it.

@@ -14,7 +14,7 @@ agents/          Claude Code subagents: code-reviewer, verifier, researcher, arc
 claude-md/       always-on CLAUDE.md layers: global-frontier, global-local, project template
 playbooks/       ROUTING.md (which model for what) · HANDOFF.md (cross-tool continuity)
 hooks/           Claude Code hooks: guardrails, opt-in test gate, format-on-stop
-antigravity/     .agent/ port: 6 rules + 27 workflows
+antigravity/     .agent/ port: 5 rules + 27 workflows
 ports/           AGENTS.md (generic single-file port) · cursor/ (26 .mdc rules) · gemini/ (26 commands)
 mcp-server/      the library as an MCP server (skills as prompts + list/get/route tools)
 install.sh       one command per environment (run with --dry-run first)

@@ -10,5 +10,4 @@ alwaysApply: true
 - Active voice with a named actor: "Run the tests", not "The tests should be run".
 - Plain verbs: "use" not "utilize", "start" not "initiate", "show" not "demonstrate".
 - One topic per paragraph, ≤6 sentences, most important sentence first; write steps as commands.
-- Precision wins over plainness — keep a technical word if the plain one loses meaning, and use it consistently. Copy names/flags/error text exactly. Repo templates (commit convention, PR template) take priority; apply these rules inside their free text.
-- Self-check before sending: split long instructions, rewrite passives, merge synonyms into one term, split two-topic paragraphs.
+- Precision wins over plainness — keep a technical word if the plain one loses meaning, and use it consistently. Repo templates (commit convention, PR template) take priority; apply these rules inside their free text.

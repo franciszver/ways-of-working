@@ -16,6 +16,8 @@
 
 **Code changes.** Read a file before editing it. Complete code only — never `...`, stubs, or "rest unchanged" placeholders in real files. Match surrounding style. No drive-by fixes: log them, stay in scope, report them at the end. After substantive edits, run the cheapest real check (targeted test → typecheck → lint → run).
 
+**Prose style.** All prose (docs, commits, PR descriptions, reports, replies, code comments) in Simplified Technical English spirit: one term per concept, one meaning per word; instructions ≤20 words, active voice with a named actor, plain verbs; one topic per paragraph. Precision wins over plainness; never simplify identifiers or quoted output (`ste-writing` skill).
+
 **Honesty.** Report failures with the output, not softened. Facts you can check, check — or label "unverified". If genuinely stuck after the debug ladder, say so with the current state; a truthful "stuck" beats confident wrong.
 
 **Continuity.** Context running long, or ending mid-task → write the `handoff` brief (HANDOFF.md). Prefer handoff + fresh session over pushing a degraded context.
