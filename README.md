@@ -141,3 +141,7 @@ Keep sessions token-lean. As context windows grow, LLM instruction-following deg
 Any capable model maintains this library *using the library itself*: follow `skills/write` + `skills/deep-review` when editing skills; keep ports in sync (`ports/README.md`); re-verify dated facts (ROUTING.md pricing, external formats) before trusting them. The MCP server, install.sh, and hooks were smoke-tested end-to-end on 2026-07-06 (details in their READMEs); what remains untested is sustained real-world use — PLAN.md's Day-2 tuning.
 
 History and phase log: [`PLAN.md`](PLAN.md).
+
+## License
+
+MIT — see [`LICENSE`](LICENSE). The `research-codebase` skill is adapted from [Humanlayer's](https://github.com/humanlayer/humanlayer) public `research_codebase` command, with credit in the skill itself.
