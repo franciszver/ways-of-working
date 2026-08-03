@@ -64,6 +64,7 @@ brainstorm/       Generate wide without judging; converge with explicit criteria
 explain/          Anchor to what they know; concrete before abstract; verify the landing.
 prompt-eng/       Spec + examples + eval set; test all cases on every change.
 research-codebase/ Documentarian stance; file:line evidence; durable research doc.
+demo-video/       Captioned demo video + README gif — capture a real session, caption, assemble, ship.
 ```
 
 The compact always-on rules for CLAUDE.md live at [`../claude-md/global-local.md`](../claude-md/global-local.md) — install them too (see "Why the snippet" below).
@@ -76,7 +77,7 @@ cp -r quality iterate debug deep-review prove apply-working-process ste-writing 
    sec-audit perf ci-triage migrate api-design frontend-design declutter \
    incident postmortem release \
    onboard estimate pr-workflow \
-   data-analysis brainstorm explain prompt-eng research-codebase \
+   data-analysis brainstorm explain prompt-eng research-codebase demo-video \
    ~/.claude/skills/
 
 # strongly recommended:

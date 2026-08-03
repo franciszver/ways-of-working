@@ -1,5 +1,7 @@
 # more-skills-todo.md — expansion session plan & status
 
+> **Historical log — closed.** All batches below are complete; this is not an open todo list.
+
 Session date: 2026-07-07. Continuation doc for the library expansion — written so any session (any model) can resume exactly here. Follow the library's own conventions: canonical `skills/` is source of truth; everything else is a compression that must stay in sync (`ports/README.md`).
 
 ## The request

@@ -26,12 +26,12 @@ rules/
   reviewing.md       trigger: model_decision — verified-findings review protocol
   security.md        trigger: model_decision — high-confidence-only vuln reporting, loads for security-sensitive code
   testing.md         trigger: model_decision — bug-hunting test design
-workflows/           slash-invoked: 26 commands
+workflows/           slash-invoked: 27 commands
   Core:    /spec /architect /breakdown /debug /deep-review /prove /handoff /apply-working-process
   SE gaps: /sec-audit /perf /ci-triage /migrate /api-design /frontend-design /declutter
   Ops:     /incident /postmortem /release
   Nav:     /onboard /estimate /pr-workflow
-  Other:   /data-analysis /brainstorm /explain /prompt-eng /research-codebase
+  Other:   /data-analysis /brainstorm /explain /prompt-eng /research-codebase /demo-video
 ```
 
 ## Design notes
