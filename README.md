@@ -53,7 +53,7 @@ One profile per setup — the packs share skill names by design (same muscle mem
 | `breakdown` — verifiable task cards | `debug` — hypothesis-driven | `deep-review` — verified findings |
 | `prove` — evidence before "done" | `refactor` — behavior-preserving | `testgen` — tests that hunt bugs |
 | `research` — triangulate & cite | `write` — one structured revision | `handoff` — cold-resume briefs |
-| `apply-working-process` — the owner's standard operating process | `ste-writing` — Simplified Technical English prose | |
+| `apply-working-process` — the owner's standard operating process | `ste-writing` — Simplified Technical English prose | `plain-language` — strike the published signs of AI writing |
 
 **SE gaps**
 
