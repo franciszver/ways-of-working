@@ -15,7 +15,7 @@ This is the *spirit* of STE, not full dictionary compliance. Do not look words u
 
 **Short sentences.** Keep instructions to 20 words or less. Keep descriptive sentences to 25 words or less. If a sentence needs a semicolon or a second clause, split it.
 
-Short is not the same as uniform. **Vary the length.** A run of three or four clipped sentences is the current signature of generated text, so a ceiling on length is not a target to hit every time. One longer sentence among short ones reads as human. See [`plain-language`](../plain-language/), which checks for that run.
+Short is not the same as uniform. **Vary the length.** A ceiling on length is not a target to hit every time; see [`plain-language`](../plain-language/) for why a run of clipped sentences is itself a tell.
 
 **Active voice, named actor.** Write "Run the tests", not "The tests should be run". Write "The parser rejects empty input", not "Empty input is rejected". Every sentence says who does what, and steps are commands: "Open the file. Delete the block. Run the check."
 

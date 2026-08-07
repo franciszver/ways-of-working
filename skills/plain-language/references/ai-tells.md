@@ -1,7 +1,7 @@
 # AI writing tells — current reference
 _Refreshed: 2026-07-30_
 
-Refreshed per `cover-letter` SKILL.md §8. Treat the word lists as perishable and the
+Refreshed per "Refreshing the references" in the skill's SKILL.md. Treat the word lists as perishable and the
 constructions section as the durable core.
 
 ## Sources read
@@ -159,7 +159,7 @@ match the vocabulary, do not clone the sentences.
    *inconsistency* (résumé tone vs LinkedIn tone) and *statistical improbability* (unsupported precise metrics),
    and that the real filter has moved to behavioural interview questions where a candidate accounts for a bullet
    out loud. **For a job application the highest-risk tell in 2026 is a quantified claim you cannot narrate.**
-   This is the item with the most direct consequence for Francisco: every number on the résumé needs a story.
+   Every number on a résumé needs a story its owner can tell out loud.
 7. **Quantitative confirmation now exists for the older layer.** Matsui (peer-reviewed) beats blog listicles
    when a claim needs to hold up, and surfaces four terms missing from most popular lists: boast, commendable,
    surpass, primarily.
@@ -168,12 +168,13 @@ match the vocabulary, do not clone the sentences.
 
 ## Unavailable sources
 
-- **en.wikipedia.org — "Wikipedia:Signs of AI writing" (WP:AISIGNS): not fetchable from Cowork (cache-only).**
+- **en.wikipedia.org — "Wikipedia:Signs of AI writing" (WP:AISIGNS): not fetchable at refresh time.**
   **Not routed around** — no proxy, mirror, archive, cache, scraper or alternative front-end was attempted,
-  per SKILL.md §8.5. Several fetchable pages in the results are restatements of it (ETBI Digital Library,
-  blakestockton.com, onlinewritingclub.com) and were deliberately **not** used, since reading a summary of the
-  blocked page is still routing around it. Any overlap with WP:AISIGNS above arrived independently via Vollmer,
-  Matsui or Cook. **Francisco can save the page to `references/wp-aisigns.md`** and it takes precedence.
+  per the refresh rules in SKILL.md. Several fetchable pages in the results are restatements of it (ETBI Digital
+  Library, blakestockton.com, onlinewritingclub.com) and were deliberately **not** used, since reading a summary
+  of the blocked page is still routing around it. Any overlap with WP:AISIGNS above arrived independently via
+  Vollmer, Matsui or Cook. The page has since been cached at [`wp-aisigns.md`](wp-aisigns.md), which carries its
+  own revision id and takes precedence.
 - HuffPost, "How Recruiters Spot ChatGPT Use In Job Applications" — blocked by robots.txt. Would have been a
   second recruiter-side source with named quotes.
 - Learned Publishing (Wiley), "'AI-navigating' or 'AI-sinking'?" — HTTP 403. Peer-reviewed verb-level study;

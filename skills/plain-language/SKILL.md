@@ -130,5 +130,7 @@ than about a month:
    date, and discard anything whose own prose has the cadence it claims to diagnose.
 3. Rewrite the reference with each entry attributed and dated. Mark which parts are
    durable (constructions) and which are perishable (word lists).
-4. Never route around a blocked source. If a page cannot be fetched, say so in the file
+4. Then sync the condensed lists in this SKILL.md (check order, constructions,
+   vocabulary) with the refreshed references. They are copies and drift otherwise.
+5. Never route around a blocked source. If a page cannot be fetched, say so in the file
    and ask for a manual copy rather than reaching for a mirror or scraper.

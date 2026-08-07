@@ -2,27 +2,23 @@
 
 Source: Wikipedia:Signs_of_AI_writing, revision **1367680556**, page last edited
 2026-08-04 14:48 UTC. Checked 2026-08-05 against the live MediaWiki API.
-Next refresh due 2026-08-12 (tracker task exists and re-adds itself on completion).
+Next refresh due 2026-08-12 (see "Refreshing the references" in the skill's SKILL.md).
 
 **2026-08-05 refresh: no content change needed.** Exactly one edit landed between the
 cached revision (1367549492) and current (1367680556), and it added a sentence about
 finding the age of a block of text using the "Who Wrote That?" and WikiBlame tools --
 Wikipedia editing tooling, which this cache deliberately omits as irrelevant to
-outbound job-search prose. Every vocabulary list, construction pattern and section
+the prose this skill checks. Every vocabulary list, construction pattern and section
 below is unchanged and still current. Verified by diffing the two revisions rather
 than re-reading the page, so the check is cheap to repeat weekly.
 
-This is the authoritative drafting check for every session. Anything Claude drafts
-for Francisco longer than three sentences gets read against this file before it is
-shown to him. Wikipedia-specific sections (wikitext markup bugs, citation formats,
-edit summaries, AfC/deletion process tells) are omitted as irrelevant to outbound
-job-search prose; everything below applies directly.
+This is the authoritative drafting check. Read any draft longer than three
+sentences against this file before it ships. Wikipedia-specific sections (wikitext
+markup bugs, citation formats, edit summaries, AfC/deletion process tells) are
+omitted as irrelevant outside Wikipedia editing; everything below applies directly.
 
-Quick-check order for a draft: (1) AI-vocabulary density and copulative avoidance,
-(2) negative parallelisms and rule-of-three, (3) em dashes / boldface / title case,
-(4) promotional puffery and superficial "-ing" analyses, (5) does it read like the
-"Signs of human writing" list — simple is/has, plain verbs, hedges, the occasional
-wordy human construction.
+The check order for a draft lives in the skill's SKILL.md; this file is the source
+material behind it.
 
 ---
 ## Caveats
@@ -57,8 +53,6 @@ This statistical regression to the mean, a smoothing over of specific facts into
 
 LLM writing often puffs up the importance of the subject matter by adding statements about how arbitrary aspects of the topic represent or contribute to a broader topic. There is a distinct and easily identifiable repertoire of ways that it writes these statements.
 
-Examples
-
 Another common manifestation of this sign is AI chatbots situating an article subject amid broader "debates" or "discussions".
 
 LLMs may even include these statements for even the most mundane of subjects like etymology or population data. Sometimes, they add hedging preambles acknowledging that the subject is of relatively low importance, before talking about its importance anyway.
@@ -75,8 +69,6 @@ Human-written press releases have of course also cited news clippings for decade
 
 In articles about people or entities that use social media, LLMs will often note that they "maintain an active social media presence" or something similar. This wording is particularly idiosyncratic to AI text and relatively uncommon on Wikipedia before ~2024.
 
-Examples
-
 ### Superficial analyses
 
 - Words to watch: highlighting/underscoring/emphasizing ... , ensuring ... , reflecting/symbolizing ... , contributing to ... , cultivating/fostering ... , encompassing ... , enhancing ... , valuable insights , align/resonate with ,
@@ -84,8 +76,6 @@ Examples
 AI chatbots tend to insert superficial analysis of information, often in relation to its significance, recognition, or impact. This is often done by attaching a present participle ("-ing") phrase at the end of sentences, sometimes with vague attributions to third parties (see below).
 
 For the purpose of Wikipedia, such comments are usually synthesis or unattributed opinions. Newer chatbots with retrieval-augmented generation (for example, an AI chatbot that can search the web) may attach these statements to named sources —e.g., "Roger Ebert highlighted the lasting influence"—regardless of whether those sources say anything close.
-
-Examples
 
 ### Promotional and advertisement-like language
 
@@ -107,10 +97,6 @@ When writing about people or companies, LLMs will often adopt a press-release or
 
 AI chatbots tend to attribute opinions or claims to some vague authority—a practice called weasel wording . They also commonly exaggerate the quantity of sources that these opinions are attributed to. They may present views from one or two sources as widely held (often combined with the vague attributions above), mention the existence or opinion of multiple "reviewers" or "scholars" while only citing one person, or imply that lists of examples are non-exhaustive when the sources give no indication that other examples exist.
 
-Examples
-
-References
-
 ### Outline-like conclusions about challenges and future prospects
 
 - Words to watch: Despite its... faces several challenges... , Despite these challenges , Challenges and Legacy , Future Outlook ...
@@ -118,26 +104,6 @@ References
 Many LLM-generated Wikipedia articles include a "Challenges" section, which typically begins with a sentence like "Despite its [positive/promotional words], [article subject] faces challenges..." and ends with either a vaguely positive assessment of the article subject, or speculation about how ongoing or potential initiatives could benefit the subject. Such paragraphs usually appear at the end of articles with a rigid outline structure, which may also include a separate section for "Future Prospects."
 
 Note: This sign is about the rigid formula, not simply the mention of challenges or challenging.
-
-Examples
-
-### Leads treating Wikipedia lists or broad article titles as proper nouns
-
-In AI-generated articles about topics with a title that is not a proper name , such as a list , the first sentence of the lead may introduce or define the article's title as if it were a standalone real-world entity. While the MOS does allow such titles to be included at the beginning of the lead "in a natural way", these AI leads tend not to be so natural.
-
-Examples
-
-> Catchment area (health) refers to the geographic area from which a health facility, such as a hospital or clinic, draws its patients.
-
-— From this October 2024 revision to now-deleted article Catchment area (health)
-
-> EuroGames editions is the chronological list of the biennial EuroGames, a European LGBT+ multi-sport event organized by the European Gay and Lesbian Sport Federation (EGLSF).
-
-— From this July 2025 revision to EuroGames editions
-
-> The “ List of songs about Mexico ” is a curated compilation of musical works that reference Mexico its culture, geography, or identity as a central theme.
-
-— From this July 2025 revision to List of songs about Mexico
 
 ## Language and grammar
 
@@ -158,8 +124,6 @@ The words that LLMs overuse have changed over time. For instance, the word delve
 The distribution of "AI vocabulary" is also somewhat different depending on the chatbot or LLM used. Grok output is particularly idiosyncratic: it overuses superficially "scientific" words like causal , empirical , correlate , and continues to overuse underscore as of 2026.
 
 This section is to be taken as literally as possible: a word being overused by AI does not imply that its synonyms are also overused. Also, keep context in mind. For example, while the figurative use of "underscore" is ubiquitous in earlier AI text, the word can also refer to a literal underline mark or to incidental music .
-
-Examples
 
 ### Avoidance of basic copulatives ("is"/"are" phrases)
 
@@ -185,8 +149,6 @@ When LLMs describe a subject, their output may seem as though it is clearing up 
 
 It is common for LLMs to use parallel constructions involving "not", "but", or "however" such as " Not only ... but ... " or " It is not just ..., it's ... ".
 
-Examples
-
 Here is an example of a negative parallelism across multiple sentences:
 
 > He hailed from the esteemed Duse family, renowned for their theatrical legacy. Eugenio's life, however, took a path that intertwined both personal ambition and familial complexities.
@@ -196,8 +158,6 @@ Here is an example of a negative parallelism across multiple sentences:
 #### Not X, but Y
 
 Another common LLM pattern is parallelisms that explicitly state that a particular item doesn't possess the first characteristic at all. Such constructions are often expressed as " It's not ..., it's ... " or " no ..., no ..., just ... ".
-
-Examples
 
 #### X rather than Y
 
@@ -265,8 +225,6 @@ AI chatbots output often includes vertical lists formatted in a specific way: an
 
 Instead of proper wikitext , a bullet point in an unordered list may appear as a bullet character (•), hyphen (-), en dash (–), hash (#), emoji , or similar character. Ordered lists (i.e. numbered lists) may use explicit numbers (such as 1. ) instead of standard wikitext. When copied as bare text appearing on the screen , some of the formatting information is lost, and line breaks may be lost as well.
 
-Examples
-
 In some cases, there is no punctuation separating the title of each entry from its corresponding text. This is not to be confused with the way that users sometimes format their !votes in XfD discussions, where words like Keep or Delete are typically written in boldface to set it apart from the arguments for the desired outcome.
 
 ### Overuse of em dashes
@@ -275,19 +233,13 @@ While human editors and writers often use em dashes (—), LLM output uses them 
 
 This sign is most useful when taken in combination with other indicators, not by itself. It is much more common on discussion pages than in article text. Also, because LLMs' use of em-dashes has become somewhat notorious, some AI companies have attempted to make their newer chatbots suppress their use, most notably OpenAI's GPT-5.1 .
 
-Examples
-
 ### Emoji as formatting
 
 AI chatbots have used emoji in the past. In particular, they sometimes decorated section headings or bullet points by placing emoji in front of them. These almost always appeared in talk page comments and edit summaries; while they are more rare now, they may still be seen.
 
-Examples
-
 ### Unusual use of tables
 
 In rare cases, some AIs may create unnecessary small tables that could be better represented as prose or an infobox .
-
-Examples
 
 ### Curly quotation marks and apostrophes
 
@@ -307,8 +259,6 @@ AI chatbots tend to skip level 2 headings ( == ) and start sections from the thi
 
 AI chatbots sometimes include a thematic break ( ---- ) before each heading in a text (this is common in Markdown output).
 
-Examples
-
 ## Communication intended for the user
 
 ### Collaborative communication
@@ -316,8 +266,6 @@ Examples
 - Words to watch: I hope this helps , Of course! , Certainly! , You're absolutely right! , Would you like... , is there anything else , let me know , more detailed breakdown , here is a ...
 
 Editors sometimes paste text from an AI chatbot that was meant as correspondence, prewriting or advice, rather than article content. This may appear in article text or within comments (<-- -->). Chatbots prompted to produce a Wikipedia article or comment may also explicitly state that the text is meant for Wikipedia, and may mention various policies and guidelines in the output—often explicitly specifying that they're Wikipedia 's conventions. Often the advice given by an AI chatbot is incorrect, misleading, or in contravention with policies or guidelines.
-
-Examples
 
 ### Knowledge-cutoff disclaimers and speculation about gaps in sources
 
@@ -359,17 +307,9 @@ Examples
 
 AI chatbots may generate responses with fill-in-the-blank phrasal templates (as seen in the game Mad Libs ) for the LLM user to replace with words and phrases pertaining to their use case. However, some LLM users forget to fill in those blanks. Note that non-LLM-generated templates exist for drafts and new articles, such as Wikipedia:Artist biography article template/Preload and pages in Category:Article creation templates .
 
-Examples
-
 Large language models may also insert placeholder dates like "2025-xx-xx" into citation fields, particularly the access-date parameter and rarely the date parameter as well , producing errors.
 
-Links to searches
-
-- insource:/20[0-9][0-9]-(XX|xx)-(XX|xx)/
-
 In some cases, LLM-generated citations may also contain placeholders in other fields.
-
-Examples
 
 LLM-generated infobox edits may contain comments stating that text or images should be added if/when sources are available, and sometimes contain instructions to upload images to Wikimedia Commons. These are not the same as the predefined boilerplate comments included in many templates, such as Infobox company , despite occasional resemblances -- for example, articles with Infobox military person often contain the boilerplate "Add spouse if reliably sourced." Before citing this sign, check whether the comment in question is part of the infobox template.
 
