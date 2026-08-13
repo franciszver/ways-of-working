@@ -41,7 +41,9 @@ A truthful "stuck, here's the state" from a cheap model costs cents; a confident
 | Architecture, API design, data model (`architect`) | Highest available | One-way doors; wrong is expensive and slow to surface |
 | Spec-writing, task breakdown (`spec`, `breakdown`) | High | This output multiplies every downstream tier's quality |
 | Gnarly debugging: concurrency, heisenbugs, cross-system | High | Hypothesis quality is the bottleneck |
-| Security-sensitive review (`deep-review`) | High + fresh context | Missed findings are the expensive kind of cheap |
+| Mechanical/structural review checks: orphaned imports, dead code after deletion, deletion completeness, stale comments/doc drift, test-count deltas, naming/style consistency | Haiku + fresh context | Checkable right answer; judgment need is low |
+| Ordinary correctness review on a contained diff | Sonnet + fresh context | Contained blast radius; verification is tractable |
+| Adversarial review of high-stakes paths: destructive/corrupting-to-user-data code, security boundaries, correctness resting on an assumption about an external system (hardware, device protocol, third-party API) (`deep-review`) | Highest available + fresh context | Missed findings are the expensive kind of cheap |
 | Routine feature with clear spec | Sonnet or local+`quality` | Cheap to verify against the spec's criteria |
 | Ordinary bugfix with repro | Sonnet; local if tests exist | The repro is the verifier |
 | Tests from a spec (`testgen`) | Sonnet / local | Contract is written; boundary tables are mechanical-ish |

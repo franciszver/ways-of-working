@@ -1,6 +1,6 @@
 ---
 name: apply-working-process
-description: Load the owner's standard working process — orchestrator-only role split, cheap-model implementation with fresh equal-or-better review, board-as-plan issue discipline, red-first TDD, three gates before merge, same-session decision logging. Use at the start of any project session, in any environment or tool, so the agent works the way the owner works.
+description: Load the owner's standard working process — orchestrator-only role split, cheap-model implementation with fresh review tiered to what's being checked, board-as-plan issue discipline, red-first TDD, three gates before merge, same-session decision logging. Use at the start of any project session, in any environment or tool, so the agent works the way the owner works.
 ---
 
 # Apply Working Process
@@ -11,8 +11,11 @@ This is how the library's owner runs engineering work. It was proven on the Agen
 
 - **The orchestrator plans, sequences, delegates, reviews, and merges — it never edits files directly.**
 - Implementation runs on cheaper models: Sonnet-tier for all real work, Haiku-tier only for pure boilerplate (scaffolding, fixtures, config). Token savings are an explicit owner directive, not an optimization to debate.
-- **Every diff is reviewed by a fresh agent on an equal-or-better model** before it lands — fresh means no implementation context, so it can't inherit the implementer's blind spots.
-- The top-tier model is reserved for rare, genuinely high-stakes security review — and its use is called out explicitly.
+- **Every diff is reviewed by a fresh agent — model tier follows what the check is verifying, not the fact that it's a review.** "Fresh" (no implementation context, so it can't inherit the implementer's blind spots) applies at every tier below:
+  - Haiku-tier for mechanical/structural checks with a checkable right answer: orphaned imports and dead code after a deletion, deletion completeness (no dangling references), stale comments and doc drift, test-count deltas, naming and style consistency.
+  - Sonnet-tier for ordinary correctness review on contained diffs.
+  - Opus-tier (or the strongest available) for adversarial passes on high-stakes paths: anything that can destroy or corrupt user data, anything touching security boundaries, anything whose correctness depends on an assumption about an external system (hardware, a device protocol, a third-party API). Its use is called out explicitly.
+- Don't spend the expensive tier on pattern-matching work — routing an import check to a top-tier model buys nothing an equal-or-better cheap model plus verification wouldn't also catch.
 - No subagents in this environment? Keep the *phase separation*: plan first, implement second, then review your own diff cold with `deep-review` before committing.
 - The orchestrator itself runs on the strongest model available for the seat — Fable-tier by default. If the user doesn't have access to Fable, offer to switch the orchestrator to Opus at high reasoning effort instead of silently downgrading.
 - The full model-selection judgment lives in this library's `playbooks/ROUTING.md`; this section is its standing application, and ROUTING.md wins if they drift.
@@ -43,6 +46,8 @@ This is how the library's owner runs engineering work. It was proven on the Agen
 - On the full PR diff, in order: **simplify → security review → code review** (in Claude Code: `/simplify` → `/security-review` → `/code-review`; elsewhere use this library's `declutter`, `sec-audit`, `deep-review`).
 - Every finding fixed — not triaged into follow-ups — and the full test suite re-run green *after* the fixes. Applies to docs PRs too.
 - When a gate finds a real defect, **fix-first beats ship-with-follow-up**, even if the reviewer says shipping is acceptable.
+- **Scale the simplify gate's fan-out to the diff — security review and code review always run at full strength regardless of size.** Simplify normally fans out to four parallel angles (reuse, simplification, efficiency, altitude); on a small diff (roughly under ~150 changed lines, or confined to one or two files) collapse that to a single combined pass covering all four angles, on a cheap tier. Larger or structurally significant diffs keep the full parallel fan-out. State explicitly when the reduced form is used, so a reduced gate is never mistaken for a full one — this proportionality rule applies to simplify only, never to security review or code review, which are the gates that catch defects.
+- **Two review→fix rounds on the same diff without convergence is the cap.** Stop and surface the situation to the owner with a recommendation instead of starting a third round — repeated rounds on one diff are evidence the approach is wrong, not that the fixes are nearly done. When an implementer's measurement against real data contradicts a reviewer's model, the measurement wins (see **Honest measurement** in §7).
 
 ## 6. Decisions are logged the session they're made
 
@@ -54,7 +59,7 @@ This is how the library's owner runs engineering work. It was proven on the Agen
 ## 7. Working norms
 
 - **Anything that can be done now gets done now** — environment setup runs immediately, outside tracked tasks, so problems surface before the first task's pipeline.
-- **Honest measurement.** Never game a metric: a non-deterministic test stays xfail rather than being flaked green; eval numbers report what actually happened.
+- **Honest measurement.** Never game a metric: a non-deterministic test stays xfail rather than being flaked green; eval numbers report what actually happened. When an implementer's measurement against real data contradicts a reviewer's model of the risk, the measurement wins — don't spend a review round fixing a finding the implementer already checked doesn't apply. (Observed: a round was spent fixing a finding already measured to affect zero of 19 real user files; the fix introduced a worse defect than the one it addressed.)
 - **Autonomy with accountability.** When granted an unattended run: self-merge after the gates pass, and leave owner-gated items open and annotated rather than blocking on them.
 - **Check in on long-running subagents every 15 minutes.** A delegated task still "running" isn't proof it's progressing — read back its actual output or status and confirm real progress, not just that the process is alive. Prefer a free, independent spot-check of the environment (`git status`, `docker ps`, GPU/resource stats, artifact directories) before spending a message or resume on asking the agent itself. Stalled or looping work gets interrupted and redirected, not left to burn budget silently.
 - **CI watches are bounded — a hung run is a failure mode, not a long run.** Derive the ceiling from the pipeline's known runtime (a suite that finishes in ~30 seconds gets a ~5-minute ceiling, not "until it ends"); never watch unbounded. On breach, diagnose once: a run still queued never started — cancel and re-run it once; a run genuinely executing gets one extension with a stated reason. Two strikes → surface to the owner instead of looping. Right after opening a PR, poll until checks *exist* (short loop, ~2-minute cap) before reading their absence as a verdict — "no checks reported" immediately post-push is usually the registration race, not the result. Brief subagents with the ceiling/re-run rule, not an open-ended `--watch`; and the 15-minute spot-check of a delegated task includes "is it parked on a CI watch past the ceiling?" (`gh run list` is free). (Observed 2026-07-24: an agent read "no checks reported" pre-registration; an unbounded watch would have slept through a queued-runner stall.)
