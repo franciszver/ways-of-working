@@ -5,8 +5,8 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
-- **Rename**: every `fable-quality-library` reference replaced with
-  `ways-of-working` (MCP server name, pyproject, env var
+- **Rename**: every reference to the repo's old model-branded name
+  replaced with `ways-of-working` (MCP server name, pyproject, env var
   `WAYS_OF_WORKING_LIBRARY`, install guard comments, docs). README
   reframed as process-not-model; `PLAN.md` marked historical (#3).
 - **Distribution, CI, hygiene** (#4): `.claude-plugin/plugin.json` and
