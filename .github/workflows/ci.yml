@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check install.sh syntax
+        run: bash -n install.sh
+
+      - name: shellcheck (if available)
+        run: |
+          if command -v shellcheck >/dev/null 2>&1 || sudo apt-get install -y shellcheck; then
+            shellcheck install.sh scripts/check-parity.sh
+          else
+            echo "shellcheck unavailable, skipping"
+          fi
+
+      - name: Port parity check
+        run: scripts/check-parity.sh
+
+      - name: SKILL.md frontmatter check
+        run: python3 scripts/check-frontmatter.py .
+
+      - name: README skill-count check
+        run: python3 scripts/check-counts.py .
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Validate plugin manifest
+        # `claude plugin validate .` can require an authenticated session
+        # in some CI environments. Do not treat that as a hard CI failure
+        # until this is confirmed against GitHub Actions runners.
+        continue-on-error: true
+        run: claude plugin validate . --strict
