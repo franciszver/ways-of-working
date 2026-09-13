@@ -265,6 +265,8 @@ def check_slash_only_keys(lib: Path, profile: dict) -> list:
     whose build tree was never regenerated."""
     errors = []
     build_root = lib / "build" / "claude-code" / "skills"
+    if not build_root.is_dir():
+        return []  # reported by check_build_drift already
     for name, extra_keys in profile.items():
         if not isinstance(extra_keys, dict) or not extra_keys.get("disable-model-invocation"):
             continue
