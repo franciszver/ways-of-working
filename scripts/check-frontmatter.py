@@ -17,12 +17,22 @@ For every skills/**/SKILL.md and skills-local/**/SKILL.md, checks:
 
 Exits 1 if any file fails a check. Requires PyYAML (exits 2 if missing).
 """
+import importlib.util
 import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import _lib
+
+
+def _load_build_profile():
+    """Import scripts/build-profile.py by path (hyphenated filename)."""
+    path = Path(__file__).parent / "build-profile.py"
+    spec = importlib.util.spec_from_file_location("build_profile", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 try:
     import yaml  # type: ignore
@@ -159,6 +169,16 @@ def main() -> int:
             print(f"FAIL: {e}")
         print(f"\n{len(all_errors)} frontmatter error(s).")
         return 1
+
+    build_profile = _load_build_profile()
+    generated = build_profile.generate(lib)
+    profile_errors = build_profile.check_build(lib, generated)
+    if profile_errors:
+        for e in profile_errors:
+            print(f"FAIL: build/claude-code profile: {e}")
+        print(f"\n{len(profile_errors)} build-profile error(s).")
+        return 1
+    print(f"build/claude-code/skills/ matches {len(generated)} canonical skills.")
 
     print("All SKILL.md frontmatter valid.")
     return 0
