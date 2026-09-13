@@ -5,6 +5,17 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+- **Fix (#5)**: MCP server `route()` regex bugs fixed — `PR`, `CI`, `down`,
+  `ui`, `ux`, and `css` no longer match inside unrelated words (e.g. "prove",
+  "cite", "download"). Pure logic (frontmatter parsing, skill discovery,
+  route matching) split into `mcp-server/library.py`, which has no `mcp`
+  import, so `mcp-server/test_server.py` runs without the `mcp` package
+  installed. The server's `instructions` text is now generated from
+  `discover_skills()` instead of a hand-maintained count and name list.
+  `pyproject.toml` gained a `[build-system]` section so
+  `[project.scripts]` resolves. `mcp-server/README.md` and `install.sh`'s
+  `--mcp` output now use the same registration/smoke-test invocation. CI
+  gained an mcp-server test step.
 - **Release**: `.claude-plugin/plugin.json` version bumped to `0.2.0` —
   `hooks/` changed in this PR, and plugin installs only update on a
   version bump (see `CONTRIBUTING.md`'s Releasing section).
