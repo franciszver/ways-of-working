@@ -46,7 +46,7 @@ claude plugin install ways-of-working@ways-of-working
 ```
 One profile per setup — the packs share skill names by design (same muscle memory, opposite token economics; see below).
 
-**Antigravity:** `./install.sh --antigravity ~/code/myrepo` → 5 rules + 34 thin workflow stubs, one per canonical skill, plus `skills/` itself (writes both `.agent/` and `.agents/` until a live install confirms which the running build reads — issue #11)
+**Antigravity:** `./install.sh --antigravity ~/code/myrepo` → 5 rules + 34 thin workflow stubs, one per canonical skill, plus `skills/` itself (path rationale: `antigravity/README.md`)
 
 **Any AGENTS.md tool (Codex, Amp, Zed, Jules, Cursor, paid-tier Gemini CLI, …):** `./install.sh --agents-md ~/code/myrepo`
 

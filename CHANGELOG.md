@@ -12,19 +12,26 @@ All notable changes to this repo are recorded here. Format loosely follows
   `testing.mdc`, and `frontend-design.mdc` — Cursor reads `skills/`
   natively (`install.sh --skills <repo>/.cursor/skills`); fixed
   `testing.mdc`'s glob to drop spaces after commas. Replaced every
-  Antigravity workflow with a 5-line stub that loads its matching
-  skill, added the 7 missing stubs, and added `scripts/gen-ports.py`
-  to regenerate the stubs and the AGENTS.md skill pointers from
-  `skills/*/SKILL.md` (CI checks for drift). Rewrote `AGENTS.md` as
-  the single portable entry point: a 33-line always-on floor plus one
-  `@skills/<name>/SKILL.md` pointer per canonical skill (8026 bytes).
-  `install.sh --antigravity` now writes rules, workflows, and skills to
-  both `.agent/` and `.agents/` until a live install confirms which the
-  running build reads. Added `install.sh --skills DIR` for any tool
-  that reads Agent Skills natively. `scripts/check_parity.py` dropped
-  the gemini surface and the cursor per-skill check (cursor now checks
-  its exact file set); `scripts/parity-allow.txt` keeps only the
-  `skills-local` gap (#10).
+  Antigravity workflow with a thin stub that loads its matching skill,
+  added the 7 missing stubs, and added `scripts/gen-ports.py` to
+  regenerate the stubs and the AGENTS.md skill pointers from
+  `skills/*/SKILL.md` (CI checks for drift and pointer uniqueness).
+  Rewrote `AGENTS.md` as the single portable entry point: a compact
+  always-on floor plus one `@skills/<name>/SKILL.md` pointer per
+  canonical skill. `install.sh --antigravity` writes the real rules,
+  workflows, and skills once under `.agents/` and symlinks `.agent/`
+  to it (or writes into `.agent/` too if it is already a real
+  directory), so either build Antigravity ships reads the same files
+  — see `antigravity/README.md` for the rationale. `install.sh
+  --agents-md` now also installs `skills/` alongside `AGENTS.md` so
+  its pointers resolve. Added `install.sh --skills DIR` for any tool
+  that reads Agent Skills natively, guarded against copying a skill
+  onto itself and against a destination inside the library.
+  `scripts/check_parity.py` dropped the gemini, antigravity, and
+  agents-md surfaces (the generated ones are checked more strongly by
+  `gen-ports.py --check`) and the cursor per-skill check (cursor now
+  checks its exact file set); `scripts/parity-allow.txt` keeps only
+  the `skills-local` gap (#10).
 - **Skills** (#6): rewrote skill descriptions in third person, dropped
   imperative openers and "always on" phrasing, added a description lint
   to `check-frontmatter.py`, and added task-shaped triggers plus

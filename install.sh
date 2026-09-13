@@ -171,6 +171,10 @@ _copy_skill_dir_cb() { # $1 = source dir, $2 = name, $3 = dest skills dir
   # (users tune installed skills), --force refreshes them from the library.
   # --link installs a symlink to the library dir instead of a copy.
   local dir="$1" name="$2" dest="$3"
+  if [ "$(realpath -m "$dest/$name")" = "$(realpath "${dir%/}")" ]; then
+    note "skill source and destination are the same path, skipping: $dest/$name"
+    return 0
+  fi
   if [ -e "$dest/$name" ] && [ "$FORCE" -eq 0 ]; then
     note "skill exists, skipping (use --force to refresh): $dest/$name"
     return 0
@@ -366,25 +370,33 @@ do_hooks() {
   note "optional test gate: echo 'npm test' > $proj/.claude/test-command"
 }
 
+# Single source of truth for the Antigravity directory names — see
+# antigravity/README.md for why both exist.
+ANTIGRAVITY_DIR=".agents"
+ANTIGRAVITY_LEGACY_DIR=".agent"
+
+_write_antigravity_root() { # $1 = root dir (gets rules/, workflows/, skills/)
+  local root="$1" f
+  run mkdir -p "$root/rules" "$root/workflows"
+  for f in "$LIB"/antigravity/rules/*.md;     do copy_file_safe "$f" "$root/rules/$(basename "$f")"; done
+  for f in "$LIB"/antigravity/workflows/*.md; do copy_file_safe "$f" "$root/workflows/$(basename "$f")"; done
+  copy_skill_dirs "skills" "$root/skills"
+}
+
 do_antigravity() {
-  # Antigravity's docs say `.agents/` (plural); older builds read `.agent/`
-  # (singular). Until a live install confirms which the running build
-  # reads (issue #11), write both so either build picks it up.
   local proj="$ARG_ANTIGRAVITY"
   [ -d "$proj" ] || { echo "No such directory: $proj"; exit 1; }
-  run mkdir -p "$proj/.agent/rules" "$proj/.agent/workflows" "$proj/.agent/skills"
-  run mkdir -p "$proj/.agents/rules" "$proj/.agents/workflows" "$proj/.agents/skills"
-  local f
-  for f in "$LIB"/antigravity/rules/*.md; do
-    copy_file_safe "$f" "$proj/.agent/rules/$(basename "$f")"
-    copy_file_safe "$f" "$proj/.agents/rules/$(basename "$f")"
-  done
-  for f in "$LIB"/antigravity/workflows/*.md; do
-    copy_file_safe "$f" "$proj/.agent/workflows/$(basename "$f")"
-    copy_file_safe "$f" "$proj/.agents/workflows/$(basename "$f")"
-  done
-  copy_skill_dirs "skills" "$proj/.agent/skills"
-  copy_skill_dirs "skills" "$proj/.agents/skills"
+  _write_antigravity_root "$proj/$ANTIGRAVITY_DIR"
+
+  local legacy="$proj/$ANTIGRAVITY_LEGACY_DIR"
+  if [ ! -e "$legacy" ] || [ -L "$legacy" ]; then
+    run rm -f "$legacy"
+    run ln -s "$ANTIGRAVITY_DIR" "$legacy"
+    note "legacy path $legacy -> $ANTIGRAVITY_DIR (symlink; see antigravity/README.md)"
+  else
+    note "legacy path $legacy is a real directory, writing into it too (see antigravity/README.md)"
+    _write_antigravity_root "$legacy"
+  fi
   note "global baseline: paste antigravity/rules/baseline.md into Antigravity's Manage Rules UI."
 }
 
@@ -392,7 +404,8 @@ do_agents_md() {
   local proj="$ARG_AGENTS_MD"
   [ -d "$proj" ] || { echo "No such directory: $proj"; exit 1; }
   copy_file_safe "$LIB/ports/agents-md/AGENTS.md" "$proj/AGENTS.md"
-  note "fill in the 'Project commands' section of AGENTS.md."
+  copy_skill_dirs "skills" "$proj/skills"
+  note "fill in the 'Project commands' section of AGENTS.md. AGENTS.md's @skills/<name>/SKILL.md pointers resolve against $proj/skills, installed alongside it."
 }
 
 do_cursor() {
@@ -406,7 +419,14 @@ do_cursor() {
 do_skills() {
   # For tools that read Agent Skills natively: Cursor (.cursor/skills),
   # the paid-tier Gemini CLI (~/.gemini/skills), Antigravity (.agents/skills).
-  local dest="$ARG_SKILLS"
+  local dest="$ARG_SKILLS" dest_real lib_real
+  dest_real="$(realpath -m "$dest")"
+  lib_real="$(realpath "$LIB")"
+  if [ "$dest_real" = "$lib_real/skills" ] || [[ "$dest_real" == "$lib_real"/* ]]; then
+    echo "Refusing --skills $dest: it resolves inside this library ($lib_real)." >&2
+    echo "Pick a destination outside the library, e.g. a project's .cursor/skills." >&2
+    exit 1
+  fi
   copy_skill_dirs "skills" "$dest"
   note "skills installed to $dest — Cursor: <repo>/.cursor/skills; Gemini CLI: ~/.gemini/skills; Antigravity: <repo>/.agents/skills."
 }

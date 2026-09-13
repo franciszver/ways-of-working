@@ -10,7 +10,7 @@ Format — last verified: see CHANGELOG — against [antigravity.google/docs/rul
 ./install.sh --antigravity <project>
 ```
 
-Antigravity's docs say rules, workflows, and skills live under `.agents/`; older builds read `.agent/` (singular). Until a live install confirms which the running build reads (issue #11), `install.sh --antigravity` writes both `.agent/` and `.agents/`.
+Antigravity's docs say rules, workflows, and skills live under `.agents/` (plural); older builds read `.agent/` (singular). Until a live install confirms which the running build reads (issue #11), `install.sh --antigravity` writes the real content once, under `.agents/`, and makes `.agent/` a symlink to it — so either build's reads land on the same files, and there is one copy to keep in sync. If a project already has a real `.agent/` directory (not a symlink), install.sh writes into it too instead of overwriting it with a symlink.
 
 Global rules are managed through Antigravity's settings UI ("Manage Rules") — paste `rules/baseline.md` there to make the baseline apply everywhere.
 
