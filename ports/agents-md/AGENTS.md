@@ -1,7 +1,7 @@
 # Agent operating rules
 
 <!-- Drop this file at the repo root as AGENTS.md. It is the tool-agnostic
-     distillation of the fable-quality-library: the quality floor plus compact
+     distillation of ways-of-working: the quality floor plus compact
      protocols for the highest-stakes moments (debugging, testing, review,
      claiming done, security, incidents, releases, and more below). Add your
      project's commands in the marked section. -->

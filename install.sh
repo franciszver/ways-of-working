@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh — deploy the fable-quality-library into your environments.
+# install.sh — deploy ways-of-working into your environments.
 #
 # Smoke-tested 2026-07-06 (all targets, idempotent reruns, error cases,
 # against a scratch HOME). --dry-run previews any run.
@@ -88,6 +88,19 @@ append_guarded() { # $1 = snippet file, $2 = target file, $3 = marker
     note "already present (marker found), skipping append: $target"
     return 0
   fi
+  if [ -f "$target" ]; then
+    local suffix="${marker#*:}"
+    suffix="${suffix% -->}"
+    if grep -qE "<!-- [a-z0-9-]+:${suffix} -->" "$target"; then
+      note "migrated guard marker in $target"
+      if [ "$DRY_RUN" -eq 0 ]; then
+        sed -i -E "s|<!-- [a-z0-9-]+:${suffix} -->|${marker}|" "$target"
+      else
+        echo "[dry-run] migrate guard marker in $target"
+      fi
+      return 0
+    fi
+  fi
   note "appending $(basename "$snippet") -> $target"
   if [ "$DRY_RUN" -eq 0 ]; then
     mkdir -p "$(dirname "$target")"
@@ -114,10 +127,10 @@ do_claude_user() {
     run mkdir -p "$base/agents"
     local f
     for f in "$LIB"/agents/*.md; do copy_file_safe "$f" "$base/agents/$(basename "$f")"; done
-    append_guarded "$LIB/claude-md/global-frontier.md" "$base/CLAUDE.md" "<!-- fable-quality-library:frontier -->"
+    append_guarded "$LIB/claude-md/global-frontier.md" "$base/CLAUDE.md" "<!-- ways-of-working:frontier -->"
   else
     copy_skill_dirs "skills-local" "$base/skills"
-    append_guarded "$LIB/claude-md/global-local.md" "$base/CLAUDE.md" "<!-- fable-quality-library:local -->"
+    append_guarded "$LIB/claude-md/global-local.md" "$base/CLAUDE.md" "<!-- ways-of-working:local -->"
   fi
   note "done. If ~/.claude/skills was created just now, restart Claude Code once."
 }
@@ -200,11 +213,15 @@ do_mcp() {
   cat <<EOF
 Register the MCP server (see mcp-server/README.md for the smoke test first):
 
-  claude mcp add fable-quality -- uv run --directory "$LIB/mcp-server" server.py
+  claude mcp add ways-of-working -- uv run --directory "$LIB/mcp-server" server.py
 
 Generic mcpServers JSON:
-  {"mcpServers": {"fable-quality": {"command": "uv",
+  {"mcpServers": {"ways-of-working": {"command": "uv",
     "args": ["run", "--directory", "$LIB/mcp-server", "server.py"]}}}
+
+If this server was registered under its previous name, remove that registration
+first (claude mcp list shows it), and re-export the library-root env var under
+its new name WAYS_OF_WORKING_LIBRARY.
 EOF
 }
 

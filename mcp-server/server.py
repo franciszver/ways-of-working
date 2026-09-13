@@ -1,11 +1,11 @@
-"""fable-quality MCP server.
+"""ways-of-working MCP server.
 
-Exposes the fable-quality-library to any MCP-capable agent:
+Exposes the ways-of-working library to any MCP-capable agent:
 - tools: list_skills, get_skill, get_playbook, route
 - prompts: one per canonical skill (invoking a prompt injects the skill text)
 
 Stdio transport (the default). Library root resolves from the
-FABLE_QUALITY_LIBRARY env var, falling back to this file's parent repo.
+WAYS_OF_WORKING_LIBRARY env var, falling back to this file's parent repo.
 
 Authored as part of the library's plumbing phase and NOT yet executed —
 see README.md for the two-minute smoke test before first use.
@@ -22,7 +22,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.prompts import Prompt
 
 LIBRARY_ROOT = Path(
-    os.environ.get("FABLE_QUALITY_LIBRARY", Path(__file__).resolve().parent.parent)
+    os.environ.get("WAYS_OF_WORKING_LIBRARY", Path(__file__).resolve().parent.parent)
 )
 
 PROFILES = {
@@ -32,7 +32,7 @@ PROFILES = {
 PLAYBOOK_DIR = LIBRARY_ROOT / "playbooks"
 
 mcp = FastMCP(
-    "fable-quality",
+    "ways-of-working",
     instructions=(
         "Quality-process library: 31 judgment-dense skills covering software engineering, "
         "ops/incidents, codebase navigation, and non-engineering work. "
@@ -117,7 +117,7 @@ def list_skills() -> str:
         desc = s.description.split(". ")[0].rstrip(".")
         lines.append(f"- {s.name} [{s.profile}] — {desc}")
     if not lines:
-        return f"No skills found under {LIBRARY_ROOT} — check FABLE_QUALITY_LIBRARY."
+        return f"No skills found under {LIBRARY_ROOT} — check WAYS_OF_WORKING_LIBRARY."
     return "\n".join(lines)
 
 
