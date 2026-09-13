@@ -223,6 +223,14 @@ append_guarded() { # $1 = snippet file, $2 = target file, $3 = marker
   fi
 }
 
+copy_rules() { # $1 = dest rules dir (e.g. $HOME/.claude/rules or <repo>/.claude/rules)
+  local dest="$1" f
+  run mkdir -p "$dest"
+  for f in "$LIB"/claude-md/rules/*.md; do
+    copy_file_safe "$f" "$dest/$(basename "$f")" 1
+  done
+}
+
 copy_file_safe() { # $1 = src, $2 = dest, $3 = 1 to honor --link (default: 0)
   local allow_link="${3:-0}"
   if [ -e "$2" ] && [ "$FORCE" -eq 0 ]; then
@@ -324,6 +332,7 @@ do_claude_user() {
   else
     append_guarded "$LIB/claude-md/global-local.md" "$base/CLAUDE.md" "<!-- ways-of-working:local -->"
   fi
+  copy_rules "$base/rules"
   write_profile_marker "$base"
   note "done. If ~/.claude/skills was created just now, restart Claude Code once."
 }
@@ -345,6 +354,7 @@ do_claude_project() {
   else
     note "CLAUDE.md exists, untouched. Template for reference: claude-md/project-template.md"
   fi
+  copy_rules "$base/rules"
 }
 
 do_hooks() {
