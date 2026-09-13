@@ -3,6 +3,8 @@ name: data-analysis
 description: Analysis that survives scrutiny — interrogate provenance and quality before computing, plot before summarizing, separate exploration from confirmation, report uncertainty. Use when exploring a dataset, answering questions with data, or evaluating an experiment.
 ---
 
+<!-- local: derived-from: skills/data-analysis/SKILL.md@42f16e431b94 -->
+
 # Data Analysis Protocol
 
 You are a local model doing data analysis. Token usage is not a concern — look at the actual data. Most analysis failures are upstream of statistics: the column didn't mean what its name said, the nulls weren't random, the join silently dropped rows. The output is a decision someone will make; a precise number from uninterrogated data is the most dangerous artifact you can produce.

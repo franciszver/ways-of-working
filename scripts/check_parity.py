@@ -18,6 +18,8 @@ Port shapes (owner decision 2026-09-13, issue #11):
   - skills-local: a deliberate compact-variant subset, not full parity;
     its gaps are tracked in scripts/parity-allow.txt (#10).
 """
+import hashlib
+import re
 import sys
 from pathlib import Path
 
@@ -59,20 +61,111 @@ def check_cursor_shape(lib: Path) -> list:
     return errors
 
 
-def load_allowlist(lib: Path) -> set:
+PROVENANCE_RE = re.compile(
+    r"<!--\s*local:\s*derived-from:\s*skills/([A-Za-z0-9_-]+)/SKILL\.md@([0-9a-f]{12})\s*-->"
+)
+
+# Free-text, informational only — scripts/stamp-provenance.py never writes
+# it and this checker never reads it for a waiver. A twin that truly
+# diverges from canonical (apply-working-process's two inversions, spec's
+# section merge) carries one of these next to its provenance marker so a
+# reader knows the difference is deliberate. See CONTRIBUTING.md.
+DELIBERATE_DIVERGENCE_PREFIX = "<!-- local: deliberate divergence:"
+
+
+def canonical_hash(canonical_file: Path) -> str:
+    """First 12 hex chars of the canonical file's sha256, matching the
+    format scripts/stamp-provenance.py writes into a twin's marker."""
+    return hashlib.sha256(canonical_file.read_bytes()).hexdigest()[:12]
+
+
+def find_provenance_marker(twin_text: str):
+    """Return (skill_name, hash) from the twin's
+    '<!-- local: derived-from: skills/<name>/SKILL.md@<hash> -->' comment,
+    which must sit in the block right after frontmatter (blank lines and
+    other HTML comments, such as a deliberate-divergence note, may sit
+    alongside it). None if no such marker is found before the first
+    heading or the body ends."""
+    lines = twin_text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return None
+    end = None
+    for i, line in enumerate(lines[1:], start=1):
+        if line.strip() == "---":
+            end = i
+            break
+    if end is None:
+        return None
+    for line in lines[end + 1:]:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        match = PROVENANCE_RE.match(stripped)
+        if match:
+            return match.group(1), match.group(2)
+        if stripped.startswith("<!--"):
+            continue  # another comment (e.g. deliberate-divergence) — keep scanning
+        if stripped.startswith("#"):
+            return None  # reached the first heading without finding a marker
+    return None
+
+
+def check_provenance(lib: Path) -> list:
+    """For every skills-local twin backed by a canonical skill: it must
+    carry a derived-from marker (MISSING PROVENANCE if not), and that
+    marker's hash must match the canonical file's current hash (STALE if
+    not — the twin was re-derived from an older version of canonical, or
+    canonical changed since)."""
+    errors = []
+    canonical_dir = lib / "skills"
+    local_dir = lib / "skills-local"
+    if not local_dir.is_dir():
+        return errors
+    for twin_file in sorted(local_dir.glob("*/SKILL.md")):
+        name = twin_file.parent.name
+        canonical_file = canonical_dir / name / "SKILL.md"
+        if not canonical_file.is_file():
+            continue  # not a canonical-backed twin (e.g. quality, iterate)
+        marker = find_provenance_marker(twin_file.read_text())
+        if marker is None:
+            errors.append(f"MISSING PROVENANCE: {name} has no derived-from marker")
+            continue
+        _marker_name, marker_hash = marker
+        current_hash = canonical_hash(canonical_file)
+        if marker_hash != current_hash:
+            errors.append(
+                f"STALE: {name} derived from {marker_hash} but canonical is now "
+                f"{current_hash}; re-derive the twin and update the marker"
+            )
+    return errors
+
+
+def load_allowlist(lib: Path) -> tuple:
+    """Return (entries, errors). Every non-comment line must be
+    surface:skill:reason with a non-blank reason — a bare surface:skill
+    (no reason, or a reason that is only whitespace) is an error, not a
+    silent pass: an allowlisted gap must say why it stays a gap."""
     allow_file = lib / "scripts" / "parity-allow.txt"
     entries = set()
+    errors = []
     if not allow_file.is_file():
-        return entries
-    for line in allow_file.read_text().splitlines():
-        line = line.strip()
+        return entries, errors
+    for lineno, raw_line in enumerate(allow_file.read_text().splitlines(), start=1):
+        line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
-        if ":" not in line:
+        # Format: surface:skill:reason — reason may itself contain colons,
+        # so split at most twice.
+        parts = line.split(":", 2)
+        if len(parts) < 3 or not parts[2].strip():
+            errors.append(
+                f"scripts/parity-allow.txt:{lineno}: missing reason "
+                f"(expected surface:skill:reason) — {raw_line!r}"
+            )
             continue
-        surface, skill = line.split(":", 1)
+        surface, skill, _reason = parts
         entries.add((surface.strip(), skill.strip()))
-    return entries
+    return entries, errors
 
 
 def main() -> int:
@@ -82,7 +175,7 @@ def main() -> int:
     if not canonical:
         print(f"FAIL: 0 canonical skills found under {lib / 'skills'} — wrong LIB_ROOT?")
         return 1
-    allow = load_allowlist(lib)
+    allow, allow_errors = load_allowlist(lib)
 
     # Per-skill parity surfaces that are not otherwise checked.
     surface_globs = {
@@ -94,6 +187,10 @@ def main() -> int:
     }
 
     failed = False
+    if allow_errors:
+        failed = True
+        for err in allow_errors:
+            print(f"FAIL: {err}")
     print(f"Canonical skills: {len(canonical)}")
     for surface, present in surfaces.items():
         missing = [s for s in canonical if s not in present]
@@ -109,6 +206,16 @@ def main() -> int:
             print(f"[{surface}] MISSING: {', '.join(real_missing)}")
         elif not allowed_missing:
             print(f"[{surface}] OK — all {len(canonical)} skills present")
+
+    # skills-local: twins must be stamped from, and stay in sync with, the
+    # canonical file they were derived from.
+    provenance_errors = check_provenance(lib)
+    if provenance_errors:
+        failed = True
+        for err in provenance_errors:
+            print(f"[skills-local] {err}")
+    else:
+        print("[skills-local] OK — provenance current on all canonical-backed twins")
 
     # Cursor: shape check, not per-skill parity.
     cursor_errors = check_cursor_shape(lib)

@@ -1,6 +1,17 @@
 # skills-local — compact skills for local models
 
-Drop-in skills that make a local model (Qwen, GPT-OSS, etc.) running inside Claude Code via claude-code-router produce frontier-style output: plan before acting, verify instead of guessing, and self-review in a loop before ever saying "done".
+Drop-in skills that make a local model (Qwen, GPT-OSS, etc.) running inside Claude Code produce frontier-style output: plan before acting, verify instead of guessing, and self-review in a loop before ever saying "done".
+
+## Wiring a local model into Claude Code
+
+The official path is `ANTHROPIC_BASE_URL`, pointed at a local server that implements the Anthropic Messages API:
+
+- **Ollama** — since v0.14.0, exposes a native `/v1/messages` endpoint (docs: [Anthropic compatibility](https://docs.ollama.com/api/anthropic-compatibility); announcement: [ollama.com/blog/claude](https://ollama.com/blog/claude)). `export ANTHROPIC_BASE_URL=http://localhost:11434` and `export ANTHROPIC_AUTH_TOKEN=ollama`.
+- **LM Studio** — since 0.4.1, exposes the same `/v1/messages` endpoint (docs: [Anthropic Compatibility Endpoints](https://lmstudio.ai/docs/developer/anthropic-compat)). `export ANTHROPIC_BASE_URL=http://localhost:1234` and `export ANTHROPIC_AUTH_TOKEN=lmstudio`.
+
+Both work with no proxy in between — Claude Code just talks to the local server as if it were the Anthropic API. If your server does not map Claude Code's default model IDs to your local model, set `ANTHROPIC_MODEL` to your local model's tag (this is Claude Code's own model-selection variable; neither vendor's docs mention it). Ollama's own docs instead suggest aliasing the model name — `ollama cp qwen3-coder claude-3-5-sonnet` — so Claude Code's default ID resolves directly.
+
+**[`claude-code-router`](https://github.com/musistudio/claude-code-router)** is the community option: a third-party, non-Anthropic local gateway that routes Claude Code (and other coding agents) across many providers — OpenAI, Anthropic, Gemini, OpenRouter, DeepSeek, and more — from one place. Reach for it when a setup needs to mix or switch between several backends; a single local model behind `ANTHROPIC_BASE_URL` needs nothing extra.
 
 A skill cannot add raw capability to the weights — what it can do is eliminate the process failures that account for most of the perceived quality gap: invented APIs, edits made from memory, unverified "success", and stopping one iteration too early. That is what these files target.
 
@@ -67,6 +78,18 @@ research-codebase/ Documentarian stance; file:line evidence; durable research do
 demo-video/       Captioned demo video + README gif — capture a real session, caption, assemble, ship.
 ```
 
+**Planning, tests, and prose:**
+
+```
+handoff/       Compact continuation brief — goal, ledger, next action, gotchas, verification state.
+spec/          Numbered requirements ledger — acceptance criterion per MUST, riskiest assumption marked.
+testgen/       Contract-derived test cases — every test proven able to fail before it ships.
+refactor/      Behavior-preserving transforms — test net first, one named step at a time.
+write/         Audience → thesis → outline → draft → one structured revision pass.
+```
+
+**Allowlisted gaps** (no local variant — `scripts/parity-allow.txt` has the reason for each): `architect`, `breakdown`, `lean-max-effort`, `plain-language`, `research`.
+
 The compact always-on rules for CLAUDE.md live at [`../claude-md/global-local.md`](../claude-md/global-local.md) — install them too (see "Why the snippet" below).
 
 ## Install
@@ -78,6 +101,7 @@ cp -r quality iterate debug deep-review prove apply-working-process ste-writing 
    incident postmortem release \
    onboard estimate pr-workflow \
    data-analysis brainstorm explain prompt-eng research-codebase demo-video \
+   handoff spec testgen refactor write \
    ~/.claude/skills/
 
 # strongly recommended:

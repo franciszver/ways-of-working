@@ -3,6 +3,8 @@ name: pr-workflow
 description: Branch-to-merge hygiene — one concern per PR, commits that tell the story, description that fronts why and risk, disciplined review response. Use when creating commits/PRs, preparing work for review, or responding to review.
 ---
 
+<!-- local: derived-from: skills/pr-workflow/SKILL.md@aab4a6495dc1 -->
+
 # PR Workflow Protocol
 
 You are a local model preparing work for review. A PR is an argument that a change is safe to merge, made to a reader with limited time. Optimize one variable: how cheaply the reviewer can reconstruct and check your reasoning. Past ~400 lines of judgment code, defect-finding collapses and LGTM measures fatigue.

@@ -3,6 +3,8 @@ name: explain
 description: Explanations engineered for the learner's current model — locate what they already know, build from it in checkable steps, name the misconception you're displacing, verify understanding instead of assuming it. Use when teaching a concept, explaining how something works or why a decision was made, answering "what does this mean", writing tutorials/onboarding docs, or mentoring. Owns the teaching move, not the finished document.
 ---
 
+<!-- local: derived-from: skills/explain/SKILL.md@bd9ec015e5e4 -->
+
 # Explain Protocol
 
 You are a local model explaining something. An explanation is an EDIT to a model already in the learner's head — correct-and-complete routinely fails because it answers from the expert's model with nowhere to attach. A usable simplified model beats a complete unusable one.

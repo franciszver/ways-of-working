@@ -26,6 +26,60 @@ carries only a README pointer, not commands.
 Run `python3 scripts/check_parity.py` and `python3 scripts/gen-ports.py --check`
 after any propagation pass — together they cover every surface.
 
+### skills-local provenance markers
+
+`scripts/check_parity.py` checks each canonical-backed
+`skills-local/<name>/SKILL.md` twin for a provenance marker right after its
+frontmatter:
+
+```
+<!-- local: derived-from: skills/<name>/SKILL.md@<sha256 of that file, first 12 hex> -->
+```
+
+A twin with no marker fails as `MISSING PROVENANCE`. A twin whose marker's
+hash no longer matches the canonical file's current hash fails as `STALE`
+— canonical changed since the twin was last derived, so the twin needs a
+fresh look, not just a fresh hash. Run
+`python3 scripts/stamp-provenance.py <name>` (or `--all`) after re-deriving
+a twin, or any time canonical changes underneath it, to write the current
+hash — it computes the hash for you, so re-deriving never means hand-typing
+one.
+
+This replaced an earlier heading-set comparison: the file-level waiver it
+needed ended up on 22 of 29 twins (nearly the whole pack, since the compact
+house style renames or merges canonical headings by design), a fenced code
+block's example lines were being counted as real headings, and the check
+still could not see drift inside a heading that stayed present. A content
+hash sees any drift, in a heading or not, and asks for a look rather than
+silently waiving it.
+
+A twin that deliberately diverges from canonical — not silently drops a
+rule, but chooses differently on purpose — may still carry, alongside its
+provenance marker, a free-text note:
+
+```
+<!-- local: deliberate divergence: <reason> -->
+```
+
+This is informational only; `check_parity.py` never reads it and it waives
+nothing. It exists so a reader hits the reason next to the difference
+instead of wondering whether the twin drifted by accident.
+
+### The parity allowlist
+
+A canonical skill with no `skills-local/` twin at all is listed in
+`scripts/parity-allow.txt` as `skills-local:<name>:<reason>` — the parser
+rejects a line with no reason (or a blank one), so a bare name is never a
+silent pass. State the real criterion: token discipline that only makes
+sense on a token-scarce model, a reference list too large or too volatile
+to fit the line budget, or judgment (weighing tradeoffs, sources, or
+dependencies) that a compact directive body would flatten instead of apply.
+"Routes to a paid tier" is not by itself a reason — `playbooks/ROUTING.md`
+groups some skills that got a local variant with some that didn't in the
+same routing row, so tier alone doesn't explain a gap. Close a gap by
+writing the compact variant and deleting its allowlist line, not by leaving
+both in place.
+
 ## The frontmatter contract
 
 Every `skills/**/SKILL.md` and `skills-local/**/SKILL.md` must have YAML
@@ -118,7 +172,7 @@ tree directly — no Python needed to install.
 ## Running the checks
 
 ```bash
-python3 scripts/check_parity.py          # canonical names vs skills-local + cursor's exact file set
+python3 scripts/check_parity.py          # canonical names/provenance vs skills-local + cursor's exact file set
 python3 scripts/gen-ports.py . --check   # antigravity stubs + AGENTS.md pointers vs skills/ (drift + uniqueness)
 python3 scripts/build-profile.py . --check  # build/claude-code/ vs skills/ + profile-claude-code.yaml (drift + contract)
 python3 scripts/check-frontmatter.py .   # SKILL.md frontmatter contract

@@ -3,6 +3,8 @@ name: incident
 description: Production incident response — mitigate before diagnosing, smallest reversible action first, timestamped log, communicate on a cadence. Use when production is down or degraded, an alert fires, or users are impacted.
 ---
 
+<!-- local: derived-from: skills/incident/SKILL.md@28c24dd8ecb3 -->
+
 # Incident Protocol
 
 You are a local model responding to a production incident. Rule zero inverts normal engineering: MITIGATE BEFORE DIAGNOSING. Root cause comes later (debug skill, after recovery); learning comes later (postmortem skill). Now: how bad, stop the bleeding, tell people.

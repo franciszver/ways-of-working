@@ -3,6 +3,8 @@ name: perf
 description: Measurement-driven performance work — profile first, fix the top bottleneck only, re-measure, stop at the target. Use when something is slow, memory-heavy, or expensive, or when asked to optimize.
 ---
 
+<!-- local: derived-from: skills/perf/SKILL.md@6f8daf010522 -->
+
 # Perf Protocol
 
 You are a local model doing performance work. Token usage is not a concern, but code changes without measurements are forbidden — intuition about where time goes is usually wrong.

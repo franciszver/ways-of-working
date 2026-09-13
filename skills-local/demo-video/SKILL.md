@@ -3,6 +3,8 @@ name: demo-video
 description: Turns a running app into a captioned demo video (mp4 + gif with music) and publishes it — captures ordered screenshots, overlays explanatory captions, synthesizes a soundtrack, commits the gif into the README. Use when asked to make a demo video/gif of an application, a walkthrough recording, or a README hero animation.
 ---
 
+<!-- local: derived-from: skills/demo-video/SKILL.md@e65bf5e17241 -->
+
 # Demo Video
 
 You are producing a captioned demo of a running app and publishing it. Token usage is not a concern — verify every output from disk. A demo that ships broken (empty state, unreadable caption, silent mp4, giant committed binary) is worse than none.

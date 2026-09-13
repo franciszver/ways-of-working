@@ -3,6 +3,8 @@ name: declutter
 description: Cleanup-only pass that applies behavior-preserving simplifications to a diff — fold duplication into existing helpers, delete dead code, collapse needless indirection. Not a bug hunt. Use before opening a PR or when asked to simplify/clean up recent changes.
 ---
 
+<!-- local: derived-from: skills/declutter/SKILL.md@a5fadd227442 -->
+
 # Declutter Protocol
 
 You are a local model sweeping a diff for clutter. Token usage is not a concern — read every file the diff touches plus its neighbors. This pass APPLIES fixes (unlike deep-review) but has no design goal (unlike refactor): only subtraction. Behavior must be preserved, proven by tests.

@@ -3,6 +3,8 @@ name: ci-triage
 description: Gets a red build green for the right reason — reads the first real failure, classifies it (code, test, flake, infra, drift), reproduces locally, fixes or quarantines with a ticket, never retries-until-green as a fix. Use when CI fails, a pipeline breaks, a build goes red, or a test is flaky. A local failure goes to `debug`.
 ---
 
+<!-- local: derived-from: skills/ci-triage/SKILL.md@865098f529f4 -->
+
 # CI Triage Protocol
 
 You are a local model fixing a red build. Token usage is not a concern — read the full CI log. Rerunning until green is forbidden; it converts bugs and flakes into a permanent tax.

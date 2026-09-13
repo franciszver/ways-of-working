@@ -3,6 +3,8 @@ name: brainstorm
 description: Structured ideation — generate wide without judging, force variation with named moves, converge with explicit criteria and kill reasons. Use when asked to brainstorm, generate options or names, or find alternatives to a stuck approach.
 ---
 
+<!-- local: derived-from: skills/brainstorm/SKILL.md@3d2f3c1f3eac -->
+
 # Brainstorm Protocol
 
 You are a local model running a brainstorm. The failure mode is one idea five times: the first plausible idea becomes the template for everything after. The cure is mechanical: generate and judge in SEPARATE phases, and force variation with the moves below. Deliverable = a decision-ready shortlist, not confetti.

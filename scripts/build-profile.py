@@ -143,22 +143,11 @@ def write_build(lib: Path, generated: dict) -> None:
                 shutil.copytree(src_sub, dest_dir / sub)
 
 
-def write_plugin_root(lib: Path) -> None:
-    """Materialize build/claude-code/ as a standalone plugin root: its own
-    .claude-plugin/plugin.json (a copy of the canonical one — plugin.json
-    itself carries no non-spec keys, only skills/ needs the profile), plus
-    agents/ and hooks/ copied verbatim so `claude plugin validate
-    build/claude-code --strict` passes against a self-contained tree. A
-    plugin's own ./skills is always scanned by default and cannot be
-    swapped out via the manifest's `skills` field (that field only *adds*
-    directories), so the enhanced profile needs its own plugin root rather
-    than a `skills` entry on the existing plugin.json — see
-    CONTRIBUTING.md for the doc citation.
-    """
-    build_plugin_root = lib / "build" / "claude-code"
-    manifest_dir = build_plugin_root / ".claude-plugin"
-    manifest_dir.mkdir(parents=True, exist_ok=True)
-
+def render_plugin_manifest(lib: Path) -> dict:
+    """The build/claude-code/.claude-plugin/plugin.json content: a copy of
+    the canonical manifest (name suffixed, description extended) — the
+    manifest itself carries no non-spec keys, only skills/ needs the
+    profile."""
     canonical_manifest = json.loads((lib / ".claude-plugin" / "plugin.json").read_text())
     manifest = dict(canonical_manifest)
     manifest["name"] = f"{canonical_manifest['name']}-claude-code"
@@ -167,6 +156,24 @@ def write_plugin_root(lib: Path) -> None:
         + " This variant's skills/ carries Claude-Code-only frontmatter"
         " (argument-hint) generated from the portable library."
     )
+    return manifest
+
+
+def write_plugin_root(lib: Path) -> None:
+    """Materialize build/claude-code/ as a standalone plugin root: its own
+    .claude-plugin/plugin.json, plus agents/ and hooks/ copied verbatim so
+    `claude plugin validate build/claude-code --strict` passes against a
+    self-contained tree. A plugin's own ./skills is always scanned by
+    default and cannot be swapped out via the manifest's `skills` field
+    (that field only *adds* directories), so the enhanced profile needs
+    its own plugin root rather than a `skills` entry on the existing
+    plugin.json — see CONTRIBUTING.md for the doc citation.
+    """
+    build_plugin_root = lib / "build" / "claude-code"
+    manifest_dir = build_plugin_root / ".claude-plugin"
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+
+    manifest = render_plugin_manifest(lib)
     (manifest_dir / "plugin.json").write_text(json.dumps(manifest, indent=2) + "\n")
 
     for sub in ("agents", "hooks"):
@@ -176,6 +183,54 @@ def write_plugin_root(lib: Path) -> None:
             shutil.rmtree(dest)
         if src.is_dir():
             shutil.copytree(src, dest)
+
+
+def _tree_files(root: Path) -> dict:
+    """Map of {path relative to root: file bytes} for every file under
+    root, or {} if root doesn't exist."""
+    if not root.is_dir():
+        return {}
+    return {str(p.relative_to(root)): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+
+
+def check_plugin_root_drift(lib: Path) -> list:
+    """Compare the generated plugin root (plugin.json, agents/, hooks/)
+    against the committed build/claude-code/ tree."""
+    errors = []
+    build_plugin_root = lib / "build" / "claude-code"
+
+    expected_manifest = json.dumps(render_plugin_manifest(lib), indent=2) + "\n"
+    manifest_path = build_plugin_root / ".claude-plugin" / "plugin.json"
+    if not manifest_path.is_file():
+        errors.append(
+            "build/claude-code/.claude-plugin/plugin.json missing — run "
+            "scripts/build-profile.py first"
+        )
+    elif manifest_path.read_text(encoding="utf-8") != expected_manifest:
+        errors.append(
+            "build/claude-code/.claude-plugin/plugin.json is stale — "
+            "re-run scripts/build-profile.py"
+        )
+
+    for sub in ("agents", "hooks"):
+        expected_files = _tree_files(lib / sub)
+        actual_files = _tree_files(build_plugin_root / sub)
+        for missing in sorted(set(expected_files) - set(actual_files)):
+            errors.append(
+                f"build/claude-code/{sub}/{missing} missing — re-run scripts/build-profile.py"
+            )
+        for extra in sorted(set(actual_files) - set(expected_files)):
+            errors.append(
+                f"build/claude-code/{sub}/{extra} is stale/unexpected — "
+                "re-run scripts/build-profile.py"
+            )
+        for path in sorted(set(expected_files) & set(actual_files)):
+            if expected_files[path] != actual_files[path]:
+                errors.append(
+                    f"build/claude-code/{sub}/{path} is stale — re-run scripts/build-profile.py"
+                )
+
+    return errors
 
 
 def check_build_drift(lib: Path, generated: dict) -> list:
@@ -272,12 +327,14 @@ def main() -> int:
     if check_only:
         errors = check_build_drift(lib, generated)
         errors += check_generated_frontmatter(lib)
+        errors += check_plugin_root_drift(lib)
         if errors:
             for e in errors:
                 print(f"FAIL: {e}")
             print(f"\n{len(errors)} build-profile error(s).")
             return 1
         print(f"build/claude-code/skills/ matches {len(generated)} canonical skills. No drift.")
+        print("build/claude-code/ plugin root (plugin.json, agents/, hooks/) matches source. No drift.")
         return 0
 
     write_build(lib, generated)

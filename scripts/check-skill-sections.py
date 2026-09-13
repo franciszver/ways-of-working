@@ -63,11 +63,11 @@ PACKS = ("skills", "skills-local")
 REFERENCE_ALLOWLIST = {
     "REVIEW.md": {("skills", "deep-review"), ("skills-local", "deep-review")},
     "CLAUDE.md": {("skills", "deep-review")},
-    "HANDOFF.md": {("skills", "handoff")},
+    "HANDOFF.md": {("skills", "handoff"), ("skills-local", "handoff")},
     "WORKPLAN.md": {("skills", "apply-working-process"), ("skills-local", "apply-working-process")},
     "TASKS.md": {("skills", "breakdown")},
     "DECISIONS.md": {("skills", "apply-working-process"), ("skills-local", "apply-working-process")},
-    "SPEC.md": {("skills", "spec")},
+    "SPEC.md": {("skills", "spec"), ("skills-local", "spec")},
     "ROUTING.md": {("skills", "apply-working-process")},
 }
 
