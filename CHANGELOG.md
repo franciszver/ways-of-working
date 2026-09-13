@@ -30,7 +30,27 @@ All notable changes to this repo are recorded here. Format loosely follows
   one permission prompt standing between prompt injection in that content
   and command execution. `agents/*.md`'s `disallowedTools` already
   enforces read-only for the review agents.
-
+- **Install** (#22): `install.sh --force` now refreshes an installed guarded
+  CLAUDE.md block in place, instead of skipping it once the marker exists.
+  Every guarded block now gets an explicit end marker
+  (`<!-- /ways-of-working:<profile> -->`), written on append; a single
+  `guarded_block_range` helper (CRLF-safe, exact-line matching) bounds
+  `strip_guarded_block`, `guarded_block_replace`, and `extract_guarded_block`
+  by begin..end, or by the next marker/EOF for a legacy block with no end
+  marker. Any write that touches a legacy block first backs it up to
+  `CLAUDE.md.bak` and warns, since its boundary may include text added by
+  hand; `--check` reports `LEGACY: CLAUDE.md block (<profile>) has no end
+  marker; run --force once` for such a block instead of `DRIFT`. An
+  old-prefix marker (pre-#13) now migrates its marker text and refreshes
+  its content in the same run. Writes resolve the target with `readlink -f`
+  first and preserve its mode, so a symlinked CLAUDE.md stays a symlink and
+  the file's permissions survive a refresh. A duplicate begin marker makes
+  `--force` fail loudly instead of guessing which copy to replace.
+  `profile_layout` is now the single source for the marker suffix and
+  snippet basename per profile. Added `scripts/test-install.sh` (wired
+  into CI, replacing the standalone `bash -n install.sh` step since the
+  test runs it first) covering all of the above end to end through the
+  real CLI against scratch HOMEs.
 - **Ports** (#11): retired the Gemini port — `ports/gemini/README.md`
   now points the paid-tier Gemini CLI at `install.sh --skills
   ~/.gemini/skills` (free tier retired 2026-06-18 for Antigravity CLI).
