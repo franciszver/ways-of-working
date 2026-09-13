@@ -13,6 +13,8 @@ Claude Code doesn't use these — it gets the full-fidelity versions ([`../skill
 
 ## Maintenance note
 
-These are compressions of the canonical skills, not independent documents. When a canonical skill's judgment changes (a new rule, a changed threshold), propagate to every compression: the matching `../skills-local/` variant, the `AGENTS.md` pointer line and description, the matching `cursor/*.mdc`, the matching Antigravity workflow stub, and — for always-on floors — the `../claude-md/` layers and `cursor/baseline.mdc`. The improvement-loop checklist treats cross-surface drift as a defect.
+These are compressions of the canonical skills, not independent documents. When a canonical skill's judgment changes (a new rule, a changed threshold), propagate to every compression: the matching `../skills-local/` variant, the matching `cursor/*.mdc`, and — for always-on floors — the `../claude-md/` layers and `cursor/baseline.mdc`. The improvement-loop checklist treats cross-surface drift as a defect.
+
+The `AGENTS.md` skill pointer lines and the Antigravity workflow stubs are generated from `skills/*/SKILL.md` frontmatter — run `python3 scripts/gen-ports.py` after any description change; CI fails on drift.
 
 Formats — last verified: see CHANGELOG — AGENTS.md is plain markdown by design; Cursor rules are `.mdc` with `description`/`globs`/`alwaysApply` frontmatter.
