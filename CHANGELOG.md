@@ -5,7 +5,13 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
-- **Slash-only profile keys for four event-driven skills** (#33): `incident`,
+## [0.10.0] - 2026-09-13
+
+The Claude Code profile plugin hides four owner-triggered skills from the
+per-turn skill listing. The drift check now covers copied reference and
+script files.
+
+- **Slash-only profile keys for four event-driven skills** (#33, #34): `incident`,
   `postmortem`, `release`, and `demo-video` gain
   `disable-model-invocation: true` in `scripts/profile-claude-code.yaml`.
   The Stats tab showed each costing about 100 tokens per turn in the
@@ -14,6 +20,12 @@ All notable changes to this repo are recorded here. Format loosely follows
   `/incident`, `/postmortem`, `/release`, and `/demo-video` still
   invoke the skill directly. `migrate` stays model-invocable: it is a
   mid-task handoff target from `ci-triage` and `api-design`.
+
+- **Build drift check covers copied subtrees** (#34): `scripts/build-profile.py
+  --check` now compares each skill's `references/` and `scripts/` files
+  between canonical and the committed profile tree, so an edited reference
+  file can no longer ship stale. It also rejects non-boolean values for
+  `disable-model-invocation` and `user-invocable` in the profile yaml.
 
 ## [0.9.0] - 2026-09-13
 
