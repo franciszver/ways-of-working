@@ -268,6 +268,132 @@ assert_eq "$after_mode" "$before_mode" "file mode preserved across --force"
 
 rm -rf "$HOME9"
 
+# --- 15: --generic DIR installs AGENTS.md + skills into DIR/.agents/skills ---
+
+GEN1="$TMPROOT/gen1"
+mkdir -p "$GEN1/proj"
+export HOME="$TMPROOT/home-unused-15"
+"$INSTALL" --generic "$GEN1/proj" >/dev/null
+assert_true "--generic: AGENTS.md written" [ -f "$GEN1/proj/AGENTS.md" ]
+n_skills="$(find "$GEN1/proj/.agents/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+assert_eq "$n_skills" "34" "--generic: 34 skill dirs under DIR/.agents/skills"
+
+"$INSTALL" --generic "$GEN1/proj" >/dev/null
+n_skills_rerun="$(find "$GEN1/proj/.agents/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+assert_eq "$n_skills_rerun" "34" "--generic: idempotent re-run, still 34 skill dirs"
+assert_true "--generic: idempotent re-run, AGENTS.md still present" [ -f "$GEN1/proj/AGENTS.md" ]
+
+rm -rf "$GEN1"
+
+# --- 16: --generic DIR --link installs skills as symlinks ---
+
+GEN2="$TMPROOT/gen2"
+mkdir -p "$GEN2/proj"
+"$INSTALL" --generic "$GEN2/proj" --link >/dev/null
+one_skill="$(find "$GEN2/proj/.agents/skills" -mindepth 1 -maxdepth 1 | head -n1)"
+assert_true "--generic --link: skill dir is a symlink" [ -L "$one_skill" ]
+
+rm -rf "$GEN2"
+
+# --- 17: --generic-user installs skills into $HOME/.agents/skills, no AGENTS.md at HOME ---
+
+HOME10="$TMPROOT/home10"
+mkdir -p "$HOME10"
+export HOME="$HOME10"
+"$INSTALL" --generic-user >/dev/null
+n_skills_user="$(find "$HOME10/.agents/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+assert_eq "$n_skills_user" "34" "--generic-user: 34 skill dirs under \$HOME/.agents/skills"
+assert_false "--generic-user: no AGENTS.md written at \$HOME" [ -f "$HOME10/AGENTS.md" ]
+
+rm -rf "$HOME10"
+
+# --- 18: --antigravity writes .agents/{rules,workflows,skills} only, no .agent entry ---
+
+ANTIG1="$TMPROOT/antig1"
+mkdir -p "$ANTIG1/proj"
+"$INSTALL" --antigravity "$ANTIG1/proj" >/dev/null
+assert_true "--antigravity: .agents/rules is a real dir" [ -d "$ANTIG1/proj/.agents/rules" ]
+assert_true "--antigravity: .agents/workflows is a real dir" [ -d "$ANTIG1/proj/.agents/workflows" ]
+assert_true "--antigravity: .agents/skills is a real dir" [ -d "$ANTIG1/proj/.agents/skills" ]
+assert_false "--antigravity: no .agent entry at all (symlink or dir)" [ -e "$ANTIG1/proj/.agent" ]
+
+rm -rf "$ANTIG1"
+
+# --- 19: --generic refuses a DIR inside the library — --dry-run proves a
+# regressed guard would still write nothing ---
+
+if OUT="$("$INSTALL" --generic "$LIB/skills" --dry-run 2>&1)"; then
+  fail "--generic refuses a destination inside the library (subdir; exited 0, expected non-zero)"
+else
+  pass "--generic refuses a destination inside the library (subdir; non-zero exit)"
+fi
+assert_true "--generic: refusal message mentions the library (subdir)" \
+  grep -q "library" <<< "$OUT"
+
+if OUT="$("$INSTALL" --generic "$LIB" --dry-run 2>&1)"; then
+  fail "--generic refuses the library root (exited 0, expected non-zero)"
+else
+  pass "--generic refuses the library root (non-zero exit)"
+fi
+assert_true "--generic: refusal message mentions the library (root)" \
+  grep -q "library" <<< "$OUT"
+assert_false "--generic: refused root run wrote no AGENTS.md" [ -f "$LIB/AGENTS.md" ]
+
+# --- 20: --antigravity --force backs up an existing AGENTS.md-equivalent:
+# --generic --force backs up AGENTS.md to AGENTS.md.bak ---
+
+GEN3="$TMPROOT/gen3"
+mkdir -p "$GEN3/proj"
+"$INSTALL" --generic "$GEN3/proj" >/dev/null
+echo "MY CUSTOM PROJECT COMMANDS" >> "$GEN3/proj/AGENTS.md"
+"$INSTALL" --generic "$GEN3/proj" --force >/dev/null
+assert_true "--generic --force: AGENTS.md.bak created" [ -f "$GEN3/proj/AGENTS.md.bak" ]
+assert_true "--generic --force: .bak holds the pre-refresh content" \
+  grep -q "MY CUSTOM PROJECT COMMANDS" "$GEN3/proj/AGENTS.md.bak"
+assert_false "--generic --force: live AGENTS.md refreshed (custom line gone)" \
+  grep -q "MY CUSTOM PROJECT COMMANDS" "$GEN3/proj/AGENTS.md"
+
+rm -rf "$GEN3"
+
+# --- 21: --agents-md is an alias for --generic (old name, same .agents/skills layout) ---
+
+GEN4="$TMPROOT/gen4"
+mkdir -p "$GEN4/proj"
+"$INSTALL" --agents-md "$GEN4/proj" >/dev/null
+assert_true "--agents-md (alias): AGENTS.md written" [ -f "$GEN4/proj/AGENTS.md" ]
+n_skills_alias="$(find "$GEN4/proj/.agents/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+assert_eq "$n_skills_alias" "34" "--agents-md (alias): 34 skill dirs under DIR/.agents/skills"
+assert_false "--agents-md (alias): no separate DIR/skills layout" [ -d "$GEN4/proj/skills" ]
+
+rm -rf "$GEN4"
+
+# --- 22: --antigravity migration — stale .agent -> .agents symlink is removed ---
+
+ANTIG2="$TMPROOT/antig2"
+mkdir -p "$ANTIG2/proj"
+"$INSTALL" --antigravity "$ANTIG2/proj" >/dev/null
+ln -s ".agents" "$ANTIG2/proj/.agent"
+migrate_out="$("$INSTALL" --antigravity "$ANTIG2/proj" 2>&1)"
+assert_false "--antigravity migration: stale .agent symlink removed" [ -e "$ANTIG2/proj/.agent" ]
+assert_true "--antigravity migration: removal noted" \
+  grep -q "removed stale .agent" <<< "$migrate_out"
+
+rm -rf "$ANTIG2"
+
+# --- 23: --antigravity migration — stale real .agent dir is warned about, not touched ---
+
+ANTIG3="$TMPROOT/antig3"
+mkdir -p "$ANTIG3/proj/.agent"
+echo "old content" > "$ANTIG3/proj/.agent/marker.txt"
+"$INSTALL" --antigravity "$ANTIG3/proj" >/dev/null
+warn_out="$("$INSTALL" --antigravity "$ANTIG3/proj" 2>&1 >/dev/null)"
+assert_true "--antigravity migration: stale real .agent dir warned about" \
+  grep -qi "stale real directory" <<< "$warn_out"
+assert_true "--antigravity migration: stale real .agent dir left untouched" \
+  [ -f "$ANTIG3/proj/.agent/marker.txt" ]
+
+rm -rf "$ANTIG3"
+
 if [ "$FAIL" -eq 1 ]; then
   echo "test-install.sh: FAILED"
   exit 1

@@ -14,7 +14,7 @@ agents/          Claude Code subagents: code-reviewer, verifier, researcher, arc
 claude-md/       always-on CLAUDE.md layers: global-frontier, global-local, project template
 playbooks/       ROUTING.md (which model for what) · HANDOFF.md (cross-tool continuity)
 hooks/           Claude Code hooks: guardrails, opt-in test gate, format-on-stop
-antigravity/     .agent/ + .agents/ port: 5 rules + 34 thin workflow stubs (loads skills/)
+antigravity/     .agents/ port: 5 rules + 34 thin workflow stubs (loads skills/)
 ports/           AGENTS.md (single portable entry point) · cursor/ (3 .mdc rules; skills/ read natively)
 mcp-server/      the library as an MCP server (skills as prompts + list/get/route tools)
 install.sh       one command per environment (run with --dry-run first)
@@ -47,13 +47,49 @@ export ANTHROPIC_BASE_URL=http://localhost:11434   # your local server's address
 ```
 Versions, ports, auth tokens, and the community `claude-code-router` alternative: [`skills-local/README.md`](skills-local/README.md). One profile per setup — the packs share skill names by design (same muscle memory, opposite token economics; see below).
 
-**Antigravity:** `./install.sh --antigravity ~/code/myrepo` → 5 rules + 34 thin workflow stubs, one per canonical skill, plus `skills/` itself (path rationale: `antigravity/README.md`)
-
-**Any AGENTS.md tool (Codex, Amp, Zed, Jules, Cursor, paid-tier Gemini CLI, …):** `./install.sh --agents-md ~/code/myrepo`
+**Antigravity:** `./install.sh --antigravity ~/code/myrepo` → 5 rules + 34 thin workflow stubs, one per canonical skill, plus `skills/` itself (see `antigravity/README.md`)
 
 **Cursor:** `./install.sh --skills ~/code/myrepo/.cursor/skills` (native `SKILL.md`) + `./install.sh --cursor ~/code/myrepo` (the 3 rules `SKILL.md` can't express) · **Gemini CLI (paid tier):** `./install.sh --skills ~/.gemini/skills` (context-file options: `ports/gemini/README.md`)
 
+**Any harness that reads AGENTS.md and/or `.agents/skills` (Codex CLI, GitHub Copilot, Cursor, OpenCode, Zed, JetBrains Junie, Amp, …):** `./install.sh --generic ~/code/myrepo` → `AGENTS.md` plus `.agents/skills` · user scope only: `./install.sh --generic-user`. (`--agents-md` is the old name for `--generic`, kept for compatibility.) Fill in AGENTS.md's "Project commands" section after install; `--force` refreshes it and backs up the previous copy to `AGENTS.md.bak`. Full harness list: "Other harnesses" below.
+
 **Any MCP agent:** `./install.sh --mcp` prints registration; smoke-test first per `mcp-server/README.md`.
+
+## Other harnesses
+
+Every harness below reads Agent Skills or AGENTS.md, or both. `--generic`
+covers the ones that read the shared `.agents/skills` path.
+
+| Harness | Reads `SKILL.md` from | Reads `AGENTS.md` | Install command |
+|---|---|---|---|
+| Codex CLI | `.agents/skills` | yes | `--generic` |
+| GitHub Copilot | `.agents/skills` or `.github/skills` | yes | `--generic` |
+| Cursor | `.agents/skills` or `.cursor/skills` | yes | `--generic` |
+| OpenCode | `.agents/skills` | yes | `--generic` |
+| Zed | `.agents/skills` | yes | `--generic` |
+| JetBrains Junie | `.agents/skills` or `.junie/skills` | yes | `--generic` |
+| Amp | `.agents/skills` | yes | `--generic` |
+| Antigravity | `.agents/skills` | partial | `--antigravity` |
+| Gemini Code Assist | `.agents/skills` | GEMINI.md instead | `--generic` + point GEMINI.md at AGENTS.md |
+| Kiro | `~/.kiro/crew/skills` | no | `--generic-user` then copy; not supported here |
+| Cline | `.cline/skills` or `.claude/skills` | unconfirmed | not supported here |
+| Aider | none, via `read:` in `.aider.conf.yml` | — | point it at AGENTS.md |
+
+Roo Code, Windsurf Cascade, and free Gemini CLI were retired in 2026.
+
+Source: survey of vendor docs, 2026-09-13; see each harness's skills
+documentation — [Codex](https://learn.chatgpt.com/docs/build-skills),
+[Copilot](https://docs.github.com/en/copilot/concepts/agents/about-agent-skills),
+[Cursor](https://cursor.com/help/customization/skills),
+[OpenCode](https://opencode.ai/docs/skills),
+[Zed](https://zed.dev/docs/ai/skills),
+[Junie](https://junie.jetbrains.com/docs/agent-skills.html),
+[Amp](https://ampcode.com/news/agent-skills),
+[Antigravity](https://antigravity.google/docs/skills),
+[Gemini](https://geminicli.com/docs/cli/skills),
+[Kiro](https://kiro.dev/docs/skills),
+[Cline](https://docs.cline.bot/customization/skills),
+[Aider](https://aider.chat/docs/usage/conventions.html).
 
 ## The skills (canonical)
 
@@ -104,7 +140,7 @@ To get the most out of this library, follow these standard operation models for 
 
 ### 1. How to Invoke Skills in Your Tool
 * **Claude Code**: Type `/name` (e.g., `/debug`, `/prove`) or simply refer to the skill's name and intent in your prompt.
-* **Antigravity CLI**: Call the stub workflows as slash commands (e.g. `/sec-audit`, `/perf`); each loads its matching skill from `skills/`. Baseline rules are always active in `.agent/rules/baseline.md` (or `.agents/rules/baseline.md`).
+* **Antigravity CLI**: Call the stub workflows as slash commands (e.g. `/sec-audit`, `/perf`); each loads its matching skill from `skills/`. Baseline rules are always active in `.agents/rules/baseline.md`.
 * **Cursor**: Reads `SKILL.md` natively from `.cursor/skills/`; the `.mdc` rules in `.cursor/rules/` (baseline + two glob-scoped rules) load contextually alongside it.
 * **Gemini CLI (paid tier)**: Reads `SKILL.md` natively from `~/.gemini/skills/`.
 * **MCP Agents**: Call `list_skills` to discover skills and `get_skill` to inject a skill's full text directly into your context, or call `route` for prompt-based direction.

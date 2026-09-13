@@ -4,12 +4,14 @@
 
 | Port | Consumed by | Install |
 |---|---|---|
-| [`agents-md/AGENTS.md`](agents-md/AGENTS.md) | The de facto standard: Codex CLI, Cursor, Amp, Zed, Jules, Gemini CLI (configurable), many others | Copy to repo root as `AGENTS.md` |
+| [`agents-md/AGENTS.md`](agents-md/AGENTS.md) | The de facto standard: Codex CLI, Cursor, Amp, Zed, Jules, Gemini CLI (configurable), many others | `install.sh --generic <repo>` — `AGENTS.md` at the repo root plus skills into `.agents/skills` |
 | [`cursor/`](cursor/) | Cursor | Cursor reads `SKILL.md` natively: `install.sh --skills <repo>/.cursor/skills`. `cursor/` adds only what `SKILL.md` cannot express: `install.sh --cursor <repo>` copies `*.mdc` into `<repo>/.cursor/rules/` |
 | [`gemini/`](gemini/) | Gemini CLI (paid tier) | `install.sh --skills ~/.gemini/skills`; context file options in its README |
 | [`../antigravity/`](../antigravity/) | Google Antigravity | Its own README |
 
 Claude Code doesn't use these — it gets the full-fidelity versions ([`../skills/`](../skills/), [`../claude-md/`](../claude-md/), [`../agents/`](../agents/)).
+
+For every other harness that reads AGENTS.md and `.agents/skills` (Codex CLI, GitHub Copilot, OpenCode, Zed, JetBrains Junie, Amp, and more), use `install.sh --generic DIR` or `--generic-user`. See the "Other harnesses" table in the root [`README.md`](../README.md).
 
 ## Maintenance note
 
