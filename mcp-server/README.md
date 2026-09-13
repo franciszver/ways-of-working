@@ -29,20 +29,20 @@ Requires `uv` (or any Python ≥3.10 with the `mcp` package) — the machine thi
 
 ```bash
 # Claude Code:
-claude mcp add fable-quality -- uv run --directory /path/to/fable-quality-library/mcp-server server.py
+claude mcp add ways-of-working -- uv run --directory /path/to/ways-of-working/mcp-server server.py
 
 # Generic mcpServers JSON (Claude Desktop, Cursor, etc.):
 {
   "mcpServers": {
-    "fable-quality": {
+    "ways-of-working": {
       "command": "uv",
-      "args": ["run", "--directory", "/path/to/fable-quality-library/mcp-server", "server.py"]
+      "args": ["run", "--directory", "/path/to/ways-of-working/mcp-server", "server.py"]
     }
   }
 }
 ```
 
-The server locates the library relative to its own path; set `FABLE_QUALITY_LIBRARY=/path/to/fable-quality-library` to point elsewhere (e.g. a copied deployment).
+The server locates the library relative to its own path; set `WAYS_OF_WORKING_LIBRARY=/path/to/ways-of-working` to point elsewhere (e.g. a copied deployment).
 
 ## Design notes
 

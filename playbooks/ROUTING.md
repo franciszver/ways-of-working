@@ -8,7 +8,7 @@ Pricing and model facts below are **as of 2026-07** (source: Anthropic docs). Pr
 
 | Tier | Models (2026-07) | $/MTok in/out | Marginal cost feel |
 |---|---|---|---|
-| Frontier-max | Fable 5 (`claude-fable-5`) | $10 / $50 | ~2× Opus, 10× Haiku |
+| Frontier-max | strongest model the seat has (top Claude tier) | highest | ~2× Opus, 10× Haiku |
 | Opus | Opus 4.8 (`claude-opus-4-8`) | $5 / $25 | ~1.7× Sonnet |
 | Sonnet | Sonnet 5 (`claude-sonnet-5`) | $3 / $15 (intro $2/$10 through 2026-08) | the workhorse baseline |
 | Haiku | Haiku 4.5 (`claude-haiku-4-5`) | $1 / $5 | ~1/3 Sonnet; 200K ctx cap |
@@ -66,7 +66,7 @@ A truthful "stuck, here's the state" from a cheap model costs cents; a confident
 
 - Prompt caching pays for itself on the 2nd request (reads ≈0.1×) — keep prompts prefix-stable; don't edit the system prompt mid-session.
 - Long sessions degrade quality *and* multiply cached-context spend: prefer ending a task with `handoff` + fresh session over pushing a tired context.
-- Don't route up-tier to compensate for a vague request. Sharpening the request (`spec`, 2 minutes) is cheaper than Fable-ing a guess.
+- Don't route up-tier to compensate for a vague request. Sharpening the request (`spec`, 2 minutes) is cheaper than escalating a guess to the top tier.
 
 ## Defaults when unsure
 
