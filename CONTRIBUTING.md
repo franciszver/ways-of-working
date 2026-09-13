@@ -40,6 +40,31 @@ A file that must carry a non-spec key (for example, a Claude-Code-only
 `disable-model-invocation`) is listed in `scripts/frontmatter-allow.txt`
 with a comment pointing at the tracking issue, not silently exempted.
 
+## The agent contract
+
+Every `agents/*.md` preloads its matching skill via `skills:` frontmatter
+instead of restating that skill's doctrine in its body — the skill is the
+single source of truth, and the agent body stays limited to role, tool
+budget, and output format (40 lines or fewer). `code-reviewer` and
+`verifier` must also declare `disallowedTools: [Edit, Write, NotebookEdit]`,
+since neither ever modifies code. `scripts/check-agents.py` enforces all of
+this: a `skills:` entry that names a skill absent from `skills/` fails the
+check, as does a body over 40 lines or a missing `disallowedTools` entry on
+the two review agents.
+
+## CLAUDE.md and path-scoped rules
+
+`claude-md/global-frontier.md` and `global-local.md` carry only the
+always-on core (rules that must apply in every session regardless of what
+files are touched). Guidance that only matters for certain file types
+lives in `claude-md/rules/*.md` instead, scoped with the memory doc's
+`paths:` frontmatter (see
+[the memory docs](https://code.claude.com/docs/en/memory#path-specific-rules)).
+`install.sh --claude-user` and `--claude-project` install `claude-md/rules/*.md`
+into `.claude/rules/` alongside the core file. Add a new rule file, not a
+new paragraph in the core, when guidance is specific to a file type or
+directory.
+
 ## Running the checks
 
 ```bash
