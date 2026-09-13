@@ -19,6 +19,18 @@ All notable changes to this repo are recorded here. Format loosely follows
   command; Roo Code, Windsurf Cascade, and free Gemini CLI are marked
   retired in 2026.
 
+- **AGENTS.md pointers move under `.agents/skills`; `--agents-md` folds
+  into `--generic`** (review follow-up on #30): `scripts/gen-ports.py`
+  writes `@.agents/skills/<name>/SKILL.md` pointer lines, matching the
+  layout `--generic` installs; `--agents-md DIR` is now an alias for
+  `--generic DIR` (same `.agents/skills` layout, dropping its old
+  separate `DIR/skills`), kept for compatibility. `--generic --force`
+  backs up an existing `AGENTS.md` to `AGENTS.md.bak` before overwriting.
+  `refuse_if_inside_library` now also guards `--claude-project`,
+  `--antigravity`, and `--cursor`. Re-running `--antigravity` after an
+  older install removes a stale `.agent -> .agents` symlink and warns
+  about a stale real `.agent` directory instead of touching it.
+
 - **Frontmatter profiles** (#12): `skills/` now carries only Agent Skills
   spec keys (`name`, `description`, `license`, `compatibility`,
   `metadata`, `allowed-tools`) — spec-portable across tools. A new

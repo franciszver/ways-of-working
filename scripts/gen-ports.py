@@ -6,7 +6,7 @@ always match the canonical descriptions verbatim.
 Usage: python3 scripts/gen-ports.py [LIB_ROOT] [--check]
   --check: write nothing; exit 1 if regenerating would change any file,
            or if AGENTS.md would carry anything but exactly one
-           `@skills/<name>/SKILL.md` line per canonical skill (the CI
+           `@.agents/skills/<name>/SKILL.md` line per canonical skill (the CI
            drift + uniqueness check).
 Requires PyYAML (exits 2 if missing, via _lib.parse_frontmatter).
 
@@ -89,7 +89,7 @@ def gen_workflow(name: str, description: str) -> str:
 def gen_agents_md_block(names: list, descriptions: dict) -> str:
     lines = [AGENTS_MD_BEGIN]
     for name in names:
-        lines.append(f"- @skills/{name}/SKILL.md — {trigger_line(descriptions[name])}")
+        lines.append(f"- @.agents/skills/{name}/SKILL.md — {trigger_line(descriptions[name])}")
     lines.append(AGENTS_MD_END)
     return "\n".join(lines)
 
@@ -108,13 +108,14 @@ def splice_block(text: str, block: str) -> str:
 
 
 def check_agents_md_uniqueness(text: str, names: list) -> list:
-    """Each canonical skill must appear as exactly one @skills/<name>/SKILL.md
-    line in the whole file — not zero, not duplicated."""
+    """Each canonical skill must appear as exactly one
+    @.agents/skills/<name>/SKILL.md line in the whole file — not zero,
+    not duplicated."""
     errors = []
     for name in names:
-        count = text.count(f"@skills/{name}/SKILL.md")
+        count = text.count(f"@.agents/skills/{name}/SKILL.md")
         if count != 1:
-            errors.append(f"@skills/{name}/SKILL.md appears {count} time(s), expected 1")
+            errors.append(f"@.agents/skills/{name}/SKILL.md appears {count} time(s), expected 1")
     return errors
 
 

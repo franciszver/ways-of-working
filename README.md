@@ -47,13 +47,11 @@ export ANTHROPIC_BASE_URL=http://localhost:11434   # your local server's address
 ```
 Versions, ports, auth tokens, and the community `claude-code-router` alternative: [`skills-local/README.md`](skills-local/README.md). One profile per setup — the packs share skill names by design (same muscle memory, opposite token economics; see below).
 
-**Antigravity:** `./install.sh --antigravity ~/code/myrepo` → 5 rules + 34 thin workflow stubs, one per canonical skill, plus `skills/` itself (path rationale: `antigravity/README.md`)
-
-**Any AGENTS.md tool (Codex, Amp, Zed, Jules, Cursor, paid-tier Gemini CLI, …):** `./install.sh --agents-md ~/code/myrepo`
+**Antigravity:** `./install.sh --antigravity ~/code/myrepo` → 5 rules + 34 thin workflow stubs, one per canonical skill, plus `skills/` itself (see `antigravity/README.md`)
 
 **Cursor:** `./install.sh --skills ~/code/myrepo/.cursor/skills` (native `SKILL.md`) + `./install.sh --cursor ~/code/myrepo` (the 3 rules `SKILL.md` can't express) · **Gemini CLI (paid tier):** `./install.sh --skills ~/.gemini/skills` (context-file options: `ports/gemini/README.md`)
 
-**Any other harness that reads AGENTS.md and `.agents/skills` (Codex CLI, GitHub Copilot, OpenCode, Zed, JetBrains Junie, Amp, …):** `./install.sh --generic ~/code/myrepo` · user scope only: `./install.sh --generic-user`. Full harness list: "Other harnesses" below.
+**Any harness that reads AGENTS.md and/or `.agents/skills` (Codex CLI, GitHub Copilot, Cursor, OpenCode, Zed, JetBrains Junie, Amp, …):** `./install.sh --generic ~/code/myrepo` → `AGENTS.md` plus `.agents/skills` · user scope only: `./install.sh --generic-user`. (`--agents-md` is the old name for `--generic`, kept for compatibility.) Fill in AGENTS.md's "Project commands" section after install; `--force` refreshes it and backs up the previous copy to `AGENTS.md.bak`. Full harness list: "Other harnesses" below.
 
 **Any MCP agent:** `./install.sh --mcp` prints registration; smoke-test first per `mcp-server/README.md`.
 
@@ -66,7 +64,7 @@ covers the ones that read the shared `.agents/skills` path.
 |---|---|---|---|
 | Codex CLI | `.agents/skills` | yes | `--generic` |
 | GitHub Copilot | `.agents/skills` or `.github/skills` | yes | `--generic` |
-| Cursor | `.agents/skills` or `.cursor/skills` | yes | `--generic` or `--cursor` for the three rules |
+| Cursor | `.agents/skills` or `.cursor/skills` | yes | `--generic` |
 | OpenCode | `.agents/skills` | yes | `--generic` |
 | Zed | `.agents/skills` | yes | `--generic` |
 | JetBrains Junie | `.agents/skills` or `.junie/skills` | yes | `--generic` |
@@ -78,6 +76,20 @@ covers the ones that read the shared `.agents/skills` path.
 | Aider | none, via `read:` in `.aider.conf.yml` | — | point it at AGENTS.md |
 
 Roo Code, Windsurf Cascade, and free Gemini CLI were retired in 2026.
+
+Source: survey of vendor docs, 2026-09-13; see each harness's skills
+documentation — [Codex](https://learn.chatgpt.com/docs/build-skills),
+[Copilot](https://docs.github.com/en/copilot/concepts/agents/about-agent-skills),
+[Cursor](https://cursor.com/help/customization/skills),
+[OpenCode](https://opencode.ai/docs/skills),
+[Zed](https://zed.dev/docs/ai/skills),
+[Junie](https://junie.jetbrains.com/docs/agent-skills.html),
+[Amp](https://ampcode.com/news/agent-skills),
+[Antigravity](https://antigravity.google/docs/skills),
+[Gemini](https://geminicli.com/docs/cli/skills),
+[Kiro](https://kiro.dev/docs/skills),
+[Cline](https://docs.cline.bot/customization/skills),
+[Aider](https://aider.chat/docs/usage/conventions.html).
 
 ## The skills (canonical)
 

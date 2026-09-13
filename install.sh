@@ -14,10 +14,9 @@
 #   ./install.sh --claude-project DIR [--profile frontier|local] [--link] [--force]
 #   ./install.sh --hooks DIR
 #   ./install.sh --antigravity DIR
-#   ./install.sh --agents-md DIR
 #   ./install.sh --cursor DIR
 #   ./install.sh --skills DIR
-#   ./install.sh --generic DIR
+#   ./install.sh --generic DIR              # --agents-md DIR is the old name, still accepted
 #   ./install.sh --generic-user
 #   ./install.sh --mcp
 #   ./install.sh --check
@@ -63,14 +62,15 @@
 # (`.cursor/skills`), the paid-tier Gemini CLI (`~/.gemini/skills`),
 # Antigravity (`.agents/skills`).
 #
-# --generic DIR installs AGENTS.md at DIR (same as --agents-md) plus skills
-# into DIR/.agents/skills (same as --skills DIR/.agents/skills) — the
-# standards path for any harness that reads both: Codex CLI, GitHub Copilot,
-# Cursor, OpenCode, Zed, JetBrains Junie, Amp (see the "Other harnesses"
-# table in README.md). Honors --link/--force/--dry-run. --generic-user
-# installs skills into $HOME/.agents/skills only — no AGENTS.md at user
-# scope, since each harness reads its own global file there. Neither is
-# covered by --check.
+# --generic DIR installs AGENTS.md at DIR plus skills into DIR/.agents/skills
+# (same as --skills DIR/.agents/skills) — the standards path for any harness
+# that reads both: Codex CLI, GitHub Copilot, Cursor, OpenCode, Zed,
+# JetBrains Junie, Amp (see the "Other harnesses" table in README.md).
+# Honors --link/--force/--dry-run. --force on an existing AGENTS.md backs it
+# up to AGENTS.md.bak first. --agents-md DIR is the old name for --generic,
+# kept for compatibility. --generic-user installs skills into
+# $HOME/.agents/skills only — no AGENTS.md at user scope, since each harness
+# reads its own global file there. Neither is covered by --check.
 
 set -euo pipefail
 
@@ -84,7 +84,6 @@ ACTIONS=()
 ARG_CLAUDE_PROJECT=""
 ARG_HOOKS=""
 ARG_ANTIGRAVITY=""
-ARG_AGENTS_MD=""
 ARG_CURSOR=""
 ARG_SKILLS=""
 ARG_GENERIC=""
@@ -107,10 +106,10 @@ parse_args() {
       --claude-project) ACTIONS+=(claude_project); ARG_CLAUDE_PROJECT="${2:?--claude-project needs DIR}"; shift ;;
       --hooks)          ACTIONS+=(hooks);          ARG_HOOKS="${2:?--hooks needs DIR}"; shift ;;
       --antigravity)    ACTIONS+=(antigravity);    ARG_ANTIGRAVITY="${2:?--antigravity needs DIR}"; shift ;;
-      --agents-md)      ACTIONS+=(agents_md);      ARG_AGENTS_MD="${2:?--agents-md needs DIR}"; shift ;;
       --cursor)         ACTIONS+=(cursor);         ARG_CURSOR="${2:?--cursor needs DIR}"; shift ;;
       --skills)         ACTIONS+=(skills);         ARG_SKILLS="${2:?--skills needs DIR}"; shift ;;
       --generic)        ACTIONS+=(generic);        ARG_GENERIC="${2:?--generic needs DIR}"; shift ;;
+      --agents-md)      ACTIONS+=(generic);        ARG_GENERIC="${2:?--agents-md needs DIR}"; shift ;;
       --generic-user)   ACTIONS+=(generic_user) ;;
       --mcp)            ACTIONS+=(mcp) ;;
       --check)          ACTIONS+=(check) ;;
@@ -541,6 +540,7 @@ do_claude_user() {
 do_claude_project() {
   local proj="$ARG_CLAUDE_PROJECT" base="$ARG_CLAUDE_PROJECT/.claude"
   [ -d "$proj" ] || { echo "No such directory: $proj"; exit 1; }
+  refuse_if_inside_library "--claude-project" "$proj"
   if [ "$PROFILE" = "frontier" ]; then
     copy_skill_dirs "build/claude-code/skills" "$base/skills"
     run mkdir -p "$base/agents"
@@ -587,28 +587,35 @@ do_hooks() {
 ANTIGRAVITY_DIR=".agents"
 
 do_antigravity() {
-  local proj="$ARG_ANTIGRAVITY" root
+  local proj="$ARG_ANTIGRAVITY" root legacy
   [ -d "$proj" ] || { echo "No such directory: $proj"; exit 1; }
+  refuse_if_inside_library "--antigravity" "$proj"
   root="$proj/$ANTIGRAVITY_DIR"
   run mkdir -p "$root/rules" "$root/workflows"
   local f
   for f in "$LIB"/antigravity/rules/*.md;     do copy_file_safe "$f" "$root/rules/$(basename "$f")"; done
   for f in "$LIB"/antigravity/workflows/*.md; do copy_file_safe "$f" "$root/workflows/$(basename "$f")"; done
   copy_skill_dirs "skills" "$root/skills"
-  note "global baseline: paste antigravity/rules/baseline.md into Antigravity's Manage Rules UI."
-}
 
-do_agents_md() {
-  local proj="$ARG_AGENTS_MD"
-  [ -d "$proj" ] || { echo "No such directory: $proj"; exit 1; }
-  copy_file_safe "$LIB/ports/agents-md/AGENTS.md" "$proj/AGENTS.md"
-  copy_skill_dirs "skills" "$proj/skills"
-  note "fill in the 'Project commands' section of AGENTS.md. AGENTS.md's @skills/<name>/SKILL.md pointers resolve against $proj/skills, installed alongside it."
+  # Migration from the old dual-path install (#26): a leftover .agent
+  # symlink pointing at .agents is removed; a leftover real .agent
+  # directory is left alone but flagged, since it may hold content the
+  # user added by hand.
+  legacy="$proj/.agent"
+  if [ -L "$legacy" ] && [ "$(readlink "$legacy")" = "$ANTIGRAVITY_DIR" ]; then
+    run rm -f "$legacy"
+    note "removed stale .agent -> $ANTIGRAVITY_DIR symlink from an older install."
+  elif [ -d "$legacy" ] && [ ! -L "$legacy" ]; then
+    echo "WARNING: $legacy is a stale real directory from an older install. Delete it by hand — only $root is read now." >&2
+  fi
+
+  note "global baseline: paste antigravity/rules/baseline.md into Antigravity's Manage Rules UI."
 }
 
 do_cursor() {
   local proj="$ARG_CURSOR"
   [ -d "$proj" ] || { echo "No such directory: $proj"; exit 1; }
+  refuse_if_inside_library "--cursor" "$proj"
   run mkdir -p "$proj/.cursor/rules"
   local f
   for f in "$LIB"/ports/cursor/*.mdc; do copy_file_safe "$f" "$proj/.cursor/rules/$(basename "$f")"; done
@@ -638,10 +645,15 @@ do_generic() {
   # The standards path for any harness that reads AGENTS.md + SKILL.md
   # under .agents/skills (Codex CLI, GitHub Copilot, Cursor, OpenCode,
   # Zed, JetBrains Junie, Amp — see README.md's "Other harnesses" table).
-  local proj="$ARG_GENERIC"
+  local proj="$ARG_GENERIC" agents_md
+  agents_md="$proj/AGENTS.md"
   [ -d "$proj" ] || { echo "No such directory: $proj"; exit 1; }
   refuse_if_inside_library "--generic" "$proj"
-  copy_file_safe "$LIB/ports/agents-md/AGENTS.md" "$proj/AGENTS.md"
+  if [ "$FORCE" -eq 1 ] && [ -f "$agents_md" ]; then
+    run cp "$agents_md" "$agents_md.bak"
+    note "backed up existing AGENTS.md -> $agents_md.bak"
+  fi
+  copy_file_safe "$LIB/ports/agents-md/AGENTS.md" "$agents_md"
   copy_skill_dirs "skills" "$proj/.agents/skills"
   note "AGENTS.md + skills installed to $proj — fill in AGENTS.md's 'Project commands' section."
 }
