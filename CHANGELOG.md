@@ -13,7 +13,7 @@ includes all work packages completed on 2026-09-13. It ships as two
 plugins from one marketplace, plus `install.sh` targets for other
 harnesses.
 
-- **Generic harness install, single Antigravity path** (#30, #26):
+- **Generic harness install, single Antigravity path** (#30, #26, #31):
   `install.sh --generic DIR` installs `AGENTS.md` plus skills into
   `DIR/.agents/skills`, for any harness that reads both (Codex CLI,
   GitHub Copilot, Cursor, OpenCode, Zed, JetBrains Junie, Amp).
@@ -39,7 +39,7 @@ harnesses.
   older install removes a stale `.agent -> .agents` symlink and warns
   about a stale real `.agent` directory instead of touching it.
 
-- **Frontmatter profiles** (#12): `skills/` now carries only Agent Skills
+- **Frontmatter profiles** (#12, #21): `skills/` now carries only Agent Skills
   spec keys (`name`, `description`, `license`, `compatibility`,
   `metadata`, `allowed-tools`) — spec-portable across tools. A new
   `scripts/build-profile.py` generates `build/claude-code/`: canonical
@@ -64,7 +64,7 @@ harnesses.
   one permission prompt standing between prompt injection in that content
   and command execution. `agents/*.md`'s `disallowedTools` already
   enforces read-only for the review agents.
-- **Install** (#22): `install.sh --force` now refreshes an installed guarded
+- **Install** (#22, #23): `install.sh --force` now refreshes an installed guarded
   CLAUDE.md block in place, instead of skipping it once the marker exists.
   Every guarded block now gets an explicit end marker
   (`<!-- /ways-of-working:<profile> -->`), written on append; a single
@@ -86,7 +86,7 @@ harnesses.
   test runs it first) covering all of the above end to end through the
   real CLI against scratch HOMEs.
 
-- **Content fixes** (#8): `scripts/check-skill-sections.py` gained a
+- **Content fixes** (#8, #24): `scripts/check-skill-sections.py` gained a
   dangling-reference check (folded in rather than kept as a separate
   script) scanning both `skills/` and `skills-local/` plus each skill's
   `references/*.md`: a backticked `*.md` token must resolve against its
@@ -123,7 +123,7 @@ harnesses.
   nine `skills-local/` twins with a changed rule got the matching minimal
   edit.
 
-- **skills-local** (#10): led the local-model story with the official
+- **skills-local** (#10, #25): led the local-model story with the official
   Claude Code path — `ANTHROPIC_BASE_URL` pointed at Ollama's or LM
   Studio's native `/v1/messages` endpoint — and demoted
   `claude-code-router` to the community multi-provider option it is,
@@ -162,7 +162,7 @@ harnesses.
   description bump that didn't propagate — as this PR's own
   `plugin.json` bump initially didn't. `.claude-plugin/plugin.json`
   bumped to `0.9.0`.
-- **Ports** (#11): retired the Gemini port — `ports/gemini/README.md`
+- **Ports** (#11, #18): retired the Gemini port — `ports/gemini/README.md`
   now points the paid-tier Gemini CLI at `install.sh --skills
   ~/.gemini/skills` (free tier retired 2026-06-18 for Antigravity CLI).
   Shrank Cursor's port to `baseline.mdc` (folded in `ste-writing.mdc`),
@@ -188,8 +188,8 @@ harnesses.
   agents-md surfaces (the generated ones are checked more strongly by
   `gen-ports.py --check`) and the cursor per-skill check (cursor now
   checks its exact file set); `scripts/parity-allow.txt` keeps only
-  the `skills-local` gap (#10).
-- **Agents, hooks, CLAUDE.md** (#9): agents gain `skills:` preload
+  the `skills-local` gap (#10, #25).
+- **Agents, hooks, CLAUDE.md** (#9, #19): agents gain `skills:` preload
   (code-reviewer→`deep-review`, verifier→`prove`, researcher→`research`,
   architect→`architect`) and `disallowedTools: [Edit, Write, NotebookEdit]`
   on code-reviewer/verifier (kept independent of `tools:` as a guard
@@ -212,7 +212,7 @@ harnesses.
   them into `.claude/rules/`.
 - **Release**: `.claude-plugin/plugin.json` version bumped to `0.5.0` —
   `agents/` and `hooks/` changed in this PR.
-- **Skills** (#7): deduplicated and layered canonical skills for progressive
+- **Skills** (#7, #20): deduplicated and layered canonical skills for progressive
   disclosure. `lean-max-effort` cut from 95 to 55 lines — kept the
   four-phase frame, replaced restated `spec`/`prove`/`debug` content with
   one-line pointers. `plain-language` dropped its inline Vocabulary/
@@ -246,7 +246,7 @@ harnesses.
 - **Release**: `.claude-plugin/plugin.json` version bumped to `0.6.0` —
   `skills/` changed in this PR, and plugin installs only update on a
   version bump (see `CONTRIBUTING.md`'s Releasing section).
-- **Skills** (#6): rewrote skill descriptions in third person, dropped
+- **Skills** (#6, #16): rewrote skill descriptions in third person, dropped
   imperative openers and "always on" phrasing, added a description lint
   to `check-frontmatter.py`, and added task-shaped triggers plus
   disambiguation clauses for overlapping pairs (`research`/
@@ -258,7 +258,7 @@ harnesses.
 - **Release**: `.claude-plugin/plugin.json` version bumped to `0.3.0` —
   `skills/` changed in this PR, and plugin installs only update on a
   version bump (see `CONTRIBUTING.md`'s Releasing section).
-- **Fix (#5)**: MCP server `route()` regex bugs fixed — `PR`, `CI`, `down`,
+- **Fix (#5, #17)**: MCP server `route()` regex bugs fixed — `PR`, `CI`, `down`,
   `ui`, `ux`, and `css` no longer match inside unrelated words (e.g. "prove",
   "cite", "download"). Every canonical skill now has a route hint mentioning
   it by name. Pure logic (skill discovery, route matching) split into
@@ -293,7 +293,7 @@ harnesses.
   replaced with `ways-of-working` (MCP server name, pyproject, env var
   `WAYS_OF_WORKING_LIBRARY`, install guard comments, docs). README
   reframed as process-not-model; `PLAN.md` marked historical (#3).
-- **Distribution, CI, hygiene** (#4): `.claude-plugin/plugin.json` and
+- **Distribution, CI, hygiene** (#4, #13): `.claude-plugin/plugin.json` and
   `marketplace.json` so Claude Code can install this library as a plugin;
   `install.sh` gained `--link` (symlink installs), `--check` (drift
   detection), a profile marker with refuse/force semantics, a fixed
