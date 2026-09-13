@@ -5,6 +5,24 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+- **Frontmatter profiles** (#12): `skills/` now carries only Agent Skills
+  spec keys (`name`, `description`, `license`, `compatibility`,
+  `metadata`, `allowed-tools`) — spec-portable across tools. A new
+  `scripts/build-profile.py` generates `build/claude-code/` (gitignored):
+  canonical skills plus Claude-Code-only frontmatter from
+  `scripts/profile-claude-code.yaml` (`context: fork` for `deep-review`,
+  `sec-audit`, `research-codebase`; `argument-hint` for eight
+  argument-taking skills), and a standalone plugin root so
+  `.claude-plugin/marketplace.json` can offer `ways-of-working-claude-code`
+  alongside the portable `ways-of-working` plugin. Added `allowed-tools:
+  Read, Grep, Glob, Bash` to `deep-review`, `sec-audit`, `research`,
+  `research-codebase` (canonical and skills-local twins).
+  `check-frontmatter.py` now fails if `build/claude-code/skills/` is
+  missing or stale. `install.sh --claude-user`/`--claude-project`
+  (frontier profile) and `--check` build the profile automatically
+  (python3 required). CI builds and validates the generated plugin
+  alongside the portable one.
+
 - **Ports** (#11): retired the Gemini port — `ports/gemini/README.md`
   now points the paid-tier Gemini CLI at `install.sh --skills
   ~/.gemini/skills` (free tier retired 2026-06-18 for Antigravity CLI).

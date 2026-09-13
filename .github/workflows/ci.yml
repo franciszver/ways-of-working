@@ -74,6 +74,16 @@ jobs:
         # description change must regenerate them (scripts/gen-ports.py).
         run: python3 scripts/gen-ports.py . --check
 
+      - name: Build Claude Code profile
+        # Generates build/claude-code/ (skills/ with Claude-Code-only
+        # frontmatter merged in, plus a standalone plugin root) from
+        # skills/ + scripts/profile-claude-code.yaml. Gitignored, so it is
+        # always regenerated here before anything that reads it.
+        run: python3 scripts/build-profile.py .
+
+      - name: Claude Code profile drift check
+        run: python3 scripts/build-profile.py . --check
+
       - name: SKILL.md frontmatter check
         run: python3 scripts/check-frontmatter.py .
 
@@ -118,6 +128,16 @@ jobs:
           claude plugin validate .claude-plugin/plugin.json --strict
           claude plugin validate ./skills --strict
           claude plugin validate ./agents --strict
+
+      - name: Validate the generated Claude Code profile plugin
+        # build/claude-code/ is a standalone plugin root (its own
+        # .claude-plugin/plugin.json, skills/, agents/, hooks/) generated
+        # by scripts/build-profile.py above — validated here as its own
+        # plugin, the same way the portable one is validated above.
+        run: |
+          claude plugin validate ./build/claude-code --strict
+          claude plugin validate ./build/claude-code/.claude-plugin/plugin.json --strict
+          claude plugin validate ./build/claude-code/skills --strict
 
       - name: mcp-server library tests (mcp package absent — proves the boundary)
         run: python3 -m pytest mcp-server -q
