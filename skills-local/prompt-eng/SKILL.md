@@ -43,7 +43,7 @@ Version prompts with the code using them; changelog behavior changes; re-run the
 
 ## Agent and tool prompts
 
-Tool descriptions ARE prompts: the schema is the contract the model reads to pick and call a tool. System-prompt content sets standing behavior; user-turn content is the immediate ask — put durable tool-use rules in the system prompt. Keep a stable prefix (definitions first, changing input last) for prompt-caching. Multi-turn agents need standing instructions, not just a first-turn brief. Test tool SELECTION (right tool, right args, right time) as its own eval axis, separate from output quality. Any prompt assembling tool results or repo content into context is an injection surface — see sec-audit's "LLM and pipeline surfaces".
+Tool descriptions ARE prompts: the schema is the contract the model reads to pick and call a tool. System-prompt content sets standing behavior; user-turn content is the immediate ask — put durable tool-use rules in the system prompt. Keep a stable prefix (definitions first, changing input last) for prompt-caching. Multi-turn agents need standing instructions, not just a first-turn brief. Test tool SELECTION (right tool, right args, right time) as its own eval axis, separate from output quality. Any prompt assembling tool results or repo content into context is an injection surface — see `sec-audit`'s "LLM and pipeline surfaces".
 
 ## Hard rules
 

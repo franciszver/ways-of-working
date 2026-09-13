@@ -37,7 +37,7 @@ Check against the cliché list: purple-gradient hero, identical rounded cards in
 
 ## Step 8 — VERIFY BY LOOKING (mandatory: run all 4 look-tests)
 
-Screenshot the rendered result with the project's `run` skill if one exists, or a headless-browser screenshot command (Playwright/Puppeteer) otherwise — the work is unverified until you have looked at it. Neither available → say plainly "I could not render it"; never claim a look you didn't take. Run all 4: resize test (narrow and wide), keyboard-tab test (focus visible), squint test, both-themes test. Then confirm the Step 5 states render correctly with real data. "It works" is not a design verdict.
+Screenshot the rendered result with the project's run/launch command (see its README or CLAUDE.md) or a headless-browser screenshot command (Playwright/Puppeteer) — the work is unverified until you have looked at it. Neither available → say plainly "I could not render it"; never claim a look you didn't take. Run all 4: resize test (narrow and wide), keyboard-tab test (focus visible), squint test, both-themes test. Then confirm the Step 5 states render correctly with real data. "It works" is not a design verdict.
 
 ## Hard rules
 

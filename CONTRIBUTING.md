@@ -124,9 +124,8 @@ python3 scripts/build-profile.py . --check  # build/claude-code/ vs skills/ + pr
 python3 scripts/check-frontmatter.py .   # SKILL.md frontmatter contract
 python3 scripts/check-counts.py .        # README skill count vs disk
 python3 scripts/check-agents.py .        # agents/*.md frontmatter contract
-python3 scripts/check-skill-sections.py . # closing sections, ## Report, duplicate paragraphs
-python3 scripts/check-references.py      # dangling doc/skill references in SKILL.md bodies
-bash -n install.sh                       # installer syntax
+python3 scripts/check-skill-sections.py . # closing sections, ## Report, duplicate paragraphs, dangling references
+bash scripts/test-install.sh             # installer behavior (also runs bash -n)
 ```
 
 After changing a canonical skill or `scripts/profile-claude-code.yaml`,

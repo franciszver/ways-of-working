@@ -21,7 +21,7 @@ Write down, before wordsmithing anything: the task in one sentence · the exact 
 - **Structure the prompt** so instructions, context, and input are unambiguously delimited (XML tags, markdown sections). The classic injection-shaped bug — instructions and untrusted input concatenated in one blob — is also just a correctness bug.
 - **Give the escape hatch.** For every "always do X", decide what happens when X is impossible, and say it ("if the input isn't valid JSON, output `{\"error\": ...}` instead of guessing"). Unspecified impossible-cases are where models hallucinate — they'd rather comply badly than disobey silently.
 - **Put reasoning before conclusions** in the output order when the task needs judgment — a prompt that demands the verdict first gets post-hoc rationalization after it.
-- Right-size the machinery: a stronger model with a clear contract often beats an elaborate prompt on a weaker one — and a long prompt dilutes its own load-bearing rules (every rule competes for attention; cut the ones that don't change behavior — same logic as `declutter`).
+- Right-size the machinery: a stronger model with a clear contract often beats an elaborate prompt on a weaker one — and a long prompt dilutes its own load-bearing rules (every rule competes for attention; cut the ones that don't change behavior).
 
 ## 3. Test like it's code — because it is
 
@@ -46,7 +46,7 @@ Tool descriptions are prompts too — the model reads them to decide when and ho
 
 - **The schema is the contract.** Field names, types, and descriptions are the only spec the model gets; an ambiguous parameter description produces wrong calls the same way an ambiguous instruction does.
 - **Placement changes weight.** System-prompt content sets standing behavior for the whole session; user-turn content answers the immediate request. Put durable tool-use rules in the system prompt, task-specific detail in the user turn.
-- **Prompt caching rewards a stable prefix.** Put tool definitions and system instructions first, in a fixed order; put the parts that change every turn (the actual user input) last, or caching buys nothing.
+- **Prompt caching rewards a stable prefix.** Put tool definitions and system instructions first, in a fixed order. Put the parts that change every turn — the actual user input — last, or caching buys nothing.
 - **Multi-turn agents need standing instructions**, not just a first-turn brief — state what carries across turns (goal, constraints) versus what's per-turn (the current subtask).
 - **Test tool selection as its own eval axis**, separate from output quality: did the model call the right tool, with the right arguments, at the right time? A model that calls the wrong tool with a perfect argument schema still fails the task.
 

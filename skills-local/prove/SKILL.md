@@ -48,7 +48,7 @@ Every claim from Step 1 appears in one of the two lists. NO claim may be implied
 
 ## Production-critical work
 
-Add one more pass: independent verification with fresh context, plus the edge hunt on the ERROR paths specifically. In Claude Code, delegate the fresh-context pass to the `verifier` subagent; elsewhere, re-run the checks yourself in a fresh context (new session/thread, no memory of writing the code).
+Add one more pass: independent verification with fresh context, plus the edge hunt on the ERROR paths specifically. Delegate the fresh-context pass to the `verifier` subagent if one exists; otherwise re-run the checks in a fresh session (no memory of writing the code).
 
 ## When a check fails
 

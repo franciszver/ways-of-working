@@ -26,7 +26,7 @@ Also collect what went *well* (fast rollback, good log discipline) — those are
 
 ## 4. Action items that actually bind
 
-Each one passes four tests: **specific** (a change to a system, not to vigilance) · **owned** (a name, not a team) · **dated** · **connected** (which timeline gap or failed defense does it fix — prevention, faster detection, faster mitigation, or smaller blast radius?). Rank by leverage: the fix that catches the whole bug *class* beats the fix for this bug; the detection fix that cuts every future incident's length can beat both. Three funded items beat twelve aspirational ones — a long list is where accountability goes to die. And schedule the check: a postmortem whose action items silently expire teaches the org that postmortems are theater. Action items that ship as code follow `release`'s staged-exposure discipline like any other change — a postmortem fix deployed carelessly can cause the next incident.
+Each one passes four tests: **specific** (a change to a system, not to vigilance) · **owned** (a name, not a team) · **dated** · **connected** (which timeline gap or failed defense does it fix — prevention, faster detection, faster mitigation, or smaller blast radius?). Rank by leverage: the fix that catches the whole bug *class* beats the fix for this bug; the detection fix that cuts every future incident's length can beat both. Three funded items beat twelve aspirational ones — a long list is where accountability goes to die. And schedule the check: a postmortem whose action items silently expire teaches the org that postmortems are theater. Action items that ship as code follow `release`'s staged-exposure discipline like any other change.
 
 ## 5. Report
 

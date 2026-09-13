@@ -35,7 +35,7 @@ claude plugin install ways-of-working@ways-of-working
 
 **Claude Code, frontier models (Opus/Sonnet):**
 ```bash
-./install.sh --claude-user --profile frontier      # skills + agents + CLAUDE.md rules
+./install.sh --claude-user --profile frontier      # skills + agents + playbooks + CLAUDE.md rules
 ./install.sh --claude-project ~/code/myrepo        # per-repo instead / additionally
 ./install.sh --hooks ~/code/myrepo                 # optional automation
 ```
