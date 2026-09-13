@@ -21,7 +21,7 @@ This is how the library's owner runs engineering work. It was proven on the Agen
   - Opus-tier (or the strongest available) for adversarial passes on high-stakes paths: anything that can destroy or corrupt user data, anything touching security boundaries, anything whose correctness depends on an assumption about an external system (hardware, a device protocol, a third-party API). Its use is called out explicitly.
 - Don't spend the expensive tier on pattern-matching work — routing an import check to a top-tier model buys nothing a cheap tier plus verification wouldn't also catch.
 - No subagents in this environment? Keep the *phase separation*: plan first, implement second, then review your own diff cold with `deep-review` before committing.
-- The orchestrator runs on the seat's top tier. If the seat's top tier is the ordinary frontier tier (Opus-class), run it at high reasoning effort and say so, rather than silently downgrading.
+- The orchestrator runs on the seat's top tier. If the seat's top tier is the ordinary frontier tier, run it at high reasoning effort and say so, rather than silently downgrading.
 - The full model-selection judgment lives in this library's `playbooks/ROUTING.md`; this section is its standing application, and ROUTING.md wins if they drift.
 
 ## 2. The plan lives on a board, publicly

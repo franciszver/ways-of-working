@@ -18,6 +18,14 @@ Incident response inverts normal engineering: **mitigation before diagnosis**. U
 
 Say the assessment out loud/in the channel — it's the anchor for every later decision, and it starts the log.
 
+| Severity | Who to page | Comms cadence |
+|---|---|---|
+| SEV1 — all users, or data being corrupted | On-call + incident commander + their manager | Every 15 min, even with no news |
+| SEV2 — some users, or a core feature down | On-call + incident commander | Every 30 min |
+| SEV3 — degraded/internal-only, no user-facing outage | On-call | On change of status |
+
+Roles, not names — whoever is on-call for the affected system; escalate a severity up if trajectory is worsening.
+
 ## 2. Start the log
 
 Timestamped, append-only, from the first minute: observations, actions taken, by whom, effects seen. During the incident it prevents the classic disasters (two people making conflicting changes; re-trying what already failed); after, it *is* the postmortem's raw material. Every state-changing action gets logged **before** it's taken.
