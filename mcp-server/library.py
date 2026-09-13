@@ -9,7 +9,6 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path
 
 LIBRARY_ROOT = Path(
@@ -54,7 +53,6 @@ def _parse_frontmatter(text: str) -> dict[str, str]:
     return fields
 
 
-@lru_cache(maxsize=None)
 def discover_skills(include_local: bool = False) -> list[Skill]:
     """Discover skills.
 
@@ -62,9 +60,11 @@ def discover_skills(include_local: bool = False) -> list[Skill]:
     prompt registration use. Pass `include_local=True` to add the local
     profile too (used by `list_skills` and skill lookup by name).
 
-    Cached: the skill directories don't change during a server's lifetime, and
-    every tool call (list_skills, get_skill, the instructions text) would
-    otherwise re-glob and re-read every SKILL.md from disk.
+    Re-scans the directories on every call: a server process can run for a
+    long session (README's `claude mcp add` registers it once per client),
+    and this repo actively edits skills, so a cache would serve a stale
+    catalog until restart. The scan is a handful of small markdown files —
+    not worth trading correctness for.
     """
     profiles = PROFILES if include_local else {"canonical": PROFILES["canonical"]}
     skills: list[Skill] = []
