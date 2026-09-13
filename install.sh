@@ -88,6 +88,19 @@ append_guarded() { # $1 = snippet file, $2 = target file, $3 = marker
     note "already present (marker found), skipping append: $target"
     return 0
   fi
+  if [ -f "$target" ]; then
+    local suffix="${marker#*:}"
+    suffix="${suffix% -->}"
+    if grep -qE "<!-- [a-z0-9-]+:${suffix} -->" "$target"; then
+      note "migrated guard marker in $target"
+      if [ "$DRY_RUN" -eq 0 ]; then
+        sed -i -E "s|<!-- [a-z0-9-]+:${suffix} -->|${marker}|" "$target"
+      else
+        echo "[dry-run] migrate guard marker in $target"
+      fi
+      return 0
+    fi
+  fi
   note "appending $(basename "$snippet") -> $target"
   if [ "$DRY_RUN" -eq 0 ]; then
     mkdir -p "$(dirname "$target")"
@@ -205,6 +218,10 @@ Register the MCP server (see mcp-server/README.md for the smoke test first):
 Generic mcpServers JSON:
   {"mcpServers": {"ways-of-working": {"command": "uv",
     "args": ["run", "--directory", "$LIB/mcp-server", "server.py"]}}}
+
+If this server was registered under its previous name, remove that registration
+first (claude mcp list shows it), and re-export the library-root env var under
+its new name WAYS_OF_WORKING_LIBRARY.
 EOF
 }
 

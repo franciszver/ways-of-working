@@ -25,6 +25,8 @@ uv run --with "mcp[cli]" mcp dev server.py   # opens the MCP inspector
 
 Requires `uv` (or any Python ≥3.10 with the `mcp` package) — the machine this library was authored on shipped only Python 3.9, so check yours before registering.
 
+Pinned to `mcp` 1.x: 2.x renamed `FastMCP` and removed `mcp.server.fastmcp`. Port tracked as a separate issue.
+
 ## Register
 
 ```bash
@@ -41,6 +43,8 @@ claude mcp add ways-of-working -- uv run --directory /path/to/ways-of-working/mc
   }
 }
 ```
+
+**Upgrading from an earlier name:** if this server was registered under its previous name, remove that registration first (`claude mcp list` shows it), and re-export the library-root env var under its new name `WAYS_OF_WORKING_LIBRARY`.
 
 The server locates the library relative to its own path; set `WAYS_OF_WORKING_LIBRARY=/path/to/ways-of-working` to point elsewhere (e.g. a copied deployment).
 
