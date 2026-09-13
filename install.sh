@@ -402,11 +402,11 @@ do_mcp() {
   cat <<EOF
 Register the MCP server (see mcp-server/README.md for the smoke test first):
 
-  claude mcp add ways-of-working -- uv run --directory "$LIB/mcp-server" server.py
+  claude mcp add ways-of-working -- uv run --with "mcp[cli]" --directory "$LIB/mcp-server" server.py
 
 Generic mcpServers JSON:
   {"mcpServers": {"ways-of-working": {"command": "uv",
-    "args": ["run", "--directory", "$LIB/mcp-server", "server.py"]}}}
+    "args": ["run", "--with", "mcp[cli]", "--directory", "$LIB/mcp-server", "server.py"]}}}
 
 If this server was registered under its previous name, remove that registration
 first (claude mcp list shows it), and re-export the library-root env var under
