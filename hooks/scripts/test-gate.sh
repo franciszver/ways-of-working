@@ -3,13 +3,26 @@
 #
 # OPT-IN: does nothing unless <project>/.claude/test-command exists. That file
 # contains the shell command to run (e.g. "npm test" or "pytest -q").
-# Exit 0 = allow the commit. Exit 2 = block; stderr tells the model why.
+# On block: prints the {"hookSpecificOutput": {"permissionDecision": "deny",
+# ...}} JSON form on stdout for clients that read it, and still exits 2 with
+# the output on stderr as a fallback for clients that only honor the exit code.
+# Exit 0 = allow the commit.
 # Fail-open on anything unexpected — a broken hook must not brick commits.
 set -u
 
 INPUT="$(cat)"
 
 command -v python3 >/dev/null 2>&1 || exit 0
+
+EVENT_NAME="$(printf '%s' "$INPUT" | python3 -c '
+import json, sys
+try:
+    data = json.load(sys.stdin)
+    print(data.get("hook_event_name", "PreToolUse"))
+except Exception:
+    print("PreToolUse")
+' 2>/dev/null)"
+[ -n "$EVENT_NAME" ] || EVENT_NAME="PreToolUse"
 
 CMD="$(printf '%s' "$INPUT" | python3 -c '
 import json, sys
@@ -33,13 +46,30 @@ TEST_CMD="$(head -n 1 "$GATE_FILE" | tr -d '\r')"
 OUTPUT_FILE="$(mktemp)"
 trap 'rm -f "$OUTPUT_FILE"' EXIT
 
-if (cd "$PROJECT_DIR" && bash -c "$TEST_CMD") >"$OUTPUT_FILE" 2>&1; then
+# pipefail scoped to this subshell only, so a piped TEST_CMD (e.g.
+# "npm test | tee log") fails the gate on the real test failure, not on
+# tee's exit code.
+if (set -o pipefail; cd "$PROJECT_DIR" && bash -c "$TEST_CMD") >"$OUTPUT_FILE" 2>&1; then
   exit 0
 fi
 
+REASON="COMMIT BLOCKED by test gate: '$TEST_CMD' failed. Fix the failures (see below), or ask the user to remove .claude/test-command to disable this gate."
+TAIL_OUTPUT="$(tail -n 40 "$OUTPUT_FILE")"
+
+python3 -c '
+import json, sys
+print(json.dumps({
+    "hookSpecificOutput": {
+        "hookEventName": sys.argv[1],
+        "permissionDecision": "deny",
+        "permissionDecisionReason": sys.argv[2] + "\n--- last 40 lines of output ---\n" + sys.argv[3],
+    }
+}))
+' "$EVENT_NAME" "$REASON" "$TAIL_OUTPUT" 2>/dev/null
+
 {
-  echo "COMMIT BLOCKED by test gate: '$TEST_CMD' failed. Fix the failures (see below), or ask the user to remove .claude/test-command to disable this gate."
+  echo "$REASON"
   echo "--- last 40 lines of output ---"
-  tail -n 40 "$OUTPUT_FILE"
+  echo "$TAIL_OUTPUT"
 } >&2
 exit 2
