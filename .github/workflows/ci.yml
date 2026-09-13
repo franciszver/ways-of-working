@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
@@ -107,3 +108,9 @@ jobs:
           claude plugin validate .claude-plugin/plugin.json --strict
           claude plugin validate ./skills --strict
           claude plugin validate ./agents --strict
+
+      - name: Install mcp-server test dependencies
+        run: pip install "mcp<2" pytest
+
+      - name: Run mcp-server tests
+        run: python3 -m pytest mcp-server -q
