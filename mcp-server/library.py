@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import re
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 LIBRARY_ROOT = Path(
@@ -53,15 +54,19 @@ def _parse_frontmatter(text: str) -> dict[str, str]:
     return fields
 
 
-def discover_skills(profiles: dict[str, Path] | None = None) -> list[Skill]:
-    """Discover skills under the given profiles.
+@lru_cache(maxsize=None)
+def discover_skills(include_local: bool = False) -> list[Skill]:
+    """Discover skills.
 
-    Defaults to the canonical profile only — the set the server's `instructions`
-    text and prompt registration use. Pass `profiles=PROFILES` to include the
-    local profile too (used by `list_skills` and skill lookup by name).
+    Canonical only by default — the set the server's `instructions` text and
+    prompt registration use. Pass `include_local=True` to add the local
+    profile too (used by `list_skills` and skill lookup by name).
+
+    Cached: the skill directories don't change during a server's lifetime, and
+    every tool call (list_skills, get_skill, the instructions text) would
+    otherwise re-glob and re-read every SKILL.md from disk.
     """
-    if profiles is None:
-        profiles = {"canonical": PROFILES["canonical"]}
+    profiles = PROFILES if include_local else {"canonical": PROFILES["canonical"]}
     skills: list[Skill] = []
     for profile, root in profiles.items():
         if not root.is_dir():
@@ -80,7 +85,7 @@ def discover_skills(profiles: dict[str, Path] | None = None) -> list[Skill]:
 
 
 def find_skill(name: str, profile: str) -> Skill | None:
-    matches = [s for s in discover_skills(profiles=PROFILES) if s.name == name]
+    matches = [s for s in discover_skills(include_local=True) if s.name == name]
     if not matches:
         return None
     for s in matches:
@@ -91,7 +96,7 @@ def find_skill(name: str, profile: str) -> Skill | None:
 
 def list_skills_text() -> str:
     lines = []
-    for s in discover_skills(profiles=PROFILES):
+    for s in discover_skills(include_local=True):
         desc = s.description.split(". ")[0].rstrip(".")
         lines.append(f"- {s.name} [{s.profile}] — {desc}")
     if not lines:
@@ -102,7 +107,7 @@ def list_skills_text() -> str:
 def get_skill_text(name: str, profile: str = "canonical") -> str:
     skill = find_skill(name, profile)
     if skill is None:
-        available = ", ".join(sorted({s.name for s in discover_skills(profiles=PROFILES)}))
+        available = ", ".join(sorted({s.name for s in discover_skills(include_local=True)}))
         return f"Unknown skill '{name}'. Available: {available}"
     return skill.body()
 
