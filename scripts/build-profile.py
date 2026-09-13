@@ -259,6 +259,32 @@ def check_build_drift(lib: Path, generated: dict) -> list:
     return errors
 
 
+def check_slash_only_keys(lib: Path, profile: dict) -> list:
+    """Every skill the profile marks `disable-model-invocation: true` must
+    carry that key in its generated SKILL.md — catches an edited profile
+    whose build tree was never regenerated."""
+    errors = []
+    build_root = lib / "build" / "claude-code" / "skills"
+    for name, extra_keys in profile.items():
+        if not isinstance(extra_keys, dict) or not extra_keys.get("disable-model-invocation"):
+            continue
+        skill_md = build_root / name / "SKILL.md"
+        if not skill_md.is_file():
+            errors.append(
+                f"{name}: disable-model-invocation is set in profile-claude-code.yaml"
+                f" but build/claude-code/skills/{name}/SKILL.md is missing"
+            )
+            continue
+        data = _lib.parse_frontmatter(skill_md)
+        if not data.get("disable-model-invocation"):
+            errors.append(
+                f"{name}: disable-model-invocation is set in profile-claude-code.yaml"
+                f" but missing from build/claude-code/skills/{name}/SKILL.md"
+                " — re-run scripts/build-profile.py"
+            )
+    return errors
+
+
 def check_generated_frontmatter(lib: Path) -> list:
     """Frontmatter contract over the generated tree: name matches its
     directory, description is non-empty and under the limit, and no key
@@ -328,6 +354,7 @@ def main() -> int:
         errors = check_build_drift(lib, generated)
         errors += check_generated_frontmatter(lib)
         errors += check_plugin_root_drift(lib)
+        errors += check_slash_only_keys(lib, profile)
         if errors:
             for e in errors:
                 print(f"FAIL: {e}")
