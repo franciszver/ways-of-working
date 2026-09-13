@@ -87,9 +87,11 @@ fi
 
 # --- 5: trailing user content after the block survives --force and is not drift ---
 
-echo "" >> "$CLAUDE_MD"
-echo "## My personal notes" >> "$CLAUDE_MD"
-echo "Remember to buy milk." >> "$CLAUDE_MD"
+{
+  echo ""
+  echo "## My personal notes"
+  echo "Remember to buy milk."
+} >> "$CLAUDE_MD"
 "$INSTALL" --claude-user --profile frontier --force >/dev/null
 assert_true "trailing user content survives --force" grep -q "Remember to buy milk." "$CLAUDE_MD"
 if "$INSTALL" --check --profile frontier >"$TMPROOT/check-trailing.out" 2>&1; then
