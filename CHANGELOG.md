@@ -5,6 +5,16 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+- **Slash-only profile keys for four event-driven skills** (#33): `incident`,
+  `postmortem`, `release`, and `demo-video` gain
+  `disable-model-invocation: true` in `scripts/profile-claude-code.yaml`.
+  The Stats tab showed each costing about 100 tokens per turn in the
+  model's skill listing. Dropping them from the listing removes that
+  per-turn cost in the `ways-of-working-claude-code` profile plugin;
+  `/incident`, `/postmortem`, `/release`, and `/demo-video` still
+  invoke the skill directly. `migrate` stays model-invocable: it is a
+  mid-task handoff target from `ci-triage` and `api-design`.
+
 ## [0.9.0] - 2026-09-13
 
 This is the first tagged release after the library's rename from its

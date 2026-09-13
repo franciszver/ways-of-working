@@ -40,3 +40,15 @@ onboard:
 
 perf:
   argument-hint: "<target>"
+
+incident:
+  disable-model-invocation: true
+
+postmortem:
+  disable-model-invocation: true
+
+release:
+  disable-model-invocation: true
+
+demo-video:
+  disable-model-invocation: true

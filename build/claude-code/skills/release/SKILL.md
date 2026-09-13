@@ -4,6 +4,7 @@ description: Ships changes so that failure is cheap — verifies before, stages 
   exposure, watches the right signals after, keeps rollback rehearsed and instant.
   Use when deploying, releasing, publishing a package, running a launch, flipping
   a major feature flag, or writing a release/deploy checklist.
+disable-model-invocation: true
 ---
 
 # Release

@@ -4,6 +4,7 @@ description: Turns a running app into a captioned demo video (mp4 + gif with mus
   and publishes it — captures ordered screenshots, overlays explanatory captions,
   synthesizes a soundtrack, commits the gif into the README. Use when asked to make
   a demo video/gif of an application, a walkthrough recording, or a README hero animation.
+disable-model-invocation: true
 ---
 
 # Demo Video

@@ -29,6 +29,12 @@ claude plugin marketplace add franciszver/ways-of-working
 claude plugin install ways-of-working@ways-of-working
 ```
 
+An alternative, `claude plugin install ways-of-working-claude-code@ways-of-working`,
+installs the enhanced Claude Code profile instead: it adds argument hints and
+hides four owner-triggered skills (`incident`, `postmortem`, `release`,
+`demo-video`) from the per-turn listing. The portable `ways-of-working`
+plugin above lists all 34 skills.
+
 `install.sh` still covers every other target: local/frontier profile switching, per-project installs, and the non-Claude-Code ports (Antigravity, Cursor, Gemini CLI, AGENTS.md, MCP). See the quickstarts below.
 
 Releases are tagged `vX.Y.Z` and listed on the [GitHub Releases](https://github.com/franciszver/ways-of-working/releases) page.

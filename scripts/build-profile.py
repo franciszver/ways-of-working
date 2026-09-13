@@ -86,6 +86,13 @@ def validate_profile(lib: Path, profile: dict) -> list:
                 f" (allowed: {', '.join(sorted(ALLOWED_PROFILE_KEYS))})"
             )
 
+        for bool_key in ("disable-model-invocation", "user-invocable"):
+            if bool_key in extra_keys and not isinstance(extra_keys[bool_key], bool):
+                errors.append(
+                    f"profile-claude-code.yaml: '{name}' has a non-boolean"
+                    f" `{bool_key}`: {extra_keys[bool_key]!r}"
+                )
+
         canonical_data = _lib.parse_frontmatter(canonical_dirs[name] / "SKILL.md")
         collisions = set(extra_keys) & set(canonical_data)
         if collisions:
@@ -255,6 +262,30 @@ def check_build_drift(lib: Path, generated: dict) -> list:
         actual = skill_md.read_text(encoding="utf-8")
         if actual != generated[name]:
             errors.append(f"{name}: SKILL.md content is stale — re-run scripts/build-profile.py")
+
+    canonical_by_name = {d.name: d for d in _lib.skill_dirs(lib, "skills")}
+    for name in sorted(expected_names & existing_names):
+        canonical_dir = canonical_by_name[name]
+        build_dir = build_root / name
+        for sub in COPY_SUBDIRS:
+            expected_files = _tree_files(canonical_dir / sub)
+            actual_files = _tree_files(build_dir / sub)
+            for missing in sorted(set(expected_files) - set(actual_files)):
+                errors.append(
+                    f"{name}: build/claude-code/skills/{name}/{sub}/{missing} missing"
+                    " — re-run scripts/build-profile.py"
+                )
+            for extra in sorted(set(actual_files) - set(expected_files)):
+                errors.append(
+                    f"{name}: build/claude-code/skills/{name}/{sub}/{extra} is"
+                    " stale/unexpected — re-run scripts/build-profile.py"
+                )
+            for path in sorted(set(expected_files) & set(actual_files)):
+                if expected_files[path] != actual_files[path]:
+                    errors.append(
+                        f"{name}: build/claude-code/skills/{name}/{sub}/{path} is stale"
+                        " — re-run scripts/build-profile.py"
+                    )
 
     return errors
 

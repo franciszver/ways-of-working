@@ -151,6 +151,13 @@ already exists in that skill's canonical frontmatter is a hard error from
 — it may require an explicit `agent:` key, or nest forks. Follow-up once
 checked in a live session.
 
+A skill becomes slash-only (`disable-model-invocation: true`) when it is
+event-driven and the owner, not the model, triggers it: `incident`,
+`postmortem`, `release`, and `demo-video`. A skill that another skill
+hands off to mid-task must not be slash-only, since the model needs to
+invoke it without the owner typing its name — `migrate` stays
+model-invocable as a handoff target from `ci-triage` and `api-design`.
+
 `scripts/build-profile.py` reads `scripts/profile-claude-code.yaml` and
 writes `build/claude-code/skills/<name>/SKILL.md` for every canonical
 skill: the canonical frontmatter plus that skill's extra keys, body
