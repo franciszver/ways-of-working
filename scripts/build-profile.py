@@ -16,6 +16,7 @@ Usage: python3 scripts/build-profile.py [LIB_ROOT] [--check]
            skills, extra skills, or any SKILL.md content mismatch).
 Requires PyYAML (exits 2 if missing).
 """
+import json
 import shutil
 import sys
 from pathlib import Path
@@ -114,6 +115,41 @@ def write_build(lib: Path, generated: dict) -> None:
                 shutil.copytree(src_sub, dest_dir / sub)
 
 
+def write_plugin_root(lib: Path) -> None:
+    """Materialize build/claude-code/ as a standalone plugin root: its own
+    .claude-plugin/plugin.json (a copy of the canonical one — plugin.json
+    itself carries no non-spec keys, only skills/ needs the profile), plus
+    agents/ and hooks/ copied verbatim so `claude plugin validate
+    build/claude-code --strict` passes against a self-contained tree. A
+    plugin's own ./skills is always scanned by default and cannot be
+    swapped out via the manifest's `skills` field (that field only *adds*
+    directories), so the enhanced profile needs its own plugin root rather
+    than a `skills` entry on the existing plugin.json — see PR description
+    for the doc citation.
+    """
+    build_plugin_root = lib / "build" / "claude-code"
+    manifest_dir = build_plugin_root / ".claude-plugin"
+    manifest_dir.mkdir(parents=True, exist_ok=True)
+
+    canonical_manifest = json.loads((lib / ".claude-plugin" / "plugin.json").read_text())
+    manifest = dict(canonical_manifest)
+    manifest["name"] = f"{canonical_manifest['name']}-claude-code"
+    manifest["description"] = (
+        canonical_manifest["description"]
+        + " This variant's skills/ carries Claude-Code-only frontmatter"
+        " (context, argument-hint) generated from the portable library."
+    )
+    (manifest_dir / "plugin.json").write_text(json.dumps(manifest, indent=2) + "\n")
+
+    for sub in ("agents", "hooks"):
+        src = lib / sub
+        dest = build_plugin_root / sub
+        if dest.exists():
+            shutil.rmtree(dest)
+        if src.is_dir():
+            shutil.copytree(src, dest)
+
+
 def check_build(lib: Path, generated: dict) -> list:
     build_root = lib / "build" / "claude-code" / "skills"
     errors = []
@@ -164,7 +200,9 @@ def main() -> int:
         return 0
 
     write_build(lib, generated)
+    write_plugin_root(lib)
     print(f"Generated build/claude-code/skills/ from {len(generated)} canonical skills.")
+    print("Generated build/claude-code/ plugin root (plugin.json, agents/, hooks/).")
     return 0
 
 
