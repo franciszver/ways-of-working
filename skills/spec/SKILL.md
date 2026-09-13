@@ -49,6 +49,15 @@ The ledger is a working document, not a ceremony: statuses update as work procee
 
 The format scales down: a three-line request gets a three-item inline ledger (thirty seconds, still catches the dropped requirement). Only real projects get a `SPEC.md`. Matching ceremony to stakes is part of the skill — a project charter for a bugfix is its own kind of failure.
 
+## Report
+
+```
+Ledger: <MUST/SHOULD/WON'T, numbered>
+Acceptance criteria: <one per MUST>
+Ambiguities: <resolved — default+flag, or asked>
+Riskiest assumption: <named, with the cheapest probe planned>
+```
+
 ## Anti-patterns
 
 - Restating the request in fancier words and calling it a spec — extraction means finding what *isn't* written.

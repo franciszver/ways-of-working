@@ -11,6 +11,9 @@ third job: it checks whether the result reads as machine-generated, and strikes 
 The check is not taste. It is a set of published, dated observations about what current
 models actually produce, held in `references/` and refreshed on a schedule.
 
+**Refresh due:** see `references/wp-aisigns.md`'s header — that is the one authoritative
+date, kept there so it never drifts from a second copy. See "Refreshing the references" below.
+
 ## Sources, in priority order
 
 1. **`references/wp-aisigns.md`** is the authority. A local cache of Wikipedia's
@@ -43,38 +46,13 @@ a month as suspect.
 5. Does it read like the *signs of human writing* list: plain verbs, hedges, the occasional
    wordy construction a machine would have tidied away.
 
-## Constructions to strike
+## Constructions and vocabulary to strike
 
-- **Negative parallelism.** "It's not X, it's Y." The highest-value check here. Delete the
-  construction and state the thing. It usually asserts nothing.
-- **Rule of three.** "fast, simple and reliable." Real writing has lists of two and four.
-  Factual enumerations are fine. Decorative triplets are not.
-- **"Not only X, but also Y."** Split it or drop half.
-- **Participle pile-ups.** Trailing clauses opening *highlighting, showcasing, reflecting,
-  ensuring, underscoring, demonstrating*. Almost always deletable.
-- **Connective chains.** *Moreover, Furthermore, Additionally* stacked across paragraphs.
-- **Compulsive summary.** A closing paragraph opening *Overall* or *In conclusion* that
-  restates what was just said.
-- **Staccato runs.** Three or four clipped sentences in a row. This is the current default
-  and it reads as generated. See the note on `ste-writing` below, which pulls the other way.
-
-## Vocabulary to strike
-
-Grep for these. Every hit is deleted or replaced with a plain word.
-
-*delve, intricate, tapestry, pivotal, underscore, landscape, foster, testament, enhance,
-crucial, robust, seamless, comprehensive, leverage (verb), navigate (figurative), realm,
-showcase, spearhead, vital, essential, myriad, plethora, resonate, unlock, elevate,
-transformative, cutting-edge, state-of-the-art, dynamic, synergy, boasts, commendable,
-surpass, primarily, meticulous.*
-
-Four of those (*boast, commendable, surpass, primarily*) come from the peer-reviewed study
-and are missing from most popular lists, so they are worth an explicit check.
-
-Then the 2026 plain register, where the tell is collocation and density rather than the
-word itself: *quietly (building/transforming), a shift in, this matters because, shapes how,
-lands, actually (as filler), real (value/impact), earn (trust/the right to), the work,
-hold space, compound, send the signal.*
+Do not keep a local copy — grep the draft directly against `references/wp-aisigns.md`
+("Negative parallelisms", "Rule of three", `### High density of "AI vocabulary" words`
+sections) and `references/ai-tells.md` ("Sentence constructions to strike", "Words and
+phrases to strike"). A local copy drifts from the source within weeks; the check order
+above tells you when to run it.
 
 ## Formatting tells
 
@@ -130,7 +108,10 @@ than about a month:
    date, and discard anything whose own prose has the cadence it claims to diagnose.
 3. Rewrite the reference with each entry attributed and dated. Mark which parts are
    durable (constructions) and which are perishable (word lists).
-4. Then sync the condensed lists in this SKILL.md (check order, constructions,
-   vocabulary) with the refreshed references. They are copies and drift otherwise.
-5. Never route around a blocked source. If a page cannot be fetched, say so in the file
-   and ask for a manual copy rather than reaching for a mirror or scraper.
+4. Update the "Checked"/"Next refresh due" line in `references/wp-aisigns.md`'s own
+   header — the one place that date lives. The check order above is the only list still
+   kept in this SKILL.md; everything else is read from `references/` directly, so nothing
+   else needs syncing.
+5. Never route around a blocked source. If a page cannot be fetched, keep the old list,
+   say so in the file, and add a degraded-mode line ("references stale as of \<date\>:
+   treat the word lists as a floor") rather than reaching for a mirror or scraper.

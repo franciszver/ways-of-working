@@ -37,6 +37,15 @@ Roll back first, diagnose second (`incident` owns the protocol) — with staged 
 
 Every manual step in a release is a future skipped step. The checklist lives in the repo, versioned, and each release follows it *by reading it*, not from memory; every incident adds its lesson to it (`postmortem` action items often land here). The endgame is automation — a pipeline that enforces the ladder and the gates — but a written checklist honestly followed is 80% of the value, today, for free. Version and changelog discipline ride along: tag what you shipped, write the changelog entry for the operator who diffs versions during an incident (what changed *behaviorally*, what config is new, what to watch).
 
+## Report
+
+```
+Shipped: <version/commit, what changed behaviorally>
+Ladder: <rungs passed, signal watched at each>
+Post-deploy verification: <the real end-to-end check, quoted result>
+Rollback: <rehearsed command, still valid after this release?>
+```
+
 ## Anti-patterns
 
 - The Friday-evening / pre-vacation deploy.

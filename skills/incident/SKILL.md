@@ -38,6 +38,17 @@ Stakeholders get: impact in user terms, current status, next update time. Then *
 
 Recovered means the *user-facing* symptom is gone and stayed gone through one full cycle of whatever periodicity mattered (traffic peak, cron run). Then: declare the end in the channel · file the follow-ups **now** while they're vivid (the disabled flag, the skipped root-cause, the snapshot to clean up — each gets a ticket, not a memory) · schedule the `postmortem` · and only then do the root-cause hunt via `debug`, calmly, on the preserved evidence (grab logs/metrics/core dumps before they rotate).
 
+## Report
+
+Post to the channel at stand-down:
+
+```
+Impact: <who/what, since when, severity>
+Mitigation: <action taken, when service was restored>
+Cause: <known / suspected — full root cause is `postmortem`'s job>
+Follow-ups filed: <ticket links>
+```
+
 ## Rules
 
 - Mitigation is not the fix. A rolled-back deploy still contains the bug; a flag off is a feature down. The incident ends twice — once for users, once when the root cause is fixed and the mitigation is unwound.

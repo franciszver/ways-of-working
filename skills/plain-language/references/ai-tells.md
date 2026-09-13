@@ -1,8 +1,16 @@
 # AI writing tells — current reference
-_Refreshed: 2026-07-30_
+_Refreshed: 2026-09-13 (degraded — see note below). Previous full refresh: 2026-07-30._
 
 Refreshed per "Refreshing the references" in the skill's SKILL.md. Treat the word lists as perishable and the
 constructions section as the durable core.
+
+**2026-09-13 refresh, degraded mode.** Re-fetched Vollmer's Substack piece via WebFetch and confirmed its
+constructions and word groups below are unchanged and still current. The Forbes list (Cook, 21 May 2026) —
+this file's most recent concrete lexical-list source — now returns HTTP 403 to WebFetch, the same failure
+mode already logged for Wikipedia and HuffPost below; per the refresh rules, no proxy, mirror, or scraper was
+attempted. **References stale as of 2026-09-13: treat the word lists as a floor**, not a ceiling — a term
+absent from every list here can still be a live tell; the Forbes list specifically has not been re-verified
+since May 2026.
 
 ## Sources read
 
@@ -168,6 +176,9 @@ match the vocabulary, do not clone the sentences.
 
 ## Unavailable sources
 
+- **forbes.com — Jodie Cook, "15 New Giveaway Signs Of AI Writing (May 2026 Update)": HTTP 403 to WebFetch
+  as of 2026-09-13.** Not routed around, per the refresh rules. Its list is kept below from the 2026-07-30
+  read; treat it as unverified past that date.
 - **en.wikipedia.org — "Wikipedia:Signs of AI writing" (WP:AISIGNS): not fetchable at refresh time.**
   **Not routed around** — no proxy, mirror, archive, cache, scraper or alternative front-end was attempted,
   per the refresh rules in SKILL.md. Several fetchable pages in the results are restatements of it (ETBI Digital

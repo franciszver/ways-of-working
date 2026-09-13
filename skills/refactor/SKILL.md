@@ -41,6 +41,15 @@ Refactors grow: each extraction reveals two more candidates. When scope creeps, 
 
 Also ask whether the refactor is worth doing at all: structure serves the next change. Refactoring code nobody will touch again is churn — it consumes review budget and git-blame clarity and returns nothing.
 
+## Report
+
+```
+Net: <baseline suite result, quoted> -> <final suite result, quoted>
+Transformations: <named steps applied>
+Ledger: <compatibility items confirmed unchanged>
+Follow-ups: <bugs noticed, tempting improvements, deferred refactors>
+```
+
 ## Anti-patterns
 
 - Refactor and feature/bugfix in one change — the cardinal sin; it makes both unreviewable.

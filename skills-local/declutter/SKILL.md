@@ -13,7 +13,7 @@ Run the tests and record the result. Red suite → STOP (fix via debug first). N
 
 ## Step 1 — SCOPE
 
-Default: the branch's commits ahead of upstream plus uncommitted changes. Do NOT clean code the diff didn't touch — note pre-existing clutter for a separate pass. An explicit argument overrides.
+Same scope as deep-review (commits ahead of upstream plus uncommitted changes; explicit argument or a repo REVIEW.md overrides). Do NOT clean code the diff didn't touch — note pre-existing clutter for a separate pass.
 
 ## Step 2 — SWEEP, in value order
 

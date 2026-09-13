@@ -65,7 +65,9 @@ Then finish with the `prove` skill's verification pass if the task is larger tha
 
 Root cause (the causal chain, 1–3 sentences) · the fix and why it addresses the cause · proof (repro before/after, quoted) · regression test added · blast radius checked. No narration of the journey — refuted hypotheses are only worth mentioning if they carry a warning for future work.
 
-## Anti-patterns — each one lengthens the hunt
+## Anti-patterns
+
+Each one lengthens the hunt.
 
 - Editing before reproducing.
 - Skimming the error and pattern-matching to a familiar bug ("probably a cache thing").

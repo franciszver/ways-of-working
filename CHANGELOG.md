@@ -55,6 +55,40 @@ All notable changes to this repo are recorded here. Format loosely follows
   them into `.claude/rules/`.
 - **Release**: `.claude-plugin/plugin.json` version bumped to `0.5.0` —
   `agents/` and `hooks/` changed in this PR.
+- **Skills** (#7): deduplicated and layered canonical skills for progressive
+  disclosure. `lean-max-effort` cut from 95 to 55 lines — kept the
+  four-phase frame, replaced restated `spec`/`prove`/`debug` content with
+  one-line pointers. `plain-language` dropped its inline Vocabulary/
+  Constructions copies of `references/`, and now states its last-refreshed
+  and refresh-due dates near the top (refresh is overdue — separate task).
+  `apply-working-process` moved its two dated `(Observed …)` evidence
+  bullets in §7 into a new `references/observations.md`, replaced with
+  ≤20-word rules. `demo-video` gained a runnable
+  `scripts/build_demo.py` (screenshots → captioned frames → mp4 + gif,
+  stdlib-only soundtrack) and a `references/pipeline.md`; the body now
+  states judgment plus a new `## Anti-patterns`. `deep-review` now defines
+  review scope once; `declutter` points at it instead of repeating it.
+  Standardized every skill's closing section to `## Rules` and/or
+  `## Anti-patterns`, and added `## Report` to `incident`, `postmortem`,
+  `prove`, `research`, `spec`, `refactor`, `release`. Added
+  `scripts/check-skill-sections.py` (closing-section spelling, required
+  `## Report` sections, duplicate-paragraph check) to CI and
+  `CONTRIBUTING.md`. Fix round from review: the duplicate check now uses
+  12-word-shingle Jaccard overlap (catches paraphrases, not just
+  byte-identical text) instead of exact-paragraph matching; the section
+  check validates every `##` heading, not just the last; restored two
+  `apply-working-process` working-norm bullets and two `lean-max-effort`
+  lines a prior pass had dropped; `plain-language` ran its own refresh
+  procedure (Wikipedia re-cached, `ai-tells.md` refreshed in degraded
+  mode after Forbes returned 403) and now keeps one authoritative refresh
+  date instead of two; `deep-review`'s REVIEW.md-override sentence
+  de-duplicated; `demo-video/scripts/build_demo.py` now uses a single
+  temp directory for all intermediates, drops the dead `--no-music` flag
+  and unused `caption_list`, and wraps overlong captions instead of
+  clipping them.
+- **Release**: `.claude-plugin/plugin.json` version bumped to `0.6.0` —
+  `skills/` changed in this PR, and plugin installs only update on a
+  version bump (see `CONTRIBUTING.md`'s Releasing section).
 - **Skills** (#6): rewrote skill descriptions in third person, dropped
   imperative openers and "always on" phrasing, added a description lint
   to `check-frontmatter.py`, and added task-shaped triggers plus

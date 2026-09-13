@@ -83,6 +83,9 @@ jobs:
       - name: Agent frontmatter check
         run: python3 scripts/check-agents.py .
 
+      - name: Skill closing-section and duplication check
+        run: python3 scripts/check-skill-sections.py .
+
       - name: Plugin hooks generation check
         run: |
           python3 scripts/merge-hooks.py --emit-plugin > hooks/plugin-hooks.json

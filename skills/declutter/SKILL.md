@@ -13,7 +13,7 @@ Run the tests before touching anything and record the result. Red suite → stop
 
 ## 1. Scope
 
-Default: the current diff — commits ahead of upstream plus uncommitted changes. Cleaning code you didn't touch turns a reviewable diff into an archaeology project; note pre-existing clutter for a separate pass instead. An explicit argument (file, directory, branch) overrides the default.
+Scope: same as `deep-review`. Cleaning code you didn't touch turns a reviewable diff into an archaeology project; note pre-existing clutter for a separate pass instead.
 
 ## 2. The sweep — what to hunt
 

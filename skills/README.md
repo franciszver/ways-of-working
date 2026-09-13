@@ -80,6 +80,10 @@ cp -r <these directories> <repo>/.claude/skills/
 
 Or use [`../install.sh`](../install.sh). If `~/.claude/skills/` didn't exist before the current session, restart Claude Code once. Pair with a CLAUDE.md from [`../claude-md/`](../claude-md/) — skills fire per-task; CLAUDE.md rules are always on.
 
+## Closing sections
+
+A section for binding constraints is `## Rules`; one for failure modes to avoid is `## Anti-patterns` — no other spelling ("hard rules", "pitfalls", "failure modes", etc. all get renamed). Skills whose output is a deliverable (incident, postmortem, prove, research, spec, refactor, release, migrate, perf, sec-audit) also carry a `## Report` section with a short fenced skeleton. `scripts/check-skill-sections.py` enforces both, plus a cross-skill near-duplicate-paragraph check (word-shingle overlap, so paraphrases are caught too, not just byte-identical text).
+
 ## Naming notes
 
 `deep-review`, `prove`, and `iterate` (local pack) dodge Claude Code's built-in `/review`, `/verify`, and `/loop` commands. `sec-audit` dodges `/security-review`; `declutter` dodges `/simplify`. If your Claude Code version has no conflict and you prefer the short names, rename the directory and the frontmatter `name:` together.

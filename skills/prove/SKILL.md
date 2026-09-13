@@ -53,6 +53,15 @@ Use exactly these phrases — they force precision and the reader relies on them
 
 A partial-but-honest verdict ("core flow verified; concurrent access not tested") beats a confident blanket "everything works" every time. If a check fails, do not soften it or silently patch: report it, fix via the `debug` protocol, then re-prove — the failed-then-fixed cycle is normal; hiding it is not.
 
+## Report
+
+```
+Claims: <ledger items + silent claims proven>
+Evidence: <command + quoted decisive output line, per claim>
+Edge cases: <tried, and what happened>
+I verified: <X> / I did not verify: <Y, and why>
+```
+
 ## Proof levels by stakes
 
 - **Throwaway script** — run it once on real input. Done.
