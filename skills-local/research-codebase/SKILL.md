@@ -1,7 +1,6 @@
 ---
 name: research-codebase
 description: Documentarian codebase research — answer "how does X work / where does Y live" by mapping what exists, with file:line evidence, zero critique, and a persistent research document a later session can build on. Use when asked how something works, where something lives, what the current behavior is, or to research/document a codebase area before planning changes. For this codebase only, not external sources.
-allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # Research Codebase Protocol

@@ -1,7 +1,6 @@
 ---
 name: sec-audit
 description: Security audit of a diff or codebase — trace untrusted data flows, report only exploitable findings with concrete exploit scenarios. Use when asked for a security review or audit, or before shipping code that handles auth, payments, or untrusted input.
-allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # Security Audit Protocol
