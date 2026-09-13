@@ -85,10 +85,11 @@ python3 scripts/gen-ports.py . --check   # antigravity stubs + AGENTS.md pointer
 python3 scripts/check-frontmatter.py .   # SKILL.md frontmatter contract
 python3 scripts/check-counts.py .        # README skill count vs disk
 python3 scripts/check-agents.py .        # agents/*.md frontmatter contract
+python3 scripts/check-skill-sections.py . # closing sections, ## Report, duplicate paragraphs
 bash -n install.sh                       # installer syntax
 ```
 
-All six run in CI (`.github/workflows/ci.yml`) on every push and PR.
+All seven run in CI (`.github/workflows/ci.yml`) on every push and PR.
 
 ## The three gates
 
