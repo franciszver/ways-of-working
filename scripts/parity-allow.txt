@@ -1,0 +1,55 @@
+# Tracked in #14; remove lines as gaps close.
+# One entry per line: surface:skill
+
+# skills-local
+skills-local:architect
+skills-local:breakdown
+skills-local:handoff
+skills-local:lean-max-effort
+skills-local:plain-language
+skills-local:refactor
+skills-local:research
+skills-local:spec
+skills-local:testgen
+skills-local:write
+
+# cursor
+cursor:architect
+cursor:breakdown
+cursor:handoff
+cursor:lean-max-effort
+cursor:plain-language
+cursor:refactor
+cursor:research
+cursor:spec
+cursor:write
+
+# gemini
+gemini:architect
+gemini:breakdown
+gemini:lean-max-effort
+gemini:plain-language
+gemini:refactor
+gemini:research
+gemini:testgen
+gemini:write
+
+# antigravity
+antigravity:lean-max-effort
+antigravity:plain-language
+antigravity:refactor
+antigravity:research
+antigravity:ste-writing
+antigravity:testgen
+antigravity:write
+
+# agents-md
+agents-md:architect
+agents-md:breakdown
+agents-md:demo-video
+agents-md:lean-max-effort
+agents-md:plain-language
+agents-md:refactor
+agents-md:research
+agents-md:spec
+agents-md:write

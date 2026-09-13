@@ -7,7 +7,7 @@ The premise: most of the gap between a mediocre run and a frontier run is **proc
 ## Map
 
 ```
-skills/          33 canonical skills — source of truth, tuned for Opus/Sonnet
+skills/          34 canonical skills — source of truth, tuned for Opus/Sonnet
 skills-local/    compact imperative variants for local models (quality, iterate,
                  debug, deep-review, prove, + 21 new skills) — free tokens change the discipline
 agents/          Claude Code subagents: code-reviewer, verifier, researcher, architect
@@ -19,6 +19,17 @@ ports/           AGENTS.md (generic single-file port) · cursor/ (26 .mdc rules)
 mcp-server/      the library as an MCP server (skills as prompts + list/get/route tools)
 install.sh       one command per environment (run with --dry-run first)
 ```
+
+## Install as a Claude Code plugin
+
+The headline path for Claude Code is the plugin, not `install.sh`. It installs the 34 canonical skills, the agents, and the hooks in one step:
+
+```bash
+claude plugin marketplace add franciszver/ways-of-working
+claude plugin install ways-of-working@ways-of-working
+```
+
+`install.sh` still covers every other target: local/frontier profile switching, per-project installs, and the non-Claude-Code ports (Antigravity, Cursor, Gemini CLI, AGENTS.md, MCP). See the quickstarts below.
 
 ## Quickstarts
 

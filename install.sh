@@ -4,28 +4,48 @@
 # Smoke-tested 2026-07-06 (all targets, idempotent reruns, error cases,
 # against a scratch HOME). --dry-run previews any run.
 #
+# The Claude Code plugin (see .claude-plugin/) is the headline path for
+# Claude Code now — `claude plugin marketplace add` + `claude plugin
+# install`. This script still covers every other target and the
+# link/check/profile workflows below.
+#
 # Usage:
-#   ./install.sh --claude-user [--profile frontier|local]
-#   ./install.sh --claude-project DIR [--profile frontier|local]
+#   ./install.sh --claude-user [--profile frontier|local] [--link] [--force]
+#   ./install.sh --claude-project DIR [--profile frontier|local] [--link] [--force]
 #   ./install.sh --hooks DIR
 #   ./install.sh --antigravity DIR
 #   ./install.sh --agents-md DIR
 #   ./install.sh --cursor DIR
 #   ./install.sh --gemini [DIR|global]
 #   ./install.sh --mcp
-#   Options: --dry-run  --force
+#   ./install.sh --check
+#   Options: --dry-run  --force  --link  --profile frontier|local  -h/--help
 #
 # Profiles: 'frontier' installs skills/ + agents/ + global-frontier CLAUDE.md rules
 # (paid models — lean discipline). 'local' installs skills-local/ + global-local
 # rules (free local models — thoroughness discipline). One profile per setup;
 # the packs share skill names by design.
+#
+# A marker file ($HOME/.claude/skills/.ways-of-working-profile) records
+# which profile --claude-user last installed. Requesting the other profile
+# without --force is refused; with --force, skills that belong only to the
+# previous profile's pack are removed before the new pack is installed.
+#
+# --link installs each skill/agent as a symlink into this library instead
+# of a copy — for personal installs, so edits to the library apply without
+# reinstalling. --check compares the installed copies under
+# $HOME/.claude/skills and $HOME/.claude/agents against the library and
+# lists any file that differs (symlinked installs never drift); it exits 1
+# if drift is found.
 
 set -euo pipefail
 
 LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DRY_RUN=0
 FORCE=0
+LINK=0
 PROFILE="frontier"
+PROFILE_EXPLICIT=0
 ACTIONS=()
 ARG_CLAUDE_PROJECT=""
 ARG_HOOKS=""
@@ -34,7 +54,10 @@ ARG_AGENTS_MD=""
 ARG_CURSOR=""
 ARG_GEMINI=""
 
-usage() { sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 1; }
+usage() { # $1 = exit code (default 1); prints the header comment block (line 2 to the first blank line after it)
+  awk 'NR==1 { next } /^$/ { exit } { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
+  exit "${1:-1}"
+}
 
 run() {
   if [ "$DRY_RUN" -eq 1 ]; then echo "[dry-run] $*"; else "$@"; fi
@@ -52,34 +75,115 @@ while [ $# -gt 0 ]; do
     --cursor)         ACTIONS+=(cursor);         ARG_CURSOR="${2:?--cursor needs DIR}"; shift ;;
     --gemini)         ACTIONS+=(gemini);         ARG_GEMINI="${2:?--gemini needs DIR or 'global'}"; shift ;;
     --mcp)            ACTIONS+=(mcp) ;;
-    --profile)        PROFILE="${2:?--profile needs frontier|local}"; shift ;;
+    --check)          ACTIONS+=(check) ;;
+    --profile)        PROFILE="${2:?--profile needs frontier|local}"; PROFILE_EXPLICIT=1; shift ;;
+    --link)           LINK=1 ;;
     --dry-run)        DRY_RUN=1 ;;
     --force)          FORCE=1 ;;
-    -h|--help)        usage ;;
-    *) echo "Unknown option: $1"; usage ;;
+    -h|--help)        usage 0 ;;
+    *) echo "Unknown option: $1"; usage 1 ;;
   esac
   shift
 done
 
-[ ${#ACTIONS[@]} -gt 0 ] || usage
+[ ${#ACTIONS[@]} -gt 0 ] || usage 1
 case "$PROFILE" in frontier|local) ;; *) echo "Invalid --profile: $PROFILE"; exit 1 ;; esac
 
-copy_skill_dirs() { # $1 = source root (skills|skills-local), $2 = dest skills dir
-  # Safe-by-default like every other target: existing skill dirs are skipped
-  # (users tune installed skills), --force refreshes them from the library.
-  local src="$1" dest="$2" dir name
-  run mkdir -p "$dest"
+for_each_skill_dir() { # $1 = source root (skills|skills-local), $2 = callback fn, $3.. = extra args passed after (dir, name)
+  local src="$1" cb="$2" dir name
+  shift 2
   for dir in "$LIB/$src"/*/; do
     [ -f "${dir}SKILL.md" ] || continue
     name="$(basename "$dir")"
-    if [ -d "$dest/$name" ] && [ "$FORCE" -eq 0 ]; then
-      note "skill exists, skipping (use --force to refresh): $dest/$name"
-      continue
-    fi
-    note "skill: $name -> $dest/$name"
-    run rm -rf "${dest:?}/$name"
-    run cp -R "$dir" "$dest/$name"
+    "$cb" "$dir" "$name" "$@"
   done
+}
+
+profile_layout() { # $1 = profile name (frontier|local); echoes "SKILLS_SUBDIR AGENTS_FLAG"
+  # AGENTS_FLAG is the literal word "agents" when the profile installs
+  # agents/, or "-" when it does not. Single source of truth for which
+  # content each profile carries — keep in sync with the profile
+  # descriptions in the usage banner above.
+  case "$1" in
+    frontier) echo "skills agents" ;;
+    local)    echo "skills-local -" ;;
+    *) echo "Unknown profile: $1" >&2; return 1 ;;
+  esac
+}
+
+require_layout() { # $1 = profile name, $2 = context for the error message; echoes "SKILLS_SUBDIR AGENTS_FLAG" or exits 1
+  local p="$1" ctx="$2" layout
+  if ! layout="$(profile_layout "$p")"; then
+    echo "Unknown profile '$p' ($ctx)." >&2
+    exit 1
+  fi
+  echo "$layout"
+}
+
+infer_installed_profile() { # $1 = base; echoes frontier|local, or nothing if no install is detected
+  local base="$1" dir name
+  if [ -d "$base/agents" ] && [ -n "$(find "$base/agents" -mindepth 1 -print -quit 2>/dev/null)" ]; then
+    echo "frontier"
+    return 0
+  fi
+  if [ -d "$base/skills" ]; then
+    for dir in "$LIB/skills"/*/; do
+      [ -f "${dir}SKILL.md" ] || continue
+      name="$(basename "$dir")"
+      if [ -e "$base/skills/$name" ] && [ ! -d "$LIB/skills-local/$name" ]; then
+        echo "frontier" # a frontier-only skill name is installed
+        return 0
+      fi
+    done
+    if [ -n "$(find "$base/skills" -mindepth 1 -print -quit 2>/dev/null)" ]; then
+      echo "local"
+      return 0
+    fi
+  fi
+  echo ""
+}
+
+strip_guarded_block() { # $1 = target file, $2 = marker line (e.g. "<!-- ways-of-working:frontier -->")
+  local target="$1" marker="$2"
+  [ -f "$target" ] || return 0
+  grep -qF "$marker" "$target" || return 0
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "[dry-run] strip guarded block $marker from $target"
+    return 0
+  fi
+  local tmp
+  tmp="$(mktemp "${target}.XXXXXX")"
+  awk -v marker="$marker" '
+    $0 == marker { skip = 1; next }
+    skip && index($0, "<!-- ways-of-working:") == 1 { skip = 0 }
+    !skip { print }
+  ' "$target" > "$tmp"
+  mv "$tmp" "$target"
+}
+
+_copy_skill_dir_cb() { # $1 = source dir, $2 = name, $3 = dest skills dir
+  # Safe-by-default like every other target: existing skill dirs are skipped
+  # (users tune installed skills), --force refreshes them from the library.
+  # --link installs a symlink to the library dir instead of a copy.
+  local dir="$1" name="$2" dest="$3"
+  if [ -e "$dest/$name" ] && [ "$FORCE" -eq 0 ]; then
+    note "skill exists, skipping (use --force to refresh): $dest/$name"
+    return 0
+  fi
+  run rm -rf "${dest:?}/$name"
+  if [ "$LINK" -eq 1 ]; then
+    note "skill (link): $name -> $dest/$name"
+    run ln -s "${dir%/}" "$dest/$name"
+  else
+    note "skill: $name -> $dest/$name"
+    run cp -R "$dir" "$dest/$name"
+  fi
+}
+
+copy_skill_dirs() { # $1 = source root (skills|skills-local), $2 = dest skills dir
+  local src="$1" dest="$2"
+  run mkdir -p "$dest"
+  for_each_skill_dir "$src" _copy_skill_dir_cb "$dest"
 }
 
 append_guarded() { # $1 = snippet file, $2 = target file, $3 = marker
@@ -110,28 +214,108 @@ append_guarded() { # $1 = snippet file, $2 = target file, $3 = marker
   fi
 }
 
-copy_file_safe() { # $1 = src, $2 = dest
+copy_file_safe() { # $1 = src, $2 = dest, $3 = 1 to honor --link (default: 0)
+  local allow_link="${3:-0}"
   if [ -e "$2" ] && [ "$FORCE" -eq 0 ]; then
     note "exists, skipping (use --force to overwrite): $2"
     return 0
   fi
-  note "file: $1 -> $2"
   run mkdir -p "$(dirname "$2")"
-  run cp "$1" "$2"
+  if [ "$allow_link" -eq 1 ] && [ "$LINK" -eq 1 ]; then
+    note "file (link): $1 -> $2"
+    run rm -f "$2"
+    run ln -s "$1" "$2"
+  else
+    note "file: $1 -> $2"
+    run rm -f "$2"
+    run cp "$1" "$2"
+  fi
+}
+
+profile_marker_path() { echo "$1/skills/.ways-of-working-profile"; } # $1 = base (e.g. $HOME/.claude)
+
+check_profile_marker() { # $1 = base; refuses a profile switch without --force
+  local base="$1" marker installed
+  marker="$(profile_marker_path "$base")"
+  if [ -f "$marker" ]; then
+    installed="$(cat "$marker")"
+    if [ -z "$installed" ] || ! profile_layout "$installed" >/dev/null 2>&1; then
+      echo "Profile marker $marker has invalid content: '$installed'." >&2
+      echo "Fix or remove it, then re-run." >&2
+      exit 1
+    fi
+  else
+    installed="$(infer_installed_profile "$base")"
+    [ -n "$installed" ] || return 0 # no existing install: nothing to refuse or prune
+    note "no profile marker found, but an existing install was detected; inferring profile '$installed'"
+  fi
+  [ "$installed" = "$PROFILE" ] && return 0
+  if [ "$FORCE" -ne 1 ]; then
+    echo "Installed profile is '$installed', requested '$PROFILE'." >&2
+    echo "Re-run with --force to switch (this removes skills that belong only to the '$installed' pack)." >&2
+    exit 1
+  fi
+  remove_other_profile_skills "$base" "$installed"
+  strip_guarded_block "$base/CLAUDE.md" "<!-- ways-of-working:$installed -->"
+}
+
+_remove_other_profile_skill_cb() { # $1 = dir, $2 = name, $3 = base, $4 = new_src, $5 = other profile name
+  local dir="$1" name="$2" base="$3" new_src="$4" other="$5"
+  [ -d "$LIB/$new_src/$name" ] && return 0 # shared name, the new pack keeps it
+  if [ -e "$base/skills/$name" ]; then
+    note "removing skill from previous profile ($other), absent from $PROFILE pack: $name"
+    run rm -rf "${base:?}/skills/${name:?}"
+  fi
+}
+
+remove_other_profile_skills() { # $1 = base, $2 = previous profile name
+  local base="$1" other="$2" other_src other_agents new_src new_agents
+  read -r other_src other_agents <<< "$(require_layout "$other" "previous profile marker")"
+  read -r new_src new_agents <<< "$(require_layout "$PROFILE" "requested profile")"
+  for_each_skill_dir "$other_src" _remove_other_profile_skill_cb "$base" "$new_src" "$other"
+  # An agents flag present on the old profile but not the new one means
+  # leaving that profile removes its agents too.
+  if [ "$other_agents" = "agents" ] && [ "$new_agents" != "agents" ]; then
+    local f name
+    for f in "$LIB"/agents/*.md; do
+      name="$(basename "$f")"
+      if [ -e "$base/agents/$name" ]; then
+        note "removing agent from previous profile ($other): $name"
+        run rm -f "${base:?}/agents/${name:?}"
+      fi
+    done
+  fi
+}
+
+write_profile_marker() { # $1 = base
+  local base="$1" marker tmp
+  marker="$(profile_marker_path "$base")"
+  run mkdir -p "$base/skills"
+  if [ "$DRY_RUN" -eq 0 ]; then
+    tmp="$(mktemp "${marker}.XXXXXX")"
+    echo "$PROFILE" > "$tmp"
+    mv "$tmp" "$marker"
+  else
+    echo "[dry-run] write '$PROFILE' > $marker"
+  fi
 }
 
 do_claude_user() {
-  local base="$HOME/.claude"
-  if [ "$PROFILE" = "frontier" ]; then
-    copy_skill_dirs "skills" "$base/skills"
+  local base="$HOME/.claude" src_subdir agents_flag
+  check_profile_marker "$base"
+  read -r src_subdir agents_flag <<< "$(require_layout "$PROFILE" "requested profile")"
+  copy_skill_dirs "$src_subdir" "$base/skills"
+  if [ "$agents_flag" = "agents" ]; then
     run mkdir -p "$base/agents"
     local f
-    for f in "$LIB"/agents/*.md; do copy_file_safe "$f" "$base/agents/$(basename "$f")"; done
+    for f in "$LIB"/agents/*.md; do copy_file_safe "$f" "$base/agents/$(basename "$f")" 1; done
+  fi
+  if [ "$PROFILE" = "frontier" ]; then
     append_guarded "$LIB/claude-md/global-frontier.md" "$base/CLAUDE.md" "<!-- ways-of-working:frontier -->"
   else
-    copy_skill_dirs "skills-local" "$base/skills"
     append_guarded "$LIB/claude-md/global-local.md" "$base/CLAUDE.md" "<!-- ways-of-working:local -->"
   fi
+  write_profile_marker "$base"
   note "done. If ~/.claude/skills was created just now, restart Claude Code once."
 }
 
@@ -142,7 +326,7 @@ do_claude_project() {
     copy_skill_dirs "skills" "$base/skills"
     run mkdir -p "$base/agents"
     local f
-    for f in "$LIB"/agents/*.md; do copy_file_safe "$f" "$base/agents/$(basename "$f")"; done
+    for f in "$LIB"/agents/*.md; do copy_file_safe "$f" "$base/agents/$(basename "$f")" 1; done
   else
     copy_skill_dirs "skills-local" "$base/skills"
   fi
@@ -166,7 +350,12 @@ do_hooks() {
   if [ ! -f "$base/settings.json" ]; then
     copy_file_safe "$LIB/hooks/settings-snippet.json" "$base/settings.json"
   else
-    note "settings.json exists — merge hooks/settings-snippet.json into it manually."
+    note "settings.json exists — merging hooks/settings-snippet.json into it."
+    if [ "$DRY_RUN" -eq 0 ]; then
+      python3 "$LIB/scripts/merge-hooks.py" "$base/settings.json" "$LIB/hooks/settings-snippet.json"
+    else
+      echo "[dry-run] merge hooks/settings-snippet.json into $base/settings.json"
+    fi
   fi
   note "restart the Claude Code session, then run /hooks to confirm registration."
   note "optional test gate: echo 'npm test' > $proj/.claude/test-command"
@@ -223,6 +412,70 @@ If this server was registered under its previous name, remove that registration
 first (claude mcp list shows it), and re-export the library-root env var under
 its new name WAYS_OF_WORKING_LIBRARY.
 EOF
+}
+
+_report_dir_diff() { # $1 = library dir, $2 = installed dir; sets DRIFT=1 and prints DRIFT lines on any difference
+  local lib_dir="${1%/}" installed_dir="$2" out line
+  out="$(diff -rq "$lib_dir" "$installed_dir" 2>&1)" || true
+  if [ -n "$out" ]; then
+    while IFS= read -r line; do
+      echo "DRIFT: $line"
+    done <<< "$out"
+    DRIFT=1
+  fi
+}
+
+_check_skill_dir_cb() { # $1 = dir, $2 = name, $3 = base
+  local dir="$1" name="$2" base="$3"
+  if [ ! -e "$base/skills/$name" ]; then
+    echo "DRIFT: skill not installed: $name"
+    DRIFT=1
+    return 0
+  fi
+  if [ -L "$base/skills/$name" ]; then
+    return 0 # symlinked install, never drifts
+  fi
+  _report_dir_diff "$dir" "$base/skills/$name"
+}
+
+do_check() {
+  local base="$HOME/.claude" marker="" profile src_skills agents_flag
+  if [ "$PROFILE_EXPLICIT" -eq 1 ]; then
+    profile="$PROFILE"
+  else
+    marker="$(profile_marker_path "$base")"
+    if [ -f "$marker" ]; then
+      profile="$(cat "$marker")"
+      if [ -z "$profile" ] || ! profile_layout "$profile" >/dev/null 2>&1; then
+        echo "Profile marker $marker has invalid content: '$profile'." >&2
+        echo "Fix or remove it, or pass --profile explicitly, then re-run." >&2
+        exit 1
+      fi
+    else
+      profile="$(infer_installed_profile "$base")"
+      [ -n "$profile" ] || profile="frontier" # nothing installed yet: default for messaging
+    fi
+  fi
+  read -r src_skills agents_flag <<< "$(require_layout "$profile" "--profile, marker, or inferred")"
+  note "checking installed skills ($profile profile) against $src_skills/ ..."
+
+  DRIFT=0
+  for_each_skill_dir "$src_skills" _check_skill_dir_cb "$base"
+
+  if [ "$agents_flag" = "agents" ]; then
+    if [ ! -d "$base/agents" ]; then
+      echo "DRIFT: agents not installed"
+      DRIFT=1
+    else
+      _report_dir_diff "$LIB/agents" "$base/agents"
+    fi
+  fi
+
+  if [ "$DRIFT" -eq 1 ]; then
+    echo "Drift found — see DRIFT lines above."
+    exit 1
+  fi
+  note "no drift: installed copies match the library."
 }
 
 for action in "${ACTIONS[@]}"; do "do_$action"; done

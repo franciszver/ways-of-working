@@ -8,6 +8,12 @@ Three hooks that enforce mechanically what the skills teach behaviorally. Skills
 | `test-gate.sh` | PreToolUse (Bash) | On `git commit`, runs your test command first; failing tests block the commit. **Opt-in**: only active if `.claude/test-command` exists | Yes, when tests fail |
 | `format-on-stop.sh` | Stop | Formats changed files with the project's configured formatter (prettier / ruff / black / gofmt / cargo fmt) | Never — always exits 0 |
 
+`plugin-hooks.json` is generated from `settings-snippet.json` — run `scripts/merge-hooks.py --emit-plugin > hooks/plugin-hooks.json` after editing the snippet, never hand-edit it.
+
+`.claude/test-command` is executed as a shell command by `test-gate.sh` — treat it as code, not config.
+
+The plugin ships only `guardrails.sh`. `test-gate.sh` and `format-on-stop.sh` are per-project opt-in via `install.sh --hooks`, never installed by the plugin — `format-on-stop.sh` runs `npx --no-install`, which resolves the *project's* `node_modules/.bin`, so a plugin-installed copy would let a cloned repo run code via the Stop hook.
+
 ## Install (per project)
 
 ```bash
@@ -24,7 +30,7 @@ echo "npm test" > <repo>/.claude/test-command
 
 Then restart the Claude Code session (hooks config is captured at startup) and run `/hooks` to confirm they're registered.
 
-**Smoke-tested 2026-07-06**: guardrails block/allow/fail-open paths, test-gate block-on-fail/allow-on-pass/opt-in gating, and format-on-stop's always-exit-0 no-op paths were all exercised end-to-end (the formatter-invoking paths ran only as no-ops — no formatters were installed on the test machine). To confirm the install landed correctly in *your* project:
+**Last verified: see CHANGELOG.** Smoke-tested: guardrails block/allow/fail-open paths, test-gate block-on-fail/allow-on-pass/opt-in gating, and format-on-stop's always-exit-0 no-op paths were all exercised end-to-end (the formatter-invoking paths ran only as no-ops — no formatters were installed on the test machine). To confirm the install landed correctly in *your* project:
 
 1. `echo '{"tool_input":{"command":"rm -rf /"}}' | .claude/hooks/guardrails.sh; echo "exit=$?"` → expect the BLOCKED message and `exit=2`.
 2. `echo '{"tool_input":{"command":"ls"}}' | .claude/hooks/guardrails.sh; echo "exit=$?"` → expect silence and `exit=0`.

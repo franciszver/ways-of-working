@@ -76,4 +76,4 @@ mkdir -p <repo>/.gemini/commands && cp commands/*.toml <repo>/.gemini/commands/
 | `/prompt-eng [prompt]` | Prompts engineered like software — spec, examples, eval set |
 | `/research-codebase <topic>` | Documentarian codebase mapping with file:line evidence |
 
-Format (TOML, `description` + `prompt`, `{{args}}` substitution) verified 2026-07 against [geminicli.com/docs/cli/custom-commands](https://geminicli.com/docs/cli/custom-commands/).
+Format (TOML, `description` + `prompt`, `{{args}}` substitution) — last verified: see CHANGELOG — against [geminicli.com/docs/cli/custom-commands](https://geminicli.com/docs/cli/custom-commands/).

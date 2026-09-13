@@ -2,7 +2,7 @@
 
 Ports of the library's canonical skills to Google Antigravity's `.agent/` format. Rules are the passive always-available layer; workflows are the slash-invoked procedures.
 
-Format verified 2026-07 against [antigravity.google/docs/rules-workflows](https://antigravity.google/docs/rules-workflows) and community guides. If Antigravity has since changed frontmatter fields, check the official docs — the *content* here ports forward regardless.
+Format — last verified: see CHANGELOG — against [antigravity.google/docs/rules-workflows](https://antigravity.google/docs/rules-workflows) and community guides. If Antigravity has since changed frontmatter fields, check the official docs — the *content* here ports forward regardless.
 
 ## Install
 
