@@ -1,6 +1,6 @@
 ---
 name: lean-max-effort
-description: Discipline for producing frontier-quality output at minimum token cost — makes Sonnet and Opus plan, verify, and track requirements like a top-tier model at max effort, while cutting token waste that inflates the bill. Use this skill at the start of ANY non-trivial task — coding, debugging, refactoring, data analysis, document creation, research, or multi-step agentic work. Definitely use it when the user mentions cost, tokens, budget, efficiency, "do it right the first time," thoroughness, or quality — but also by default on any task involving multiple tool calls, file edits, or long outputs, even when efficiency isn't mentioned.
+description: "Runs the four-phase backbone for non-trivial work: requirements ledger, riskiest assumption first, brief plan, lean execution, verification before done. Use when a task spans multiple steps, files, or tool calls, or when the user asks for thoroughness or cost discipline."
 ---
 
 # Lean Max Effort

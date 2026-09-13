@@ -1,6 +1,6 @@
 ---
 name: debug
-description: Mandatory debugging protocol for ALL failures — bug reports, failing tests, error messages, stack traces, regressions, unexpected output. Reproduce first, one hypothesis at a time, fix the cause not the symptom, prove the fix. Use whenever anything is broken, even if the user does not say "debug".
+description: Hypothesis-driven debugging — reproduce first, localize by bisection, test one hypothesis at a time, fix the cause not the symptom, prove the fix. Use whenever anything fails — bug report, failing test, error message, stack trace, regression, flaky behavior, or "it worked yesterday". Applies equally to failing builds, configs, queries, and pipelines. For local failures. A red CI run starts with ci-triage.
 ---
 
 # Debug Protocol

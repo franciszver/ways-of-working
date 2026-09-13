@@ -1,6 +1,6 @@
 ---
 name: frontend-design
-description: Make interfaces look designed, not defaulted — tokens first, hierarchy before decoration, design every state, verify by looking. Use when building or restyling any UI.
+description: Makes interfaces look designed, not defaulted — commits to a design language before the first component, spends hierarchy before decoration, designs the real states, and verifies by looking at the rendered result. Use when building or restyling any UI — web app, landing page, dashboard, component library — or when a working interface "looks off" and needs design quality.
 ---
 
 # Frontend Design Protocol

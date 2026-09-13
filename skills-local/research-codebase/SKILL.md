@@ -1,6 +1,6 @@
 ---
 name: research-codebase
-description: Documentarian codebase research — map how something works with file:line evidence, zero critique, into a durable research document. Use when asked how something works, where something lives, or what the current behavior is.
+description: Documentarian codebase research — answer "how does X work / where does Y live" by mapping what exists, with file:line evidence, zero critique, and a persistent research document a later session can build on. Use when asked how something works, where something lives, what the current behavior is, or to research/document a codebase area before planning changes. For this codebase only; external sources go to research.
 ---
 
 # Research Codebase Protocol

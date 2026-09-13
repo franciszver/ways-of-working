@@ -1,6 +1,6 @@
 ---
 name: explain
-description: Explanations targeted at the learner's current model — anchor to what they know, concrete before abstract, displace misconceptions by name, verify the landing. Use when teaching a concept, explaining how or why something works, or writing tutorials and onboarding docs.
+description: Explanations engineered for the learner's current model — locate what they already know, build from it in checkable steps, name the misconception you're displacing, verify understanding instead of assuming it. Use when teaching a concept, explaining how something works or why a decision was made, answering "what does this mean", writing tutorials/onboarding docs, or mentoring. Owns the teaching move; write owns the finished document.
 ---
 
 # Explain Protocol

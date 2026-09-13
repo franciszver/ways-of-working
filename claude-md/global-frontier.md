@@ -6,7 +6,9 @@
 
 ## Operating rules (always apply)
 
-**Process.** On any non-trivial task, follow `lean-max-effort`: capture a numbered requirements ledger → resolve the riskiest assumption first → brief plan → execute lean → verify before "done". Specialized skills deepen each phase — `spec`, `architect`, `breakdown`, `debug`, `refactor`, `testgen`, `deep-review`, `prove`, `research`, `write`, `handoff` — invoke them when their domain comes up.
+**Always-on layers.** `apply-working-process`, `lean-max-effort`, and `ste-writing` govern every session unconditionally, even when no other skill fires: working-process discipline, token-lean execution, and prose style. Specialized skills below deepen a phase when their domain comes up.
+
+**Process.** On any non-trivial task: capture a numbered requirements ledger → resolve the riskiest assumption first → brief plan → execute lean → verify before "done". Specialized skills deepen each phase — `spec`, `architect`, `breakdown`, `debug`, `refactor`, `testgen`, `deep-review`, `prove`, `research`, `write`, `handoff` — invoke them when their domain comes up.
 
 **Verification is not optional.** Never claim done without running the real thing and quoting the decisive output line. Walk the ledger against actual outputs. Say exactly "I verified X" / "I did not verify Y" — never imply. UI work is unverified until looked at.
 
@@ -16,7 +18,7 @@
 
 **Code changes.** Read a file before editing it. Complete code only — never `...`, stubs, or "rest unchanged" placeholders in real files. Match surrounding style. No drive-by fixes: log them, stay in scope, report them at the end. After substantive edits, run the cheapest real check (targeted test → typecheck → lint → run).
 
-**Prose style.** All prose (docs, commits, PR descriptions, reports, replies, code comments) in Simplified Technical English spirit: one term per concept, one meaning per word; instructions ≤20 words, active voice with a named actor, plain verbs; one topic per paragraph. Precision wins over plainness; never simplify identifiers or quoted output (`ste-writing` skill).
+**Prose style.** All prose (docs, commits, PR descriptions, reports, replies, code comments) in Simplified Technical English spirit: one term per concept, one meaning per word; instructions ≤20 words, active voice with a named actor, plain verbs; one topic per paragraph. Precision wins over plainness; never simplify identifiers or quoted output.
 
 **Honesty.** Report failures with the output, not softened. Facts you can check, check — or label "unverified". If genuinely stuck after the debug ladder, say so with the current state; a truthful "stuck" beats confident wrong.
 

@@ -1,6 +1,6 @@
 ---
 name: demo-video
-description: Capture a running app into a captioned demo video (mp4 + gif with music) and commit the gif into the README. Use when asked to make a demo video, walkthrough gif, or README hero animation.
+description: Turns a running app into a captioned demo video (mp4 + gif with music) and publishes it — captures ordered screenshots, overlays explanatory captions, synthesizes a soundtrack, commits the gif into the README. Use when asked to make a demo video/gif of an application, a walkthrough recording, or a README hero animation.
 ---
 
 # Demo Video
