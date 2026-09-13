@@ -575,7 +575,8 @@ claude_md_snippet_for_profile() { # $1 = profile; echoes the library snippet pat
 }
 
 check_claude_md_block() { # $1 = base, $2 = profile; sets DRIFT=1 and prints a DRIFT line on mismatch or absence
-  local base="$1" profile="$2" target="$base/CLAUDE.md" marker snippet expected actual
+  local base="$1" profile="$2" target marker snippet expected actual
+  target="$base/CLAUDE.md"
   marker="$(claude_md_marker_for_profile "$profile")"
   snippet="$(claude_md_snippet_for_profile "$profile")"
   if [ ! -f "$target" ] || ! grep -qF "$marker" "$target"; then
