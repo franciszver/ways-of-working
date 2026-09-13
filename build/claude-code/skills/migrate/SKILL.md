@@ -5,7 +5,6 @@ description: Upgrades and migrations that can't strand you — read the breaking
   for data. Use for dependency/framework/language upgrades, API version bumps, database
   schema or data migrations, and platform moves.
 argument-hint: <package@version|target>
-disable-model-invocation: true
 ---
 
 # Migrate

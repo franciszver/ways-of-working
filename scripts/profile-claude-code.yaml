@@ -34,7 +34,6 @@ ci-triage:
 
 migrate:
   argument-hint: "<package@version|target>"
-  disable-model-invocation: true
 
 onboard:
   argument-hint: "<module|repo>"

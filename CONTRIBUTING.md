@@ -153,7 +153,10 @@ checked in a live session.
 
 A skill becomes slash-only (`disable-model-invocation: true`) when it is
 event-driven and the owner, not the model, triggers it: `incident`,
-`postmortem`, `release`, `migrate`, and `demo-video`.
+`postmortem`, `release`, and `demo-video`. A skill that another skill
+hands off to mid-task must not be slash-only, since the model needs to
+invoke it without the owner typing its name — `migrate` stays
+model-invocable as a handoff target from `ci-triage` and `api-design`.
 
 `scripts/build-profile.py` reads `scripts/profile-claude-code.yaml` and
 writes `build/claude-code/skills/<name>/SKILL.md` for every canonical

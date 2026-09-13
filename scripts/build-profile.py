@@ -86,6 +86,13 @@ def validate_profile(lib: Path, profile: dict) -> list:
                 f" (allowed: {', '.join(sorted(ALLOWED_PROFILE_KEYS))})"
             )
 
+        for bool_key in ("disable-model-invocation", "user-invocable"):
+            if bool_key in extra_keys and not isinstance(extra_keys[bool_key], bool):
+                errors.append(
+                    f"profile-claude-code.yaml: '{name}' has a non-boolean"
+                    f" `{bool_key}`: {extra_keys[bool_key]!r}"
+                )
+
         canonical_data = _lib.parse_frontmatter(canonical_dirs[name] / "SKILL.md")
         collisions = set(extra_keys) & set(canonical_data)
         if collisions:
@@ -256,34 +263,30 @@ def check_build_drift(lib: Path, generated: dict) -> list:
         if actual != generated[name]:
             errors.append(f"{name}: SKILL.md content is stale — re-run scripts/build-profile.py")
 
-    return errors
+    canonical_by_name = {d.name: d for d in _lib.skill_dirs(lib, "skills")}
+    for name in sorted(expected_names & existing_names):
+        canonical_dir = canonical_by_name[name]
+        build_dir = build_root / name
+        for sub in COPY_SUBDIRS:
+            expected_files = _tree_files(canonical_dir / sub)
+            actual_files = _tree_files(build_dir / sub)
+            for missing in sorted(set(expected_files) - set(actual_files)):
+                errors.append(
+                    f"{name}: build/claude-code/skills/{name}/{sub}/{missing} missing"
+                    " — re-run scripts/build-profile.py"
+                )
+            for extra in sorted(set(actual_files) - set(expected_files)):
+                errors.append(
+                    f"{name}: build/claude-code/skills/{name}/{sub}/{extra} is"
+                    " stale/unexpected — re-run scripts/build-profile.py"
+                )
+            for path in sorted(set(expected_files) & set(actual_files)):
+                if expected_files[path] != actual_files[path]:
+                    errors.append(
+                        f"{name}: build/claude-code/skills/{name}/{sub}/{path} is stale"
+                        " — re-run scripts/build-profile.py"
+                    )
 
-
-def check_slash_only_keys(lib: Path, profile: dict) -> list:
-    """Every skill the profile marks `disable-model-invocation: true` must
-    carry that key in its generated SKILL.md — catches an edited profile
-    whose build tree was never regenerated."""
-    errors = []
-    build_root = lib / "build" / "claude-code" / "skills"
-    if not build_root.is_dir():
-        return []  # reported by check_build_drift already
-    for name, extra_keys in profile.items():
-        if not isinstance(extra_keys, dict) or not extra_keys.get("disable-model-invocation"):
-            continue
-        skill_md = build_root / name / "SKILL.md"
-        if not skill_md.is_file():
-            errors.append(
-                f"{name}: disable-model-invocation is set in profile-claude-code.yaml"
-                f" but build/claude-code/skills/{name}/SKILL.md is missing"
-            )
-            continue
-        data = _lib.parse_frontmatter(skill_md)
-        if not data.get("disable-model-invocation"):
-            errors.append(
-                f"{name}: disable-model-invocation is set in profile-claude-code.yaml"
-                f" but missing from build/claude-code/skills/{name}/SKILL.md"
-                " — re-run scripts/build-profile.py"
-            )
     return errors
 
 
@@ -356,7 +359,6 @@ def main() -> int:
         errors = check_build_drift(lib, generated)
         errors += check_generated_frontmatter(lib)
         errors += check_plugin_root_drift(lib)
-        errors += check_slash_only_keys(lib, profile)
         if errors:
             for e in errors:
                 print(f"FAIL: {e}")
