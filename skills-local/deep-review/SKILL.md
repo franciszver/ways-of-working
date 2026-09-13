@@ -1,6 +1,7 @@
 ---
 name: deep-review
 description: Adversarial code review producing only verified, severity-ranked findings with concrete failure scenarios. Use when asked to review code, a diff, a branch, or a PR, and to attack your own completed work before declaring it done.
+allowed-tools: Read, Grep, Glob, Bash
 ---
 
 # Deep Review Protocol
