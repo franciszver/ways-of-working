@@ -47,6 +47,7 @@ python3 scripts/check_parity.py          # canonical names vs skills-local + cur
 python3 scripts/gen-ports.py . --check   # antigravity stubs + AGENTS.md pointers vs skills/ (drift + uniqueness)
 python3 scripts/check-frontmatter.py .   # SKILL.md frontmatter contract
 python3 scripts/check-counts.py .        # README skill count vs disk
+python3 scripts/check-agents.py .        # agents/*.md frontmatter contract
 bash -n install.sh                       # installer syntax
 ```
 
