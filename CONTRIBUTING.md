@@ -12,22 +12,19 @@ every surface that carries a compression of it:
 
 | Surface | What to update |
 |---|---|
-| `skills-local/<name>/SKILL.md` | The compact variant for local models — body only; its `description` is third-person and shared with the canonical skill |
-| `ports/cursor/<name>.mdc` | The Cursor rule (filenames sometimes differ from the canonical name — see the alias table in `scripts/check_parity.py`) |
-| `ports/gemini/commands/<name>.toml` | The Gemini CLI command |
-| `antigravity/workflows/<name>.md` | The Antigravity workflow |
-| `ports/agents-md/AGENTS.md` | The matching "## When ..." section |
-| `agents/*.md` | Only if the skill is one of the four subagent definitions |
+| `skills-local/<name>/SKILL.md` | The compact variant for local models — body only; its `description` is third-person and shared with the canonical skill (a deliberate subset, not every canonical skill has one — see `scripts/parity-allow.txt`) |
+| `antigravity/workflows/<name>.md` | Nothing by hand — run `python3 scripts/gen-ports.py`, which regenerates the stub's `description:` from `skills/<name>/SKILL.md` |
+| `ports/agents-md/AGENTS.md` | Nothing by hand for the skill pointer line — the same `gen-ports.py` run regenerates it; edit the file directly only for its always-on floor |
+| `agents/*.md` | Only if the skill is one of the four subagent definitions; each preloads its matching skill's full text |
 
-Run `python3 scripts/check_parity.py` after any propagation pass — it lists which
-surfaces are missing which canonical skill names.
+`ports/cursor/` is not per-skill: it carries only the always-on floor
+(`baseline.mdc`) plus two glob-scoped rules `SKILL.md` cannot express
+(`testing.mdc`, `frontend-design.mdc`). Cursor and the paid-tier Gemini CLI
+read `skills/` natively (`install.sh --skills <dest>`); `ports/gemini/`
+carries only a README pointer, not commands.
 
-**Two surfaces are being retired or shrunk, per issue #11:**
-- `ports/gemini/` is being retired. Do not add new Gemini commands; existing
-  ones are kept only until the retirement lands.
-- `ports/cursor/` and `antigravity/workflows/` are being shrunk to cover
-  only what `SKILL.md` frontmatter cannot express. Do not grow them with
-  new content beyond that scope.
+Run `python3 scripts/check_parity.py` and `python3 scripts/gen-ports.py --check`
+after any propagation pass — together they cover every surface.
 
 ## The frontmatter contract
 
@@ -46,13 +43,14 @@ with a comment pointing at the tracking issue, not silently exempted.
 ## Running the checks
 
 ```bash
-python3 scripts/check_parity.py          # canonical names vs every port
+python3 scripts/check_parity.py          # canonical names vs skills-local + cursor's exact file set
+python3 scripts/gen-ports.py . --check   # antigravity stubs + AGENTS.md pointers vs skills/ (drift + uniqueness)
 python3 scripts/check-frontmatter.py .   # SKILL.md frontmatter contract
 python3 scripts/check-counts.py .        # README skill count vs disk
 bash -n install.sh                       # installer syntax
 ```
 
-All four run in CI (`.github/workflows/ci.yml`) on every push and PR.
+All five run in CI (`.github/workflows/ci.yml`) on every push and PR.
 
 ## The three gates
 

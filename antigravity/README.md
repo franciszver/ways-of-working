@@ -1,18 +1,16 @@
 # antigravity/ — rules + workflows port
 
-Ports of the library's canonical skills to Google Antigravity's `.agent/` format. Rules are the passive always-available layer; workflows are the slash-invoked procedures.
+Ports of the library's canonical skills to Google Antigravity's format. Rules are the passive always-available layer. Workflows are thin stubs: each loads the matching canonical skill from `skills/` (installed alongside) rather than duplicating its content.
 
 Format — last verified: see CHANGELOG — against [antigravity.google/docs/rules-workflows](https://antigravity.google/docs/rules-workflows) and community guides. If Antigravity has since changed frontmatter fields, check the official docs — the *content* here ports forward regardless.
 
 ## Install
 
 ```bash
-# per project (versionable with the repo):
-mkdir -p <project>/.agent
-cp -r rules workflows <project>/.agent/
-
-# or use ../install.sh --antigravity <project>
+./install.sh --antigravity <project>
 ```
+
+Antigravity's docs say rules, workflows, and skills live under `.agents/` (plural); older builds read `.agent/` (singular). Until a live install confirms which the running build reads (issue #11), `install.sh --antigravity` writes the real content once, under `.agents/`, and makes `.agent/` a symlink to it — so either build's reads land on the same files, and there is one copy to keep in sync. If a project already has a real `.agent/` directory (not a symlink), install.sh writes into it too instead of overwriting it with a symlink.
 
 Global rules are managed through Antigravity's settings UI ("Manage Rules") — paste `rules/baseline.md` there to make the baseline apply everywhere.
 
@@ -26,16 +24,16 @@ rules/
   reviewing.md       trigger: model_decision — verified-findings review protocol
   security.md        trigger: model_decision — high-confidence-only vuln reporting, loads for security-sensitive code
   testing.md         trigger: model_decision — bug-hunting test design
-workflows/           slash-invoked: 27 commands
-  Core:    /spec /architect /breakdown /debug /deep-review /prove /handoff /apply-working-process
-  SE gaps: /sec-audit /perf /ci-triage /migrate /api-design /frontend-design /declutter
-  Ops:     /incident /postmortem /release
-  Nav:     /onboard /estimate /pr-workflow
-  Other:   /data-analysis /brainstorm /explain /prompt-eng /research-codebase /demo-video
+workflows/           slash-invoked: one thin stub per canonical skill (34), each pointing
+                     at `.agents/skills/<name>/SKILL.md` (or `.agent/skills/<name>/SKILL.md`)
+skills/               (installed by install.sh, not stored here) the 34 canonical skills, copied
+                     from ../skills/ so Antigravity reads SKILL.md natively
 ```
+
+Regenerate the workflow stubs from the canonical skills with `python3 scripts/gen-ports.py` (also regenerates the AGENTS.md skill pointers) — CI fails if they drift from `skills/`.
 
 ## Design notes
 
 - `always_on` is used exactly once (baseline) — always-on context is a tax on every request; the domain rules load via `model_decision` when their description matches the situation. Cross-cutting floors (e.g. STE prose style) go inside baseline, not into a second always-on file.
-- Workflows deliberately contain no `// turbo` annotations (auto-run without approval). If you trust a step — e.g. the test-run steps in `/prove` — add `// turbo` on the line above it yourself.
+- Workflows are stubs, not copies: each loads the matching `skills/<name>/SKILL.md` so the protocol lives in exactly one place. A workflow deliberately contains no `// turbo` annotations (auto-run without approval); add one yourself on a step you trust.
 - The `handoff` workflow + baseline rule implement the cross-tool continuity convention in [`../playbooks/HANDOFF.md`](../playbooks/HANDOFF.md): work started in Claude Code resumes here, and vice versa.

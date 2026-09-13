@@ -14,8 +14,8 @@ agents/          Claude Code subagents: code-reviewer, verifier, researcher, arc
 claude-md/       always-on CLAUDE.md layers: global-frontier, global-local, project template
 playbooks/       ROUTING.md (which model for what) · HANDOFF.md (cross-tool continuity)
 hooks/           Claude Code hooks: guardrails, opt-in test gate, format-on-stop
-antigravity/     .agent/ port: 5 rules + 27 workflows
-ports/           AGENTS.md (generic single-file port) · cursor/ (26 .mdc rules) · gemini/ (26 commands)
+antigravity/     .agent/ + .agents/ port: 5 rules + 34 thin workflow stubs (loads skills/)
+ports/           AGENTS.md (single portable entry point) · cursor/ (3 .mdc rules; skills/ read natively)
 mcp-server/      the library as an MCP server (skills as prompts + list/get/route tools)
 install.sh       one command per environment (run with --dry-run first)
 ```
@@ -46,11 +46,11 @@ claude plugin install ways-of-working@ways-of-working
 ```
 One profile per setup — the packs share skill names by design (same muscle memory, opposite token economics; see below).
 
-**Antigravity:** `./install.sh --antigravity ~/code/myrepo` → rules + 27 workflows (`/spec /architect /breakdown /debug /deep-review /prove /handoff /apply-working-process /sec-audit /perf /ci-triage /migrate /api-design /frontend-design /declutter /incident /postmortem /release /onboard /estimate /pr-workflow /data-analysis /brainstorm /explain /prompt-eng /research-codebase /demo-video`)
+**Antigravity:** `./install.sh --antigravity ~/code/myrepo` → 5 rules + 34 thin workflow stubs, one per canonical skill, plus `skills/` itself (path rationale: `antigravity/README.md`)
 
-**Any AGENTS.md tool (Codex, Amp, Zed, Jules, …):** `./install.sh --agents-md ~/code/myrepo`
+**Any AGENTS.md tool (Codex, Amp, Zed, Jules, Cursor, paid-tier Gemini CLI, …):** `./install.sh --agents-md ~/code/myrepo`
 
-**Cursor:** `./install.sh --cursor ~/code/myrepo` · **Gemini CLI:** `./install.sh --gemini global` (context-file options: `ports/gemini/README.md`)
+**Cursor:** `./install.sh --skills ~/code/myrepo/.cursor/skills` (native `SKILL.md`) + `./install.sh --cursor ~/code/myrepo` (the 3 rules `SKILL.md` can't express) · **Gemini CLI (paid tier):** `./install.sh --skills ~/.gemini/skills` (context-file options: `ports/gemini/README.md`)
 
 **Any MCP agent:** `./install.sh --mcp` prints registration; smoke-test first per `mcp-server/README.md`.
 
@@ -103,9 +103,9 @@ To get the most out of this library, follow these standard operation models for 
 
 ### 1. How to Invoke Skills in Your Tool
 * **Claude Code**: Type `/name` (e.g., `/debug`, `/prove`) or simply refer to the skill's name and intent in your prompt.
-* **Antigravity CLI**: Call workflows as slash commands directly in the terminal (e.g. `/sec-audit`, `/perf`, `/api-design`, `/frontend-design`). Baseline rules are always active in `.agent/rules/baseline.md`.
-* **Cursor**: The `.mdc` rules in `.cursor/rules/` are loaded contextually based on their triggers (or applied manually).
-* **Gemini CLI**: Run customized TOML commands (e.g., `/spec "design a user system"`, `/debug "compilation error"`, `/prove`).
+* **Antigravity CLI**: Call the stub workflows as slash commands (e.g. `/sec-audit`, `/perf`); each loads its matching skill from `skills/`. Baseline rules are always active in `.agent/rules/baseline.md` (or `.agents/rules/baseline.md`).
+* **Cursor**: Reads `SKILL.md` natively from `.cursor/skills/`; the `.mdc` rules in `.cursor/rules/` (baseline + two glob-scoped rules) load contextually alongside it.
+* **Gemini CLI (paid tier)**: Reads `SKILL.md` natively from `~/.gemini/skills/`.
 * **MCP Agents**: Call `list_skills` to discover skills and `get_skill` to inject a skill's full text directly into your context, or call `route` for prompt-based direction.
 
 ### 2. Recommended Skill Chains (Workflows)

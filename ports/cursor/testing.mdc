@@ -1,6 +1,6 @@
 ---
 description: Apply when writing or improving tests, adding regression tests, or asked to add coverage
-globs: **/*.test.*, **/*.spec.*, **/*_test.*, **/test_*.py, **/tests/**
+globs: **/*.test.*,**/*.spec.*,**/*_test.*,**/test_*.py,**/tests/**
 alwaysApply: false
 ---
 

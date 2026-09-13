@@ -16,7 +16,7 @@
 #   ./install.sh --antigravity DIR
 #   ./install.sh --agents-md DIR
 #   ./install.sh --cursor DIR
-#   ./install.sh --gemini [DIR|global]
+#   ./install.sh --skills DIR
 #   ./install.sh --mcp
 #   ./install.sh --check
 #   Options: --dry-run  --force  --link  --profile frontier|local  -h/--help
@@ -37,6 +37,11 @@
 # $HOME/.claude/skills and $HOME/.claude/agents against the library and
 # lists any file that differs (symlinked installs never drift); it exits 1
 # if drift is found.
+#
+# --skills DIR copies (or, with --link, symlinks) every skills/*/ directory
+# into DIR, for tools that read Agent Skills natively: Cursor
+# (`.cursor/skills`), the paid-tier Gemini CLI (`~/.gemini/skills`),
+# Antigravity (`.agents/skills`).
 
 set -euo pipefail
 
@@ -52,7 +57,7 @@ ARG_HOOKS=""
 ARG_ANTIGRAVITY=""
 ARG_AGENTS_MD=""
 ARG_CURSOR=""
-ARG_GEMINI=""
+ARG_SKILLS=""
 
 usage() { # $1 = exit code (default 1); prints the header comment block (line 2 to the first blank line after it)
   awk 'NR==1 { next } /^$/ { exit } { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
@@ -73,7 +78,7 @@ while [ $# -gt 0 ]; do
     --antigravity)    ACTIONS+=(antigravity);    ARG_ANTIGRAVITY="${2:?--antigravity needs DIR}"; shift ;;
     --agents-md)      ACTIONS+=(agents_md);      ARG_AGENTS_MD="${2:?--agents-md needs DIR}"; shift ;;
     --cursor)         ACTIONS+=(cursor);         ARG_CURSOR="${2:?--cursor needs DIR}"; shift ;;
-    --gemini)         ACTIONS+=(gemini);         ARG_GEMINI="${2:?--gemini needs DIR or 'global'}"; shift ;;
+    --skills)         ACTIONS+=(skills);         ARG_SKILLS="${2:?--skills needs DIR}"; shift ;;
     --mcp)            ACTIONS+=(mcp) ;;
     --check)          ACTIONS+=(check) ;;
     --profile)        PROFILE="${2:?--profile needs frontier|local}"; PROFILE_EXPLICIT=1; shift ;;
@@ -166,6 +171,10 @@ _copy_skill_dir_cb() { # $1 = source dir, $2 = name, $3 = dest skills dir
   # (users tune installed skills), --force refreshes them from the library.
   # --link installs a symlink to the library dir instead of a copy.
   local dir="$1" name="$2" dest="$3"
+  if [ "$(realpath -m "$dest/$name")" = "$(realpath "${dir%/}")" ]; then
+    note "skill source and destination are the same path, skipping: $dest/$name"
+    return 0
+  fi
   if [ -e "$dest/$name" ] && [ "$FORCE" -eq 0 ]; then
     note "skill exists, skipping (use --force to refresh): $dest/$name"
     return 0
@@ -361,13 +370,33 @@ do_hooks() {
   note "optional test gate: echo 'npm test' > $proj/.claude/test-command"
 }
 
+# Single source of truth for the Antigravity directory names — see
+# antigravity/README.md for why both exist.
+ANTIGRAVITY_DIR=".agents"
+ANTIGRAVITY_LEGACY_DIR=".agent"
+
+_write_antigravity_root() { # $1 = root dir (gets rules/, workflows/, skills/)
+  local root="$1" f
+  run mkdir -p "$root/rules" "$root/workflows"
+  for f in "$LIB"/antigravity/rules/*.md;     do copy_file_safe "$f" "$root/rules/$(basename "$f")"; done
+  for f in "$LIB"/antigravity/workflows/*.md; do copy_file_safe "$f" "$root/workflows/$(basename "$f")"; done
+  copy_skill_dirs "skills" "$root/skills"
+}
+
 do_antigravity() {
   local proj="$ARG_ANTIGRAVITY"
   [ -d "$proj" ] || { echo "No such directory: $proj"; exit 1; }
-  run mkdir -p "$proj/.agent/rules" "$proj/.agent/workflows"
-  local f
-  for f in "$LIB"/antigravity/rules/*.md;     do copy_file_safe "$f" "$proj/.agent/rules/$(basename "$f")"; done
-  for f in "$LIB"/antigravity/workflows/*.md; do copy_file_safe "$f" "$proj/.agent/workflows/$(basename "$f")"; done
+  _write_antigravity_root "$proj/$ANTIGRAVITY_DIR"
+
+  local legacy="$proj/$ANTIGRAVITY_LEGACY_DIR"
+  if [ ! -e "$legacy" ] || [ -L "$legacy" ]; then
+    run rm -f "$legacy"
+    run ln -s "$ANTIGRAVITY_DIR" "$legacy"
+    note "legacy path $legacy -> $ANTIGRAVITY_DIR (symlink; see antigravity/README.md)"
+  else
+    note "legacy path $legacy is a real directory, writing into it too (see antigravity/README.md)"
+    _write_antigravity_root "$legacy"
+  fi
   note "global baseline: paste antigravity/rules/baseline.md into Antigravity's Manage Rules UI."
 }
 
@@ -375,7 +404,8 @@ do_agents_md() {
   local proj="$ARG_AGENTS_MD"
   [ -d "$proj" ] || { echo "No such directory: $proj"; exit 1; }
   copy_file_safe "$LIB/ports/agents-md/AGENTS.md" "$proj/AGENTS.md"
-  note "fill in the 'Project commands' section of AGENTS.md."
+  copy_skill_dirs "skills" "$proj/skills"
+  note "fill in the 'Project commands' section of AGENTS.md. AGENTS.md's @skills/<name>/SKILL.md pointers resolve against $proj/skills, installed alongside it."
 }
 
 do_cursor() {
@@ -386,16 +416,19 @@ do_cursor() {
   for f in "$LIB"/ports/cursor/*.mdc; do copy_file_safe "$f" "$proj/.cursor/rules/$(basename "$f")"; done
 }
 
-do_gemini() {
-  local dest
-  if [ "$ARG_GEMINI" = "global" ]; then dest="$HOME/.gemini/commands"; else
-    [ -d "$ARG_GEMINI" ] || { echo "No such directory: $ARG_GEMINI"; exit 1; }
-    dest="$ARG_GEMINI/.gemini/commands"
+do_skills() {
+  # For tools that read Agent Skills natively: Cursor (.cursor/skills),
+  # the paid-tier Gemini CLI (~/.gemini/skills), Antigravity (.agents/skills).
+  local dest="$ARG_SKILLS" dest_real lib_real
+  dest_real="$(realpath -m "$dest")"
+  lib_real="$(realpath "$LIB")"
+  if [ "$dest_real" = "$lib_real/skills" ] || [[ "$dest_real" == "$lib_real"/* ]]; then
+    echo "Refusing --skills $dest: it resolves inside this library ($lib_real)." >&2
+    echo "Pick a destination outside the library, e.g. a project's .cursor/skills." >&2
+    exit 1
   fi
-  run mkdir -p "$dest"
-  local f
-  for f in "$LIB"/ports/gemini/commands/*.toml; do copy_file_safe "$f" "$dest/$(basename "$f")"; done
-  note "context file: see ports/gemini/README.md (copy AGENTS.md as GEMINI.md, or set context.fileName)."
+  copy_skill_dirs "skills" "$dest"
+  note "skills installed to $dest — Cursor: <repo>/.cursor/skills; Gemini CLI: ~/.gemini/skills; Antigravity: <repo>/.agents/skills."
 }
 
 do_mcp() {
