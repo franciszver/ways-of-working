@@ -7,9 +7,14 @@ For every skills/**/SKILL.md and skills-local/**/SKILL.md, checks:
   - its `description` is present, non-empty, and under 1024 chars
   - it carries no key outside the Agent Skills spec set, unless the file
     is listed in scripts/frontmatter-allow.txt
+  - its `description` reads as a third-person capability statement, not an
+    imperative instruction: does not open with a bare imperative verb, does
+    not say the skill is needed "at the start of any session/task", does not
+    name a model, and stays under 1024 chars
 
 Exits 1 if any file fails a check. Requires PyYAML (exits 2 if missing).
 """
+import re
 import sys
 from pathlib import Path
 
@@ -24,6 +29,45 @@ except ImportError:
 
 SPEC_KEYS = {"name", "description", "license", "compatibility", "metadata", "allowed-tools"}
 MAX_DESCRIPTION = 1024
+
+# Bare imperative verbs a description must not open with — a description is a
+# third-person capability statement ("Designs interfaces …"), not an
+# instruction ("Design interfaces …"). Derived by reading every current
+# canonical description's opening word.
+IMPERATIVE_OPENERS = {
+    "Design", "Write", "Turn", "Make", "Get", "Build", "Read", "Load",
+    "Prove", "Ship", "Decompose",
+}
+
+# "Always on" phrasing belongs in claude-md/, not in a skill description.
+ALWAYS_ON_RE = re.compile(r"start of any\b.{0,25}?(session|task)", re.IGNORECASE)
+
+# Model names don't belong in a description (the skill must work under any
+# model). "Claude" alone is allowed when naming the product "Claude Code".
+MODEL_NAME_RE = re.compile(
+    r"\b(Sonnet|Opus|Haiku|Fable|GPT|Gemini)\b|\bClaude\b(?!\s+Code)"
+)
+
+
+def check_description_style(description: str, rel: str) -> list:
+    errors = []
+    text = str(description).strip()
+    first_word = text.split(None, 1)[0].strip(",;:") if text else ""
+    if first_word in IMPERATIVE_OPENERS:
+        errors.append(
+            f"{rel}: description opens with the imperative '{first_word}' — "
+            "use third person (e.g. 'Designs …')"
+        )
+    if ALWAYS_ON_RE.search(text):
+        errors.append(
+            f"{rel}: description claims to be needed \"at the start of any "
+            "session/task\" — move always-on framing to claude-md/, keep "
+            "task-shaped triggers here"
+        )
+    model_match = MODEL_NAME_RE.search(text)
+    if model_match:
+        errors.append(f"{rel}: description names a model ('{model_match.group(0)}')")
+    return errors
 
 
 def parse_frontmatter(text: str):
@@ -78,6 +122,8 @@ def check_file(path: Path, lib: Path, allow: dict) -> list:
         errors.append(
             f"{rel}: `description` is {len(str(description))} chars, over the {MAX_DESCRIPTION} limit"
         )
+    else:
+        errors.extend(check_description_style(description, rel))
 
     if rel not in allow:
         extra_keys = set(data.keys()) - SPEC_KEYS
