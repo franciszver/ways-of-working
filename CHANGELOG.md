@@ -5,6 +5,12 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-09-13
+
+The Claude Code profile plugin hides four owner-triggered skills from the
+per-turn skill listing. The drift check now covers copied reference and
+script files.
+
 - **Slash-only profile keys for four event-driven skills** (#33): `incident`,
   `postmortem`, `release`, and `demo-video` gain
   `disable-model-invocation: true` in `scripts/profile-claude-code.yaml`.
