@@ -31,6 +31,18 @@ assert_marker_count() { # $1 = file, $2 = expected count, $3 = description
   assert_eq "$n" "$2" "$3"
 }
 
+assert_true() { # $1 = description, $2.. = condition command; passes if it exits 0
+  local desc="$1"
+  shift
+  if "$@"; then pass "$desc"; else fail "$desc"; fi
+}
+
+assert_false() { # $1 = description, $2.. = condition command; passes if it exits non-zero
+  local desc="$1"
+  shift
+  if "$@"; then fail "$desc"; else pass "$desc"; fi
+}
+
 marker_line() { echo "<!-- ways-of-working:$1 -->"; }
 end_marker_line() { echo "<!-- /ways-of-working:$1 -->"; }
 
@@ -43,26 +55,22 @@ export HOME="$HOME1"
 "$INSTALL" --claude-user --profile frontier >/dev/null
 
 CLAUDE_MD="$HOME1/.claude/CLAUDE.md"
-[ -f "$CLAUDE_MD" ] && pass "fresh install: CLAUDE.md created" || fail "fresh install: CLAUDE.md created"
+assert_true "fresh install: CLAUDE.md created" [ -f "$CLAUDE_MD" ]
 assert_marker_count "$CLAUDE_MD" 2 "fresh install: begin + end marker (2 lines)"
-grep -qxF "$(marker_line frontier)" "$CLAUDE_MD" && pass "fresh install: frontier begin marker present" \
-  || fail "fresh install: frontier begin marker present"
-grep -qxF "$(end_marker_line frontier)" "$CLAUDE_MD" && pass "fresh install: frontier end marker present" \
-  || fail "fresh install: frontier end marker present"
+assert_true "fresh install: frontier begin marker present" grep -qxF "$(marker_line frontier)" "$CLAUDE_MD"
+assert_true "fresh install: frontier end marker present" grep -qxF "$(end_marker_line frontier)" "$CLAUDE_MD"
 
 # Edit one line inside the installed guarded block.
 sed -i 's/^\*\*Honesty\.\*\*.*/**Honesty.** EDITED FOR TEST./' "$CLAUDE_MD"
-grep -q "EDITED FOR TEST" "$CLAUDE_MD" && pass "drift setup: edited installed block" \
-  || fail "drift setup: edited installed block"
+assert_true "drift setup: edited installed block" grep -q "EDITED FOR TEST" "$CLAUDE_MD"
 
 if "$INSTALL" --check --profile frontier >"$TMPROOT/check-drift.out" 2>&1; then
   fail "--check reports drift after edit (exited 0, expected 1)"
 else
   pass "--check exits non-zero after edit"
 fi
-grep -q "DRIFT: CLAUDE.md block (frontier)" "$TMPROOT/check-drift.out" \
-  && pass "--check reports DRIFT: CLAUDE.md block (frontier)" \
-  || fail "--check reports DRIFT: CLAUDE.md block (frontier)"
+assert_true "--check reports DRIFT: CLAUDE.md block (frontier)" \
+  grep -q "DRIFT: CLAUDE.md block (frontier)" "$TMPROOT/check-drift.out"
 
 "$INSTALL" --claude-user --profile frontier --force >/dev/null
 assert_marker_count "$CLAUDE_MD" 2 "--force: exactly one begin + one end marker after refresh"
@@ -83,8 +91,7 @@ echo "" >> "$CLAUDE_MD"
 echo "## My personal notes" >> "$CLAUDE_MD"
 echo "Remember to buy milk." >> "$CLAUDE_MD"
 "$INSTALL" --claude-user --profile frontier --force >/dev/null
-grep -q "Remember to buy milk." "$CLAUDE_MD" && pass "trailing user content survives --force" \
-  || fail "trailing user content survives --force"
+assert_true "trailing user content survives --force" grep -q "Remember to buy milk." "$CLAUDE_MD"
 if "$INSTALL" --check --profile frontier >"$TMPROOT/check-trailing.out" 2>&1; then
   pass "trailing user content is not reported as drift"
 else
@@ -96,12 +103,9 @@ fi
 
 "$INSTALL" --claude-user --profile local --force >/dev/null
 assert_marker_count "$CLAUDE_MD" 2 "profile switch --force: exactly one begin + one end marker"
-grep -qxF "$(marker_line local)" "$CLAUDE_MD" && pass "profile switch --force: local marker present" \
-  || fail "profile switch --force: local marker present"
-grep -qxF "$(marker_line frontier)" "$CLAUDE_MD" && fail "profile switch --force: frontier marker removed" \
-  || pass "profile switch --force: frontier marker removed"
-grep -q "Remember to buy milk." "$CLAUDE_MD" && pass "profile switch --force: trailing user content still survives" \
-  || fail "profile switch --force: trailing user content still survives"
+assert_true "profile switch --force: local marker present" grep -qxF "$(marker_line local)" "$CLAUDE_MD"
+assert_false "profile switch --force: frontier marker removed" grep -qxF "$(marker_line frontier)" "$CLAUDE_MD"
+assert_true "profile switch --force: trailing user content still survives" grep -q "Remember to buy milk." "$CLAUDE_MD"
 
 rm -rf "$HOME1"
 
@@ -115,8 +119,7 @@ CLAUDE_MD2="$HOME2/.claude/CLAUDE.md"
 sed -i 's/$/\r/' "$CLAUDE_MD2"
 "$INSTALL" --claude-user --profile frontier --force >/dev/null
 assert_marker_count "$CLAUDE_MD2" 2 "CRLF file: --force finds the real end marker, no duplication"
-[ -f "${CLAUDE_MD2}.bak" ] && fail "CRLF file: no legacy backup expected (a real end marker was present)" \
-  || pass "CRLF file: no legacy backup created"
+assert_false "CRLF file: no legacy backup created (a real end marker was present)" [ -f "${CLAUDE_MD2}.bak" ]
 
 rm -rf "$HOME2"
 
@@ -135,18 +138,19 @@ CLAUDE_MD3="$HOME3/.claude/CLAUDE.md"
 } > "$CLAUDE_MD3"
 
 legacy_out="$("$INSTALL" --claude-user --profile frontier --force 2>&1 >/dev/null)"
-echo "$legacy_out" | grep -q "legacy guarded block" && pass "legacy block: warning printed" \
-  || fail "legacy block: warning printed"
+if echo "$legacy_out" | grep -q "legacy guarded block"; then
+  pass "legacy block: warning printed"
+else
+  fail "legacy block: warning printed"
+fi
 echo "--- legacy backup warning line ---"
 echo "$legacy_out" | grep "legacy guarded block" || true
 
-[ -f "${CLAUDE_MD3}.bak" ] && pass "legacy block: .bak created" || fail "legacy block: .bak created"
-grep -q "My personal note that was appended after the old block." "${CLAUDE_MD3}.bak" \
-  && pass "legacy block: personal note preserved in .bak" \
-  || fail "legacy block: personal note preserved in .bak"
-grep -q "My personal note that was appended after the old block." "$CLAUDE_MD3" \
-  && fail "legacy block: personal note removed from the live file (expected — it must be re-added by hand)" \
-  || pass "legacy block: personal note removed from the live file (expected — it must be re-added by hand)"
+assert_true "legacy block: .bak created" [ -f "${CLAUDE_MD3}.bak" ]
+assert_true "legacy block: personal note preserved in .bak" \
+  grep -q "My personal note that was appended after the old block." "${CLAUDE_MD3}.bak"
+assert_false "legacy block: personal note removed from the live file (expected — it must be re-added by hand)" \
+  grep -q "My personal note that was appended after the old block." "$CLAUDE_MD3"
 assert_marker_count "$CLAUDE_MD3" 2 "legacy block: exactly one begin + one end marker after refresh"
 if "$INSTALL" --check --profile frontier >"$TMPROOT/check-legacy.out" 2>&1; then
   pass "legacy block: --check is clean after the one-time --force refresh"
@@ -167,12 +171,10 @@ CLAUDE_MD4="$HOME4/.claude/CLAUDE.md"
 if "$INSTALL" --check --profile frontier >"$TMPROOT/check-legacy-report.out" 2>&1; then
   fail "--check exits non-zero-ish is not required, but LEGACY must be reported"
 fi
-grep -q "LEGACY: CLAUDE.md block (frontier) has no end marker; run --force once" "$TMPROOT/check-legacy-report.out" \
-  && pass "--check reports LEGACY for a block with no end marker" \
-  || fail "--check reports LEGACY for a block with no end marker"
-grep -q "^DRIFT: CLAUDE.md block" "$TMPROOT/check-legacy-report.out" \
-  && fail "--check must not report DRIFT for a legacy block (LEGACY only)" \
-  || pass "--check does not report DRIFT for a legacy block"
+assert_true "--check reports LEGACY for a block with no end marker" \
+  grep -q "LEGACY: CLAUDE.md block (frontier) has no end marker; run --force once" "$TMPROOT/check-legacy-report.out"
+assert_false "--check does not report DRIFT for a legacy block (LEGACY only)" \
+  grep -q "^DRIFT: CLAUDE.md block" "$TMPROOT/check-legacy-report.out"
 
 rm -rf "$HOME4"
 
@@ -185,14 +187,13 @@ CLAUDE_MD5="$HOME5/.claude/CLAUDE.md"
 { echo ""; echo "<!-- old-tool-name:frontier -->"; echo "OLD STALE BODY"; } > "$CLAUDE_MD5"
 
 "$INSTALL" --claude-user --profile frontier --force >/dev/null
-grep -qxF "$(marker_line frontier)" "$CLAUDE_MD5" && pass "legacy-name marker: migrated to the current marker text" \
-  || fail "legacy-name marker: migrated to the current marker text"
+assert_true "legacy-name marker: migrated to the current marker text" \
+  grep -qxF "$(marker_line frontier)" "$CLAUDE_MD5"
 assert_marker_count "$CLAUDE_MD5" 2 "legacy-name marker: exactly one begin + one end marker after the same-run refresh"
-grep -q "OLD STALE BODY" "$CLAUDE_MD5" \
-  && fail "legacy-name marker: stale body should have been refreshed away" \
-  || pass "legacy-name marker: stale body refreshed away in the same run"
-[ -f "${CLAUDE_MD5}.bak" ] && pass "legacy-name marker: .bak created (it was also a no-end-marker legacy block)" \
-  || fail "legacy-name marker: .bak created (it was also a no-end-marker legacy block)"
+assert_false "legacy-name marker: stale body refreshed away in the same run" \
+  grep -q "OLD STALE BODY" "$CLAUDE_MD5"
+assert_true "legacy-name marker: .bak created (it was also a no-end-marker legacy block)" \
+  [ -f "${CLAUDE_MD5}.bak" ]
 
 rm -rf "$HOME5"
 
@@ -212,8 +213,7 @@ if "$INSTALL" --claude-user --profile frontier --force >"$TMPROOT/dup.out" 2>&1;
 else
   pass "duplicate begin marker: --force fails loudly (non-zero exit)"
 fi
-grep -qi "refusing" "$TMPROOT/dup.out" && pass "duplicate begin marker: error message explains the refusal" \
-  || fail "duplicate begin marker: error message explains the refusal"
+assert_true "duplicate begin marker: error message explains the refusal" grep -qi "refusing" "$TMPROOT/dup.out"
 
 rm -rf "$HOME6"
 
@@ -227,18 +227,14 @@ REAL_CLAUDE_MD="$TMPROOT/real/CLAUDE.real.md"
 ln -s "$REAL_CLAUDE_MD" "$HOME7/.claude/CLAUDE.md"
 
 "$INSTALL" --claude-user --profile frontier >/dev/null
-[ -L "$HOME7/.claude/CLAUDE.md" ] && pass "symlinked CLAUDE.md: stays a symlink after append" \
-  || fail "symlinked CLAUDE.md: stays a symlink after append"
-grep -qxF "$(marker_line frontier)" "$REAL_CLAUDE_MD" && pass "symlinked CLAUDE.md: real target got the appended block" \
-  || fail "symlinked CLAUDE.md: real target got the appended block"
+assert_true "symlinked CLAUDE.md: stays a symlink after append" [ -L "$HOME7/.claude/CLAUDE.md" ]
+assert_true "symlinked CLAUDE.md: real target got the appended block" \
+  grep -qxF "$(marker_line frontier)" "$REAL_CLAUDE_MD"
 
 sed -i 's/^\*\*Honesty\.\*\*.*/**Honesty.** EDITED FOR TEST./' "$REAL_CLAUDE_MD"
 "$INSTALL" --claude-user --profile frontier --force >/dev/null
-[ -L "$HOME7/.claude/CLAUDE.md" ] && pass "symlinked CLAUDE.md: stays a symlink after --force refresh" \
-  || fail "symlinked CLAUDE.md: stays a symlink after --force refresh"
-grep -q "EDITED FOR TEST" "$REAL_CLAUDE_MD" \
-  && fail "symlinked CLAUDE.md: refresh should have replaced the edited line in the real target" \
-  || pass "symlinked CLAUDE.md: real target refreshed"
+assert_true "symlinked CLAUDE.md: stays a symlink after --force refresh" [ -L "$HOME7/.claude/CLAUDE.md" ]
+assert_false "symlinked CLAUDE.md: real target refreshed" grep -q "EDITED FOR TEST" "$REAL_CLAUDE_MD"
 echo "--- ls -la proving the symlink case ---"
 ls -la "$HOME7/.claude/CLAUDE.md"
 
@@ -250,10 +246,8 @@ HOME8="$TMPROOT/home8"
 mkdir -p "$HOME8"
 export HOME="$HOME8"
 "$INSTALL" --claude-user --profile frontier --dry-run >/dev/null
-[ -f "$HOME8/.claude/CLAUDE.md" ] && fail "--dry-run: CLAUDE.md must not be created" \
-  || pass "--dry-run: CLAUDE.md not created"
-[ -d "$HOME8/.claude/skills" ] && fail "--dry-run: skills/ must not be created" \
-  || pass "--dry-run: skills/ not created"
+assert_false "--dry-run: CLAUDE.md not created" [ -f "$HOME8/.claude/CLAUDE.md" ]
+assert_false "--dry-run: skills/ not created" [ -d "$HOME8/.claude/skills" ]
 
 rm -rf "$HOME8"
 
