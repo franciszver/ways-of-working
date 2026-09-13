@@ -29,6 +29,7 @@ Grep hits ("uses `eval`", "string-concatenated SQL") are candidates, not finding
 4. **Secrets & crypto** — hardcoded credentials, secrets in logs/error messages/URLs, weak or homemade crypto, disabled certificate verification, predictable tokens (non-CSPRNG).
 5. **Data exposure** — PII/credentials in logs, verbose errors leaking internals to clients, mass assignment, API responses returning more fields than the client needs.
 6. **Web-specific** (when applicable) — XSS (reflected/stored/DOM), CSRF on state-changing endpoints, SSRF on user-supplied URLs, open redirects, cookie flags.
+7. **LLM and pipeline surfaces** (when applicable) — prompt injection via repo content or tool results fed into an agent's context (a README, an issue body, a scraped page instructing the model to act); CI script injection (unpinned third-party actions, untrusted `${{ }}` expression values interpolated into a `run:` step instead of passed as an env var); SSRF from an agent-driven tool fetching a model-chosen or attacker-influenced URL. See `prompt-eng`'s "Agent and tool prompts" section for the prompt-construction side of this.
 
 ## 4. Do NOT report — the exclusion list
 

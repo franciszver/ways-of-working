@@ -9,7 +9,7 @@ You are a local model writing a postmortem. The incident's cost is sunk; the onl
 
 ## Step 1 — TIMELINE, FACTS ONLY
 
-From the incident log, alerts, deploy history, chat: timestamped observable events — what happened, what people saw, what they did. NO causes, no "mistakenly", no "should have" yet. Include: impact start (often before detection — measure that gap), detection, mitigation, resolution. The gaps between those are findings: a 4-hour detection gap is usually a bigger lever than the bug.
+From the incident log (the `incident` skill's timestamped log is the primary input here), alerts, deploy history, chat: timestamped observable events — what happened, what people saw, what they did. NO causes, no "mistakenly", no "should have" yet. Include: impact start (often before detection — measure that gap), detection, mitigation, resolution. The gaps between those are findings: a 4-hour detection gap is usually a bigger lever than the bug.
 
 ## Step 2 — BLAMELESS AS METHOD
 
@@ -21,7 +21,7 @@ Incidents happen when several defenses fail together: the bug existed AND review
 
 ## Step 4 — ACTION ITEMS THAT BIND
 
-Each must be: specific (changes a system, not vigilance) · owned (a name) · dated · connected (which gap it closes: prevention, detection, mitigation speed, blast radius). Rank by leverage: bug-class fix > this-bug fix; detection fix that shortens ALL future incidents can beat both. Three funded items beat twelve aspirational. Schedule the follow-up check — expired action items teach the org postmortems are theater.
+Each must be: specific (changes a system, not vigilance) · owned (a name) · dated · connected (which gap it closes: prevention, detection, mitigation speed, blast radius). Rank by leverage: bug-class fix > this-bug fix; detection fix that shortens ALL future incidents can beat both. Three funded items beat twelve aspirational. Schedule the follow-up check — expired action items teach the org postmortems are theater. Action items that ship as code follow the `release` skill's staged-exposure discipline like any other change.
 
 ## Step 5 — DOCUMENT
 

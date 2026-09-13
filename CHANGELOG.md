@@ -51,6 +51,31 @@ All notable changes to this repo are recorded here. Format loosely follows
   into CI, replacing the standalone `bash -n install.sh` step since the
   test runs it first) covering all of the above end to end through the
   real CLI against scratch HOMEs.
+
+- **Content fixes** (#8): added `scripts/check-references.py` (wired into
+  CI and `CONTRIBUTING.md`) to catch dangling `.md`/skill-name references
+  in `skills/**/SKILL.md`; it caught `prompt-eng`'s stale `REVIEW.md`
+  reference, now pointing at `declutter`, and a bare `ai-tells.md` mention
+  in `plain-language` missing its `references/` prefix. `prompt-eng` gained
+  an "Agent and tool prompts" section (schema-as-contract, system/user
+  placement, caching, tool-selection evals) cross-linked to a new
+  `sec-audit` category, "LLM and pipeline surfaces" (prompt injection via
+  repo/tool content, CI script injection, agent-tool SSRF). `incident`
+  gained a SEV1–3 paging/cadence table; `handoff`'s Map block gained
+  Branch/Working tree/PR lines; `ci-triage` now opens with `gh run view
+  --log-failed`; `frontend-design` names the screenshot mechanism and its
+  "I could not render it" fallback; `data-analysis` gained a fenced
+  `## Report` skeleton. `lean-max-effort`/`research` already used "scratch
+  file" wording (no `/tmp` left to fix); `prove` conditions the `verifier`
+  subagent on running in Claude Code; `postmortem` cross-references
+  `incident` (input) and `release` (output); `apply-working-process`
+  dropped a residual "(Opus-class)" parenthetical. `install.sh
+  --claude-user`/`--claude-project` now also install `playbooks/*.md`
+  (frontier profile only) and `--check` covers them, so
+  `playbooks/ROUTING.md` — referenced by name from an installed skill —
+  actually exists once installed. All nine `skills-local/` twins with a
+  changed rule got the matching minimal edit.
+
 - **Ports** (#11): retired the Gemini port — `ports/gemini/README.md`
   now points the paid-tier Gemini CLI at `install.sh --skills
   ~/.gemini/skills` (free tier retired 2026-06-18 for Antigravity CLI).

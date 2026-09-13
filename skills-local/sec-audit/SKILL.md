@@ -21,6 +21,7 @@ For each entry point, follow the data to its sinks. A grep hit ("uses eval", "st
 4. Secrets: hardcoded credentials, secrets in logs/errors/URLs, disabled TLS verification, non-CSPRNG tokens
 5. Data exposure: PII in logs, verbose errors to clients, API responses returning extra fields
 6. Web (if applicable): XSS, CSRF on state-changing endpoints, SSRF on user URLs, open redirects
+7. LLM/pipeline (if applicable): prompt injection via repo content or tool results fed into an agent's context; CI script injection (unpinned actions, untrusted `${{ }}` interpolated into a `run:` step); SSRF from an agent-driven tool fetching a model-chosen URL — see prompt-eng's "Agent and tool prompts"
 
 ## Step 3 — DO NOT REPORT
 

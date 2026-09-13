@@ -95,6 +95,9 @@ jobs:
       - name: Skill closing-section and duplication check
         run: python3 scripts/check-skill-sections.py .
 
+      - name: Skill dangling-reference check
+        run: python3 scripts/check-references.py
+
       - name: Plugin hooks generation check
         run: |
           python3 scripts/merge-hooks.py --emit-plugin > hooks/plugin-hooks.json

@@ -9,7 +9,7 @@ A postmortem buys learning with the incident's cost — the incident is a sunk p
 
 ## 1. Reconstruct the timeline — facts only
 
-From the incident log, alerts, deploy history, and chat scrollback: a timestamped sequence of *observable events* — what happened, what people saw, what they did. No causes yet, no "mistakenly", no "should have" — narrative judgments this early contaminate the analysis. Include the boring anchors: when did impact start (often well before detection — measure that gap), when detected, when mitigated, when resolved. The gaps between those timestamps are findings in themselves: a 4-hour detection gap is usually a bigger lever than the bug.
+From the incident log (`incident`'s timestamped log is the primary input here), alerts, deploy history, and chat scrollback: a timestamped sequence of *observable events* — what happened, what people saw, what they did. No causes yet, no "mistakenly", no "should have" — narrative judgments this early contaminate the analysis. Include the boring anchors: when did impact start (often well before detection — measure that gap), when detected, when mitigated, when resolved. The gaps between those timestamps are findings in themselves: a 4-hour detection gap is usually a bigger lever than the bug.
 
 ## 2. Blameless is a method, not a courtesy
 
@@ -23,7 +23,7 @@ Also collect what went *well* (fast rollback, good log discipline) — those are
 
 ## 4. Action items that actually bind
 
-Each one passes four tests: **specific** (a change to a system, not to vigilance) · **owned** (a name, not a team) · **dated** · **connected** (which timeline gap or failed defense does it fix — prevention, faster detection, faster mitigation, or smaller blast radius?). Rank by leverage: the fix that catches the whole bug *class* beats the fix for this bug; the detection fix that cuts every future incident's length can beat both. Three funded items beat twelve aspirational ones — a long list is where accountability goes to die. And schedule the check: a postmortem whose action items silently expire teaches the org that postmortems are theater.
+Each one passes four tests: **specific** (a change to a system, not to vigilance) · **owned** (a name, not a team) · **dated** · **connected** (which timeline gap or failed defense does it fix — prevention, faster detection, faster mitigation, or smaller blast radius?). Rank by leverage: the fix that catches the whole bug *class* beats the fix for this bug; the detection fix that cuts every future incident's length can beat both. Three funded items beat twelve aspirational ones — a long list is where accountability goes to die. And schedule the check: a postmortem whose action items silently expire teaches the org that postmortems are theater. Action items that ship as code follow `release`'s staged-exposure discipline like any other change — a postmortem fix deployed carelessly can cause the next incident.
 
 ## 5. Report
 

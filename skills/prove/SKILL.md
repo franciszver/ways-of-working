@@ -66,7 +66,7 @@ I verified: <X> / I did not verify: <Y, and why>
 
 - **Throwaway script** — run it once on real input. Done.
 - **Standard change** — real-flow run + edge pass + relevant existing tests.
-- **Production-critical** — all of the above, plus independent verification by the `verifier` subagent with fresh context, plus the edge pass on the *error* paths.
+- **Production-critical** — all of the above, plus independent verification with fresh context, plus the edge pass on the *error* paths. In Claude Code, delegate that fresh-context pass to the `verifier` subagent; elsewhere, re-run the checks yourself in a fresh context (new session/thread, no memory of writing the code).
 
 ## Rules
 

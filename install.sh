@@ -24,12 +24,14 @@
 # Profiles: 'frontier' installs the committed Claude Code profile
 # (build/claude-code/skills — canonical skills/ plus Claude-Code-only
 # frontmatter from scripts/profile-claude-code.yaml, generated and
-# committed like the antigravity stubs) + agents/ + global-frontier
-# CLAUDE.md rules (paid models — lean discipline). 'local' installs
-# skills-local/ + global-local rules (free local models — thoroughness
-# discipline). One profile per setup; the packs share skill names by
-# design. No python3/PyYAML needed to install either profile — a change
-# to a canonical skill or to scripts/profile-claude-code.yaml needs
+# committed like the antigravity stubs) + agents/ + playbooks/ (also
+# committed; playbooks/ROUTING.md is referenced by name from installed
+# skills, so it travels with them) + global-frontier CLAUDE.md rules
+# (paid models — lean discipline). 'local' installs skills-local/ +
+# global-local rules (free local models — thoroughness discipline). One
+# profile per setup; the packs share skill names by design. No
+# python3/PyYAML needed to install either profile — a change to a
+# canonical skill or to scripts/profile-claude-code.yaml needs
 # `python3 scripts/build-profile.py` run once (a dev step, enforced in CI
 # by `python3 scripts/build-profile.py --check`) before a frontier
 # install picks it up.
@@ -386,6 +388,19 @@ copy_rules() { # $1 = dest rules dir, $2 = 1 to honor --link (default: 0 — alw
   done
 }
 
+copy_playbooks() { # $1 = dest playbooks dir, $2 = 1 to honor --link (default: 0)
+  # Frontier-profile only: playbooks/ROUTING.md is referenced by name from
+  # installed skills (apply-working-process), so it has to land alongside
+  # them or the reference is dangling in the installed copy. Installing it
+  # keeps skills/ as the single source of truth instead of inlining the
+  # routing rule into every skill that needs it.
+  local dest="$1" allow_link="${2:-0}" f
+  run mkdir -p "$dest"
+  for f in "$LIB"/playbooks/*.md; do
+    copy_file_safe "$f" "$dest/$(basename "$f")" "$allow_link"
+  done
+}
+
 copy_file_safe() { # $1 = src, $2 = dest, $3 = 1 to honor --link (default: 0)
   local allow_link="${3:-0}"
   if [ -e "$2" ] && [ "$FORCE" -eq 0 ]; then
@@ -501,6 +516,9 @@ do_claude_user() {
   marker="<!-- ways-of-working:${suffix} -->"
   snippet="$LIB/claude-md/${snippet_base}"
   append_guarded "$snippet" "$base/CLAUDE.md" "$marker"
+  if [ "$PROFILE" = "frontier" ]; then
+    copy_playbooks "$base/playbooks" 1
+  fi
   copy_rules "$base/rules" 1
   write_profile_marker "$base"
   note "done. If ~/.claude/skills was created just now, restart Claude Code once."
@@ -514,6 +532,7 @@ do_claude_project() {
     run mkdir -p "$base/agents"
     local f
     for f in "$LIB"/agents/*.md; do copy_file_safe "$f" "$base/agents/$(basename "$f")" 1; done
+    copy_playbooks "$base/playbooks" 0
   else
     copy_skill_dirs "skills-local" "$base/skills"
   fi
@@ -706,6 +725,14 @@ do_check() {
       DRIFT=1
     else
       _report_dir_diff "$LIB/agents" "$base/agents"
+    fi
+    # Frontier profile only: playbooks/ (see copy_playbooks) is installed
+    # alongside agents/, so gate this check the same way.
+    if [ ! -d "$base/playbooks" ]; then
+      echo "DRIFT: playbooks not installed"
+      DRIFT=1
+    else
+      _report_dir_diff "$LIB/playbooks" "$base/playbooks"
     fi
   fi
 
