@@ -1,26 +1,28 @@
 #!/usr/bin/env bash
 # PreToolUse hook (matcher: Bash). Blocks a short list of catastrophic commands.
-# Exit 0 = allow. Exit 2 = block; stderr is shown to the model as the reason.
+# On block: prints the {"hookSpecificOutput": {"permissionDecision": "deny",
+# ...}} JSON form on stdout for clients that read it, and still exits 2 with
+# the reason on stderr as a fallback for clients that only honor the exit
+# code. Exit 0 = allow.
 # Fail-open by design: if parsing is impossible, allow rather than brick the session.
 set -u
 
-INPUT="$(cat)"
-
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 command -v python3 >/dev/null 2>&1 || exit 0
+[ -f "$HOOK_DIR/_hook_lib.sh" ] || exit 0
+# shellcheck source=./_hook_lib.sh
+source "$HOOK_DIR/_hook_lib.sh"
 
-CMD="$(printf '%s' "$INPUT" | python3 -c '
-import json, sys
-try:
-    data = json.load(sys.stdin)
-    print(data.get("tool_input", {}).get("command", ""))
-except Exception:
-    pass
-' 2>/dev/null)" || exit 0
+mapfile -d '' -t FIELDS < <(read_hook_input)
+EVENT_NAME="${FIELDS[0]:-PreToolUse}"
+CMD="${FIELDS[1]:-}"
 
 [ -n "$CMD" ] || exit 0
 
 block() {
-  echo "BLOCKED by guardrails hook: $1. If this is genuinely intended, the user must run it themselves in a terminal." >&2
+  local reason="BLOCKED by guardrails hook: $1. If this is genuinely intended, the user must run it themselves in a terminal."
+  emit_decision "$EVENT_NAME" "deny" "$reason"
+  echo "$reason" >&2
   exit 2
 }
 

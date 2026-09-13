@@ -223,6 +223,21 @@ append_guarded() { # $1 = snippet file, $2 = target file, $3 = marker
   fi
 }
 
+copy_rules() { # $1 = dest rules dir, $2 = 1 to honor --link (default: 0 — always copy)
+  # A project's .claude/rules/ is never symlinked, even with --link: the
+  # memory docs treat an out-of-tree symlinked rule as an external import,
+  # and only its paths-less rules load until that import is approved — a
+  # path-scoped rule like code-changes.md would silently stop applying.
+  # --claude-user's rules live under the user's own $HOME, not a shared
+  # project, so linking them is safe and honors --link like every other
+  # personal-install asset.
+  local dest="$1" allow_link="${2:-0}" f
+  run mkdir -p "$dest"
+  for f in "$LIB"/claude-md/rules/*.md; do
+    copy_file_safe "$f" "$dest/$(basename "$f")" "$allow_link"
+  done
+}
+
 copy_file_safe() { # $1 = src, $2 = dest, $3 = 1 to honor --link (default: 0)
   local allow_link="${3:-0}"
   if [ -e "$2" ] && [ "$FORCE" -eq 0 ]; then
@@ -324,6 +339,7 @@ do_claude_user() {
   else
     append_guarded "$LIB/claude-md/global-local.md" "$base/CLAUDE.md" "<!-- ways-of-working:local -->"
   fi
+  copy_rules "$base/rules" 1
   write_profile_marker "$base"
   note "done. If ~/.claude/skills was created just now, restart Claude Code once."
 }
@@ -345,6 +361,7 @@ do_claude_project() {
   else
     note "CLAUDE.md exists, untouched. Template for reference: claude-md/project-template.md"
   fi
+  copy_rules "$base/rules" 0
 }
 
 do_hooks() {
@@ -502,6 +519,13 @@ do_check() {
     else
       _report_dir_diff "$LIB/agents" "$base/agents"
     fi
+  fi
+
+  if [ ! -d "$base/rules" ]; then
+    echo "DRIFT: rules not installed"
+    DRIFT=1
+  else
+    _report_dir_diff "$LIB/claude-md/rules" "$base/rules"
   fi
 
   if [ "$DRIFT" -eq 1 ]; then

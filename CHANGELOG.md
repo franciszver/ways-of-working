@@ -32,6 +32,29 @@ All notable changes to this repo are recorded here. Format loosely follows
   `gen-ports.py --check`) and the cursor per-skill check (cursor now
   checks its exact file set); `scripts/parity-allow.txt` keeps only
   the `skills-local` gap (#10).
+- **Agents, hooks, CLAUDE.md** (#9): agents gain `skills:` preload
+  (code-reviewer→`deep-review`, verifier→`prove`, researcher→`research`,
+  architect→`architect`) and `disallowedTools: [Edit, Write, NotebookEdit]`
+  on code-reviewer/verifier (kept independent of `tools:` as a guard
+  against `tools:` being widened later); `maxTurns: 40` on researcher,
+  `effort: high` on architect; bodies trimmed to role/tool-budget/output-
+  format (≤40 lines, enforced by new `scripts/check-agents.py`). Hooks:
+  `format-on-stop.sh` also runs on `SubagentStop`; a new opt-in
+  `failure-counter.sh` (per-project via `install.sh --hooks`, not shipped
+  by the plugin) runs on `PostToolUseFailure`, logs to
+  `.claude/failure-log` (gitignored), and reminds Claude after two
+  consecutive failures of the same command via `additionalContext`/
+  `systemMessage`. `guardrails.sh`/`test-gate.sh` now emit the documented
+  `hookSpecificOutput.permissionDecision` JSON on stdout (exit 2 stays as
+  fallback) via a shared `hooks/scripts/_hook_lib.sh`, and `test-gate.sh`
+  runs the test command as `bash -o pipefail -c` so a piped command's
+  real failure is caught. `claude-md/global-frontier.md` and
+  `global-local.md` shrink to an always-on core; `claude-md/rules/
+  {debugging,code-changes,prose-style}.md` carry the rest, `code-changes.md`
+  scoped with memory-doc `paths:` frontmatter, and `install.sh` installs
+  them into `.claude/rules/`.
+- **Release**: `.claude-plugin/plugin.json` version bumped to `0.5.0` —
+  `agents/` and `hooks/` changed in this PR.
 - **Skills** (#6): rewrote skill descriptions in third person, dropped
   imperative openers and "always on" phrasing, added a description lint
   to `check-frontmatter.py`, and added task-shaped triggers plus
