@@ -186,6 +186,17 @@ remove_other_profile_skills() { # $1 = base, $2 = previous profile name
       run rm -rf "${base:?}/skills/${name:?}"
     fi
   done
+  # Only the frontier profile installs agents/ — leaving it removes them too.
+  if [ "$other" = "frontier" ] && [ "$PROFILE" != "frontier" ]; then
+    local f
+    for f in "$LIB"/agents/*.md; do
+      name="$(basename "$f")"
+      if [ -e "$base/agents/$name" ]; then
+        note "removing agent from previous profile ($other): $name"
+        run rm -f "${base:?}/agents/${name:?}"
+      fi
+    done
+  fi
 }
 
 write_profile_marker() { # $1 = base

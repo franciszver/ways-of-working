@@ -29,11 +29,13 @@ def parse_frontmatter(text: str):
     block = text[4:end]
     try:
         import yaml  # type: ignore
-
-        data = yaml.safe_load(block)
-        return data if isinstance(data, dict) else None
     except ImportError:
         return _parse_flat(block)
+    try:
+        data = yaml.safe_load(block)
+    except yaml.YAMLError:
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def _parse_flat(block: str) -> dict:
