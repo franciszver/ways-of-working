@@ -1,6 +1,6 @@
 ---
 name: lean-max-effort
-description: "Runs the four-phase backbone for non-trivial work: requirements ledger, riskiest assumption first, brief plan, lean execution, verification before done. Use when a task spans multiple steps, files, or tool calls, or when the user asks for thoroughness or cost discipline."
+description: "Runs the four-phase backbone for non-trivial work — Capture (requirements ledger, riskiest assumption first), Plan, Execute lean, Verify before done. Use when a task spans multiple steps, files, or tool calls, or when the user asks for thoroughness, tokens, budget, or efficiency."
 ---
 
 # Lean Max Effort

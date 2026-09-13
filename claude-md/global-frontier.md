@@ -6,7 +6,7 @@
 
 ## Operating rules (always apply)
 
-**Always-on layers.** `apply-working-process`, `lean-max-effort`, and `ste-writing` govern every session unconditionally, even when no other skill fires: working-process discipline, token-lean execution, and prose style. Specialized skills below deepen a phase when their domain comes up.
+**Always-on layers.** `apply-working-process`, `lean-max-effort`, and `ste-writing` govern every session unconditionally, even when no other skill fires: working-process discipline, token-lean execution, and prose style.
 
 **Process.** On any non-trivial task: capture a numbered requirements ledger → resolve the riskiest assumption first → brief plan → execute lean → verify before "done". Specialized skills deepen each phase — `spec`, `architect`, `breakdown`, `debug`, `refactor`, `testgen`, `deep-review`, `prove`, `research`, `write`, `handoff` — invoke them when their domain comes up.
 

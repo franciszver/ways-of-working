@@ -8,9 +8,12 @@ For every skills/**/SKILL.md and skills-local/**/SKILL.md, checks:
   - it carries no key outside the Agent Skills spec set, unless the file
     is listed in scripts/frontmatter-allow.txt
   - its `description` reads as a third-person capability statement, not an
-    imperative instruction: does not open with a bare imperative verb, does
-    not say the skill is needed "at the start of any session/task", does not
-    name a model, and stays under 1024 chars
+    imperative instruction: its opening word ends in "s" (a third-person
+    verb) or is a deliberately allowlisted non-verb opener (see
+    NON_VERB_OPENERS below — extend it when a new description legitimately
+    opens with a noun/adjective), does not say the skill is needed "at the
+    start/beginning of any/every/each session/task", does not name a model,
+    and stays under 1024 chars
 
 Exits 1 if any file fails a check. Requires PyYAML (exits 2 if missing).
 """
@@ -30,33 +33,45 @@ except ImportError:
 SPEC_KEYS = {"name", "description", "license", "compatibility", "metadata", "allowed-tools"}
 MAX_DESCRIPTION = 1024
 
-# Bare imperative verbs a description must not open with — a description is a
-# third-person capability statement ("Designs interfaces …"), not an
-# instruction ("Design interfaces …"). Derived by reading every current
-# canonical description's opening word.
-IMPERATIVE_OPENERS = {
-    "Design", "Write", "Turn", "Make", "Get", "Build", "Read", "Load",
-    "Prove", "Ship", "Decompose",
+# A description opener is either a third-person verb ("Designs …", "Runs …"
+# — the common case, always ending in "s") or one of these non-verb openers
+# ("Structured ideation …", "Security review …"). Derived by reading every
+# current canonical and skills-local description's opening word. When a new
+# description legitimately opens with a different non-verb word (an
+# adjective or noun heading a noun phrase), add it here deliberately —
+# that's the intended way to extend this allowlist, not a workaround.
+NON_VERB_OPENERS = {
+    "Adversarial", "Audience", "Behavior-preserving", "Blameless",
+    "Branch-to-merge", "Calibrated", "Cleanup-only", "Documentarian",
+    "Explicit", "Hypothesis-driven", "Mandatory", "Measurement-driven",
+    "Performance", "Production", "Security", "Structured", "Triangulated",
 }
 
 # "Always on" phrasing belongs in claude-md/, not in a skill description.
-ALWAYS_ON_RE = re.compile(r"start of any\b.{0,25}?(session|task)", re.IGNORECASE)
+ALWAYS_ON_RE = re.compile(
+    r"\b(start|beginning) of (any|every|each)\b.{0,25}?(session|task)",
+    re.IGNORECASE,
+)
 
 # Model names don't belong in a description (the skill must work under any
-# model). "Claude" alone is allowed when naming the product "Claude Code".
+# model). The alternation is case-insensitive so it also catches lowercase
+# mentions; the "Claude" branch stays case-sensitive and outside that flag
+# so it doesn't false-positive on "claude-code-router". "Claude" alone is
+# allowed when naming the product "Claude Code".
 MODEL_NAME_RE = re.compile(
-    r"\b(Sonnet|Opus|Haiku|Fable|GPT|Gemini)\b|\bClaude\b(?!\s+Code)"
+    r"\b(?i:sonnet|opus|haiku|gpt|gemini)\b|\bClaude\b(?!\s+Code)"
 )
 
 
 def check_description_style(description: str, rel: str) -> list:
     errors = []
     text = str(description).strip()
-    first_word = text.split(None, 1)[0].strip(",;:") if text else ""
-    if first_word in IMPERATIVE_OPENERS:
+    first_word = text.split(None, 1)[0].rstrip(".,;:") if text else ""
+    if first_word and not first_word.endswith("s") and first_word not in NON_VERB_OPENERS:
         errors.append(
-            f"{rel}: description opens with the imperative '{first_word}' — "
-            "use third person (e.g. 'Designs …')"
+            f"{rel}: description opens with '{first_word}', which reads as "
+            "an imperative instruction — use third person (e.g. 'Designs "
+            "…'), or add it to NON_VERB_OPENERS if it heads a noun phrase"
         )
     if ALWAYS_ON_RE.search(text):
         errors.append(

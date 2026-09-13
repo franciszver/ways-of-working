@@ -12,7 +12,7 @@ every surface that carries a compression of it:
 
 | Surface | What to update |
 |---|---|
-| `skills-local/<name>/SKILL.md` | The compact, imperative variant for local models |
+| `skills-local/<name>/SKILL.md` | The compact variant for local models — body only; its `description` is third-person and shared with the canonical skill |
 | `ports/cursor/<name>.mdc` | The Cursor rule (filenames sometimes differ from the canonical name — see the alias table in `scripts/check_parity.py`) |
 | `ports/gemini/commands/<name>.toml` | The Gemini CLI command |
 | `antigravity/workflows/<name>.md` | The Antigravity workflow |

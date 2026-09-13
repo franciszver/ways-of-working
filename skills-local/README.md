@@ -4,7 +4,7 @@ Drop-in skills that make a local model (Qwen, GPT-OSS, etc.) running inside Clau
 
 A skill cannot add raw capability to the weights — what it can do is eliminate the process failures that account for most of the perceived quality gap: invented APIs, edits made from memory, unverified "success", and stopping one iteration too early. That is what these files target.
 
-These are the **local-model variants**: shorter, more imperative, and explicitly told that token usage is not a concern (local tokens are free — thoroughness wins). The judgment-dense canonical versions for Opus/Sonnet live in [`../skills/`](../skills/). Install one profile per setup, not both — the packs share names by design so either can answer to the same muscle memory.
+These are the **local-model variants**: bodies are shorter and more imperative, and explicitly told that token usage is not a concern (local tokens are free — thoroughness wins). Each skill's `description` is third-person and shared with its canonical counterpart — "shorter, more imperative" applies to the body only. The judgment-dense canonical versions for Opus/Sonnet live in [`../skills/`](../skills/). Install one profile per setup, not both — the packs share names by design so either can answer to the same muscle memory.
 
 ## What's in the box
 

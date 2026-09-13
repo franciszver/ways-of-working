@@ -6,9 +6,11 @@ Judgment-dense skills tuned for frontier models (Opus, Sonnet) in Claude Code. E
 
 ### Core process
 
+`lean-max-effort`, `apply-working-process`, and `ste-writing` are also always-on layers via `claude-md/` — installed once per machine, they apply even when no skill fires. The triggers below are their task-shaped invocation points within a session.
+
 | Skill | One line | Reach for it when |
 |---|---|---|
-| [`lean-max-effort`](lean-max-effort/) | Process backbone: Capture → Plan → Execute lean → Verify | Start of any non-trivial task |
+| [`lean-max-effort`](lean-max-effort/) | Process backbone: Capture → Plan → Execute lean → Verify | A task spans multiple steps, files, or tool calls, or the user asks for thoroughness, tokens, budget, or efficiency |
 | [`spec`](spec/) | Requirements ledger + acceptance criteria + non-goals | Requirements are fuzzy, or before sizable work |
 | [`architect`](architect/) | Options, tradeoffs, one-way doors, ADRs | Designing, or any hard-to-reverse decision |
 | [`breakdown`](breakdown/) | Decompose into verifiable tasks with DoDs and contracts | Multi-session/multi-agent work |
@@ -20,8 +22,8 @@ Judgment-dense skills tuned for frontier models (Opus, Sonnet) in Claude Code. E
 | [`research`](research/) | Triangulated sources, citation log, disconfirmation | Evaluations, landscape questions, costly facts |
 | [`write`](write/) | Audience → thesis → outline → draft → one revision pass | Prose is the product |
 | [`handoff`](handoff/) | Continuation brief a cold session can resume from | Context pressure, session end, model downshift |
-| [`apply-working-process`](apply-working-process/) | The owner's standard operating process — roles, board-as-plan, red-first, three gates, decision log | Start of any project session, in any environment |
-| [`ste-writing`](ste-writing/) | Simplified Technical English spirit for all prose — one word per idea, short active sentences | Start of any session; whenever you write prose |
+| [`apply-working-process`](apply-working-process/) | The owner's standard operating process — roles, board-as-plan, red-first, three gates, decision log | Starting work in a repo, planning a feature, or before the first edit of a session in a project |
+| [`ste-writing`](ste-writing/) | Simplified Technical English spirit for all prose — one word per idea, short active sentences | Writing prose a person will read: docs, commit messages, PR text, reports, replies, code comments |
 | [`plain-language`](plain-language/) | Read a draft against the published signs of AI writing and strike what matches | Before shipping any prose a person will read |
 
 ### SE gaps
