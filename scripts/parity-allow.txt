@@ -1,0 +1,6 @@
+# Known port-parity gaps that are accepted for now, tracked as separate
+# GitHub issues rather than fixed by scripts/check-parity.sh itself.
+# One entry per line: surface:skill
+#
+# (empty — no gaps are allowlisted yet; see the parity check output for the
+# current real gaps, filed as issues by the orchestrator.)
