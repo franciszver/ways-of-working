@@ -66,7 +66,7 @@ README.md         library index + per-environment quickstart
 
 ## Working method
 
-Author in batches; commit and push at every checkpoint. User interrupts anytime with corrections. Afterwards, Sonnet/Opus maintain the library following its own conventions.
+Author in batches; commit and push at every checkpoint. User interrupts anytime with corrections. Once frontier-model access ends, Sonnet/Opus maintain the library following its own conventions.
 
 **Optional housekeeping:** ~~repo has outgrown "ideas" — renaming (e.g. `ways-of-working`) is safe; GitHub redirects the old URL.~~ *Done 2026-07-06: renamed the repo (earlier names dropped); 2026-09-13: renamed to ways-of-working.*
 
