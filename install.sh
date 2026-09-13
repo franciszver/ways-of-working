@@ -21,10 +21,13 @@
 #   ./install.sh --check
 #   Options: --dry-run  --force  --link  --profile frontier|local  -h/--help
 #
-# Profiles: 'frontier' installs skills/ + agents/ + global-frontier CLAUDE.md rules
-# (paid models — lean discipline). 'local' installs skills-local/ + global-local
-# rules (free local models — thoroughness discipline). One profile per setup;
-# the packs share skill names by design.
+# Profiles: 'frontier' installs the generated Claude Code profile
+# (build/claude-code/skills — canonical skills/ plus Claude-Code-only
+# frontmatter from scripts/profile-claude-code.yaml, rebuilt by this
+# script; requires python3) + agents/ + global-frontier CLAUDE.md rules
+# (paid models — lean discipline). 'local' installs skills-local/ +
+# global-local rules (free local models — thoroughness discipline). One
+# profile per setup; the packs share skill names by design.
 #
 # A marker file ($HOME/.claude/skills/.ways-of-working-profile) records
 # which profile --claude-user last installed. Requesting the other profile
@@ -110,10 +113,18 @@ profile_layout() { # $1 = profile name (frontier|local); echoes "SKILLS_SUBDIR A
   # content each profile carries — keep in sync with the profile
   # descriptions in the usage banner above.
   case "$1" in
-    frontier) echo "skills agents" ;;
+    frontier) echo "build/claude-code/skills agents" ;;
     local)    echo "skills-local -" ;;
     *) echo "Unknown profile: $1" >&2; return 1 ;;
   esac
+}
+
+build_frontier_profile() { # regenerates build/claude-code/skills from skills/ + scripts/profile-claude-code.yaml
+  # Always runs, dry-run included: it only writes under $LIB/build (gitignored,
+  # regenerated freely) and both the install and --check paths need it current.
+  command -v python3 >/dev/null 2>&1 || { echo "python3 is required to build the frontier profile." >&2; exit 1; }
+  note "building Claude Code profile (scripts/build-profile.py) ..."
+  python3 "$LIB/scripts/build-profile.py" "$LIB"
 }
 
 require_layout() { # $1 = profile name, $2 = context for the error message; echoes "SKILLS_SUBDIR AGENTS_FLAG" or exits 1
@@ -325,7 +336,15 @@ write_profile_marker() { # $1 = base
 }
 
 do_claude_user() {
-  local base="$HOME/.claude" src_subdir agents_flag
+  local base="$HOME/.claude" src_subdir agents_flag marker_val
+  # Built before check_profile_marker whenever frontier is involved on
+  # either side of the switch: switching away from a previously installed
+  # frontier profile needs build/claude-code/skills populated to know
+  # which skill names belonged only to that pack.
+  marker_val="$(cat "$(profile_marker_path "$base")" 2>/dev/null || true)"
+  if [ "$PROFILE" = "frontier" ] || [ "$marker_val" = "frontier" ] || [ "$(infer_installed_profile "$base")" = "frontier" ]; then
+    build_frontier_profile
+  fi
   check_profile_marker "$base"
   read -r src_subdir agents_flag <<< "$(require_layout "$PROFILE" "requested profile")"
   copy_skill_dirs "$src_subdir" "$base/skills"
@@ -348,7 +367,8 @@ do_claude_project() {
   local proj="$ARG_CLAUDE_PROJECT" base="$ARG_CLAUDE_PROJECT/.claude"
   [ -d "$proj" ] || { echo "No such directory: $proj"; exit 1; }
   if [ "$PROFILE" = "frontier" ]; then
-    copy_skill_dirs "skills" "$base/skills"
+    build_frontier_profile
+    copy_skill_dirs "build/claude-code/skills" "$base/skills"
     run mkdir -p "$base/agents"
     local f
     for f in "$LIB"/agents/*.md; do copy_file_safe "$f" "$base/agents/$(basename "$f")" 1; done
@@ -506,6 +526,7 @@ do_check() {
       [ -n "$profile" ] || profile="frontier" # nothing installed yet: default for messaging
     fi
   fi
+  [ "$profile" = "frontier" ] && build_frontier_profile
   read -r src_skills agents_flag <<< "$(require_layout "$profile" "--profile, marker, or inferred")"
   note "checking installed skills ($profile profile) against $src_skills/ ..."
 
