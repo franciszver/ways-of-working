@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Parity check: canonical skill names (skills/*/SKILL.md) vs every port.
 
-Called by scripts/check-parity.sh. Not meant to run standalone outside a
-ways-of-working checkout.
+Usage: python3 scripts/check_parity.py [LIB_ROOT]
+LIB_ROOT defaults to the repo root (the parent of this scripts/ dir).
 """
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+import _lib
 
 # Known filename-vs-skill-name divergence in the Cursor port. Cursor rule
 # files predate some canonical skill names; this maps the rule's filename
@@ -61,39 +64,19 @@ AGENTS_MD_MARKERS = {
 }
 
 
-def canonical_skills(lib: Path) -> list[str]:
-    names = []
-    for d in (lib / "skills").iterdir():
-        if d.is_dir() and (d / "SKILL.md").is_file():
-            names.append(d.name)
-    return sorted(names)
-
-
-def skills_local_present(lib: Path) -> set[str]:
+def present_stems(dir_path: Path, pattern: str, alias: dict = None) -> set:
+    """Stems (or, for a SKILL.md match, the parent directory name) of every
+    file under dir_path matching pattern, with alias applied if given."""
     present = set()
-    for d in (lib / "skills-local").iterdir():
-        if d.is_dir() and (d / "SKILL.md").is_file():
-            present.add(d.name)
+    if not dir_path.is_dir():
+        return present
+    for f in dir_path.glob(pattern):
+        stem = f.parent.name if f.name == "SKILL.md" else f.stem
+        present.add(alias.get(stem, stem) if alias else stem)
     return present
 
 
-def cursor_present(lib: Path) -> set[str]:
-    present = set()
-    for f in (lib / "ports" / "cursor").glob("*.mdc"):
-        stem = f.stem
-        present.add(CURSOR_ALIAS.get(stem, stem))
-    return present
-
-
-def gemini_present(lib: Path) -> set[str]:
-    return {f.stem for f in (lib / "ports" / "gemini" / "commands").glob("*.toml")}
-
-
-def antigravity_present(lib: Path) -> set[str]:
-    return {f.stem for f in (lib / "antigravity" / "workflows").glob("*.md")}
-
-
-def agents_md_present(lib: Path, canonical: list[str]) -> set[str]:
+def agents_md_present(lib: Path, canonical: list) -> set:
     # Only the explicit marker map counts as coverage. A plain substring
     # search on the skill name gives false positives for common English
     # words the skill is named after ("write", "spec", "research"), so a
@@ -108,9 +91,9 @@ def agents_md_present(lib: Path, canonical: list[str]) -> set[str]:
     return present
 
 
-def load_allowlist(lib: Path) -> set[tuple[str, str]]:
+def load_allowlist(lib: Path) -> set:
     allow_file = lib / "scripts" / "parity-allow.txt"
-    entries: set[tuple[str, str]] = set()
+    entries = set()
     if not allow_file.is_file():
         return entries
     for line in allow_file.read_text().splitlines():
@@ -125,17 +108,23 @@ def load_allowlist(lib: Path) -> set[tuple[str, str]]:
 
 
 def main() -> int:
-    lib = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()
-    canonical = canonical_skills(lib)
+    default_lib = Path(__file__).resolve().parent.parent
+    lib = Path(sys.argv[1]) if len(sys.argv) > 1 else default_lib
+    canonical = sorted(_lib.skill_names(lib, "skills"))
     allow = load_allowlist(lib)
 
-    surfaces = {
-        "skills-local": skills_local_present(lib),
-        "cursor": cursor_present(lib),
-        "gemini": gemini_present(lib),
-        "antigravity": antigravity_present(lib),
-        "agents-md": agents_md_present(lib, canonical),
+    # surface name -> (dir, glob pattern, alias map or None)
+    surface_globs = {
+        "skills-local": (lib / "skills-local", "*/SKILL.md", None),
+        "cursor": (lib / "ports" / "cursor", "*.mdc", CURSOR_ALIAS),
+        "gemini": (lib / "ports" / "gemini" / "commands", "*.toml", None),
+        "antigravity": (lib / "antigravity" / "workflows", "*.md", None),
     }
+    surfaces = {
+        surface: present_stems(dir_path, pattern, alias)
+        for surface, (dir_path, pattern, alias) in surface_globs.items()
+    }
+    surfaces["agents-md"] = agents_md_present(lib, canonical)
 
     failed = False
     print(f"Canonical skills: {len(canonical)}")

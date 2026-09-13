@@ -8,6 +8,8 @@ Three hooks that enforce mechanically what the skills teach behaviorally. Skills
 | `test-gate.sh` | PreToolUse (Bash) | On `git commit`, runs your test command first; failing tests block the commit. **Opt-in**: only active if `.claude/test-command` exists | Yes, when tests fail |
 | `format-on-stop.sh` | Stop | Formats changed files with the project's configured formatter (prettier / ruff / black / gofmt / cargo fmt) | Never — always exits 0 |
 
+`plugin-hooks.json` is generated from `settings-snippet.json` — run `scripts/merge-hooks.py --emit-plugin > hooks/plugin-hooks.json` after editing the snippet, never hand-edit it.
+
 ## Install (per project)
 
 ```bash

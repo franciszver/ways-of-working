@@ -9,24 +9,28 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+import _lib
+
 PATTERN = re.compile(r"(\d+) canonical skills")
 
 
 def main() -> int:
     lib = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()
-    actual = sum(1 for d in (lib / "skills").iterdir() if d.is_dir() and (d / "SKILL.md").is_file())
+    actual = len(_lib.skill_names(lib, "skills"))
 
     readme = (lib / "README.md").read_text()
-    match = PATTERN.search(readme)
-    if not match:
+    matches = PATTERN.findall(readme)
+    if not matches:
         print("FAIL: README.md has no '<N> canonical skills' line")
         return 1
 
-    stated = int(match.group(1))
+    stated_values = sorted({int(m) for m in matches})
     print(f"Actual canonical skill count: {actual}")
-    print(f"README.md states: {stated}")
-    if stated != actual:
-        print(f"FAIL: README.md says {stated} canonical skills, actual is {actual}")
+    print(f"README.md states: {', '.join(str(v) for v in stated_values)} ({len(matches)} occurrence(s))")
+    mismatches = [int(m) for m in matches if int(m) != actual]
+    if mismatches:
+        print(f"FAIL: README.md has {len(mismatches)} occurrence(s) not equal to actual ({actual})")
         return 1
 
     print("Count matches.")

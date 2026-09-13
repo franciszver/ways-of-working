@@ -15,6 +15,9 @@ jobs:
         with:
           python-version: "3.x"
 
+      - name: Install Python dependencies
+        run: pip install pyyaml
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -26,19 +29,13 @@ jobs:
       - name: shellcheck (if available)
         run: |
           if command -v shellcheck >/dev/null 2>&1 || sudo apt-get install -y shellcheck; then
-            shellcheck install.sh scripts/check-parity.sh
+            shellcheck install.sh
           else
             echo "shellcheck unavailable, skipping"
           fi
 
       - name: Port parity check
-        # Intentionally red at merge time (issue #4): five canonical skills
-        # are absent from every port today. scripts/parity-allow.txt stays
-        # empty until the orchestrator files and resolves those gap issues,
-        # so this step visibly fails without blocking this hygiene PR.
-        # Remove continue-on-error once the gaps are allowlisted or fixed.
-        continue-on-error: true
-        run: scripts/check-parity.sh
+        run: python3 scripts/check_parity.py .
 
       - name: SKILL.md frontmatter check
         run: python3 scripts/check-frontmatter.py .
@@ -46,8 +43,25 @@ jobs:
       - name: README skill-count check
         run: python3 scripts/check-counts.py .
 
+      - name: Plugin hooks generation check
+        run: |
+          python3 scripts/merge-hooks.py --emit-plugin > hooks/plugin-hooks.json
+          git diff --exit-code hooks/plugin-hooks.json
+
+      - name: Cache Claude Code CLI
+        id: cache-claude-code
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm-global
+          key: claude-code-cli-2.1.270
+
       - name: Install Claude Code
-        run: npm install -g @anthropic-ai/claude-code
+        run: |
+          npm config set prefix ~/.npm-global
+          echo "$HOME/.npm-global/bin" >> "$GITHUB_PATH"
+          if [ "${{ steps.cache-claude-code.outputs.cache-hit }}" != "true" ]; then
+            npm install -g @anthropic-ai/claude-code@2.1.270
+          fi
 
       - name: Validate plugin manifest
         # `claude plugin validate .` can require an authenticated session

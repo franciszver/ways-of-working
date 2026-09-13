@@ -88,28 +88,51 @@ done
 [ ${#ACTIONS[@]} -gt 0 ] || usage 1
 case "$PROFILE" in frontier|local) ;; *) echo "Invalid --profile: $PROFILE"; exit 1 ;; esac
 
-copy_skill_dirs() { # $1 = source root (skills|skills-local), $2 = dest skills dir
-  # Safe-by-default like every other target: existing skill dirs are skipped
-  # (users tune installed skills), --force refreshes them from the library.
-  # --link installs a symlink to the library dir instead of a copy.
-  local src="$1" dest="$2" dir name
-  run mkdir -p "$dest"
+for_each_skill_dir() { # $1 = source root (skills|skills-local), $2 = callback fn, $3.. = extra args passed after (dir, name)
+  local src="$1" cb="$2" dir name
+  shift 2
   for dir in "$LIB/$src"/*/; do
     [ -f "${dir}SKILL.md" ] || continue
     name="$(basename "$dir")"
-    if [ -e "$dest/$name" ] && [ "$FORCE" -eq 0 ]; then
-      note "skill exists, skipping (use --force to refresh): $dest/$name"
-      continue
-    fi
-    run rm -rf "${dest:?}/$name"
-    if [ "$LINK" -eq 1 ]; then
-      note "skill (link): $name -> $dest/$name"
-      run ln -s "${dir%/}" "$dest/$name"
-    else
-      note "skill: $name -> $dest/$name"
-      run cp -R "$dir" "$dest/$name"
-    fi
+    "$cb" "$dir" "$name" "$@"
   done
+}
+
+profile_layout() { # $1 = profile name (frontier|local); echoes "SKILLS_SUBDIR AGENTS_FLAG"
+  # AGENTS_FLAG is the literal word "agents" when the profile installs
+  # agents/, or "-" when it does not. Single source of truth for which
+  # content each profile carries — keep in sync with the profile
+  # descriptions in the usage banner above.
+  case "$1" in
+    frontier) echo "skills agents" ;;
+    local)    echo "skills-local -" ;;
+    *) echo "Unknown profile: $1" >&2; return 1 ;;
+  esac
+}
+
+_copy_skill_dir_cb() { # $1 = source dir, $2 = name, $3 = dest skills dir
+  # Safe-by-default like every other target: existing skill dirs are skipped
+  # (users tune installed skills), --force refreshes them from the library.
+  # --link installs a symlink to the library dir instead of a copy.
+  local dir="$1" name="$2" dest="$3"
+  if [ -e "$dest/$name" ] && [ "$FORCE" -eq 0 ]; then
+    note "skill exists, skipping (use --force to refresh): $dest/$name"
+    return 0
+  fi
+  run rm -rf "${dest:?}/$name"
+  if [ "$LINK" -eq 1 ]; then
+    note "skill (link): $name -> $dest/$name"
+    run ln -s "${dir%/}" "$dest/$name"
+  else
+    note "skill: $name -> $dest/$name"
+    run cp -R "$dir" "$dest/$name"
+  fi
+}
+
+copy_skill_dirs() { # $1 = source root (skills|skills-local), $2 = dest skills dir
+  local src="$1" dest="$2"
+  run mkdir -p "$dest"
+  for_each_skill_dir "$src" _copy_skill_dir_cb "$dest"
 }
 
 append_guarded() { # $1 = snippet file, $2 = target file, $3 = marker
@@ -173,22 +196,24 @@ check_profile_marker() { # $1 = base; refuses a profile switch without --force
   remove_other_profile_skills "$base" "$installed"
 }
 
+_remove_other_profile_skill_cb() { # $1 = dir, $2 = name, $3 = base, $4 = new_src, $5 = other profile name
+  local dir="$1" name="$2" base="$3" new_src="$4" other="$5"
+  [ -d "$LIB/$new_src/$name" ] && return 0 # shared name, the new pack keeps it
+  if [ -e "$base/skills/$name" ]; then
+    note "removing skill from previous profile ($other), absent from $PROFILE pack: $name"
+    run rm -rf "${base:?}/skills/${name:?}"
+  fi
+}
+
 remove_other_profile_skills() { # $1 = base, $2 = previous profile name
-  local base="$1" other="$2" other_src new_src dir name
-  if [ "$other" = "frontier" ]; then other_src="skills"; else other_src="skills-local"; fi
-  if [ "$PROFILE" = "frontier" ]; then new_src="skills"; else new_src="skills-local"; fi
-  for dir in "$LIB/$other_src"/*/; do
-    [ -f "${dir}SKILL.md" ] || continue
-    name="$(basename "$dir")"
-    [ -d "$LIB/$new_src/$name" ] && continue # shared name, the new pack keeps it
-    if [ -e "$base/skills/$name" ]; then
-      note "removing skill from previous profile ($other), absent from $PROFILE pack: $name"
-      run rm -rf "${base:?}/skills/${name:?}"
-    fi
-  done
-  # Only the frontier profile installs agents/ — leaving it removes them too.
-  if [ "$other" = "frontier" ] && [ "$PROFILE" != "frontier" ]; then
-    local f
+  local base="$1" other="$2" other_src other_agents new_src new_agents
+  read -r other_src other_agents <<< "$(profile_layout "$other")"
+  read -r new_src new_agents <<< "$(profile_layout "$PROFILE")"
+  for_each_skill_dir "$other_src" _remove_other_profile_skill_cb "$base" "$new_src" "$other"
+  # An agents flag present on the old profile but not the new one means
+  # leaving that profile removes its agents too.
+  if [ "$other_agents" = "agents" ] && [ "$new_agents" != "agents" ]; then
+    local f name
     for f in "$LIB"/agents/*.md; do
       name="$(basename "$f")"
       if [ -e "$base/agents/$name" ]; then
@@ -211,16 +236,18 @@ write_profile_marker() { # $1 = base
 }
 
 do_claude_user() {
-  local base="$HOME/.claude"
+  local base="$HOME/.claude" src_subdir agents_flag
   check_profile_marker "$base"
-  if [ "$PROFILE" = "frontier" ]; then
-    copy_skill_dirs "skills" "$base/skills"
+  read -r src_subdir agents_flag <<< "$(profile_layout "$PROFILE")"
+  copy_skill_dirs "$src_subdir" "$base/skills"
+  if [ "$agents_flag" = "agents" ]; then
     run mkdir -p "$base/agents"
     local f
     for f in "$LIB"/agents/*.md; do copy_file_safe "$f" "$base/agents/$(basename "$f")" 1; done
+  fi
+  if [ "$PROFILE" = "frontier" ]; then
     append_guarded "$LIB/claude-md/global-frontier.md" "$base/CLAUDE.md" "<!-- ways-of-working:frontier -->"
   else
-    copy_skill_dirs "skills-local" "$base/skills"
     append_guarded "$LIB/claude-md/global-local.md" "$base/CLAUDE.md" "<!-- ways-of-working:local -->"
   fi
   write_profile_marker "$base"
@@ -322,56 +349,50 @@ its new name WAYS_OF_WORKING_LIBRARY.
 EOF
 }
 
+_report_dir_diff() { # $1 = library dir, $2 = installed dir; sets DRIFT=1 and prints DRIFT lines on any difference
+  local lib_dir="${1%/}" installed_dir="$2" out line
+  out="$(diff -rq "$lib_dir" "$installed_dir" 2>&1)" || true
+  if [ -n "$out" ]; then
+    while IFS= read -r line; do
+      echo "DRIFT: $line"
+    done <<< "$out"
+    DRIFT=1
+  fi
+}
+
+_check_skill_dir_cb() { # $1 = dir, $2 = name, $3 = base
+  local dir="$1" name="$2" base="$3"
+  if [ ! -e "$base/skills/$name" ]; then
+    echo "DRIFT: skill not installed: $name"
+    DRIFT=1
+    return 0
+  fi
+  if [ -L "$base/skills/$name" ]; then
+    return 0 # symlinked install, never drifts
+  fi
+  _report_dir_diff "$dir" "$base/skills/$name"
+}
+
 do_check() {
-  local base="$HOME/.claude" drift=0 marker="" profile="frontier"
+  local base="$HOME/.claude" marker="" profile="frontier" src_skills agents_flag
   marker="$(profile_marker_path "$base")"
   [ -f "$marker" ] && profile="$(cat "$marker")"
-  local src_skills="skills"
-  [ "$profile" = "local" ] && src_skills="skills-local"
+  read -r src_skills agents_flag <<< "$(profile_layout "$profile")"
   note "checking installed skills ($profile profile) against $src_skills/ ..."
 
-  local dir name f rel installed_file
-  for dir in "$LIB/$src_skills"/*/; do
-    [ -f "${dir}SKILL.md" ] || continue
-    name="$(basename "$dir")"
-    if [ ! -e "$base/skills/$name" ]; then
-      echo "DRIFT: skill not installed: $name"
-      drift=1
-      continue
-    fi
-    if [ -L "$base/skills/$name" ]; then
-      continue # symlinked install, never drifts
-    fi
-    while IFS= read -r -d '' f; do
-      rel="${f#"$dir"}"
-      installed_file="$base/skills/$name/$rel"
-      if [ ! -f "$installed_file" ] || ! diff -q "$f" "$installed_file" >/dev/null 2>&1; then
-        echo "DRIFT: $installed_file differs from $f"
-        drift=1
-      fi
-    done < <(find "$dir" -type f -print0)
-  done
+  DRIFT=0
+  for_each_skill_dir "$src_skills" _check_skill_dir_cb "$base"
 
-  if [ "$profile" = "frontier" ]; then
-    for f in "$LIB"/agents/*.md; do
-      name="$(basename "$f")"
-      installed_file="$base/agents/$name"
-      if [ ! -e "$installed_file" ]; then
-        echo "DRIFT: agent not installed: $name"
-        drift=1
-        continue
-      fi
-      if [ -L "$installed_file" ]; then
-        continue
-      fi
-      if ! diff -q "$f" "$installed_file" >/dev/null 2>&1; then
-        echo "DRIFT: $installed_file differs from $f"
-        drift=1
-      fi
-    done
+  if [ "$agents_flag" = "agents" ]; then
+    if [ ! -d "$base/agents" ]; then
+      echo "DRIFT: agents not installed"
+      DRIFT=1
+    else
+      _report_dir_diff "$LIB/agents" "$base/agents"
+    fi
   fi
 
-  if [ "$drift" -eq 1 ]; then
+  if [ "$DRIFT" -eq 1 ]; then
     echo "Drift found — see DRIFT lines above."
     exit 1
   fi

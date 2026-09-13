@@ -3,6 +3,11 @@
 Claude Code settings.json without discarding what's already there.
 
 Usage: merge-hooks.py TARGET_SETTINGS_JSON SNIPPET_JSON
+       merge-hooks.py --emit-plugin
+
+--emit-plugin reads hooks/settings-snippet.json, rewrites its project-path
+hook commands to plugin-root paths, and prints the result as JSON — this is
+how hooks/plugin-hooks.json is generated. It is never hand-edited.
 
 Merges snippet["hooks"][event] entries into target["hooks"][event],
 appending only entries not already present (safe to re-run). Never
@@ -11,6 +16,10 @@ a failure never corrupts an existing settings.json.
 """
 import json
 import sys
+from pathlib import Path
+
+PROJECT_HOOK_PREFIX = '"$CLAUDE_PROJECT_DIR"/.claude/hooks/'
+PLUGIN_HOOK_PREFIX = '"${CLAUDE_PLUGIN_ROOT}"/hooks/scripts/'
 
 
 def fail(message: str) -> int:
@@ -18,9 +27,30 @@ def fail(message: str) -> int:
     return 1
 
 
+def emit_plugin() -> int:
+    snippet_path = Path(__file__).resolve().parent.parent / "hooks" / "settings-snippet.json"
+    try:
+        snippet = json.loads(snippet_path.read_text())
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        return fail(f"{snippet_path} is not readable/valid JSON ({e})")
+
+    for entries in snippet.get("hooks", {}).values():
+        for entry in entries:
+            for hook in entry.get("hooks", []):
+                command = hook.get("command")
+                if isinstance(command, str) and PROJECT_HOOK_PREFIX in command:
+                    hook["command"] = command.replace(PROJECT_HOOK_PREFIX, PLUGIN_HOOK_PREFIX)
+
+    print(json.dumps(snippet, indent=2))
+    return 0
+
+
 def main() -> int:
+    if len(sys.argv) == 2 and sys.argv[1] == "--emit-plugin":
+        return emit_plugin()
     if len(sys.argv) != 3:
         print("usage: merge-hooks.py TARGET_SETTINGS_JSON SNIPPET_JSON", file=sys.stderr)
+        print("       merge-hooks.py --emit-plugin", file=sys.stderr)
         return 2
     target_path, snippet_path = sys.argv[1], sys.argv[2]
 

@@ -13,13 +13,13 @@ every surface that carries a compression of it:
 | Surface | What to update |
 |---|---|
 | `skills-local/<name>/SKILL.md` | The compact, imperative variant for local models |
-| `ports/cursor/<name>.mdc` | The Cursor rule (filenames sometimes differ from the canonical name — see `scripts/check-parity.sh`'s alias table) |
+| `ports/cursor/<name>.mdc` | The Cursor rule (filenames sometimes differ from the canonical name — see the alias table in `scripts/check_parity.py`) |
 | `ports/gemini/commands/<name>.toml` | The Gemini CLI command |
 | `antigravity/workflows/<name>.md` | The Antigravity workflow |
 | `ports/agents-md/AGENTS.md` | The matching "## When ..." section |
 | `agents/*.md` | Only if the skill is one of the four subagent definitions |
 
-Run `scripts/check-parity.sh` after any propagation pass — it lists which
+Run `python3 scripts/check_parity.py` after any propagation pass — it lists which
 surfaces are missing which canonical skill names.
 
 **Two surfaces are being retired or shrunk, per issue #11:**
@@ -46,7 +46,7 @@ with a comment pointing at the tracking issue, not silently exempted.
 ## Running the checks
 
 ```bash
-scripts/check-parity.sh            # canonical names vs every port
+python3 scripts/check_parity.py          # canonical names vs every port
 python3 scripts/check-frontmatter.py .   # SKILL.md frontmatter contract
 python3 scripts/check-counts.py .        # README skill count vs disk
 bash -n install.sh                       # installer syntax

@@ -8,13 +8,19 @@ For every skills/**/SKILL.md and skills-local/**/SKILL.md, checks:
   - it carries no key outside the Agent Skills spec set, unless the file
     is listed in scripts/frontmatter-allow.txt
 
-Exits 1 if any file fails a check.
-
-Uses PyYAML if available, else a minimal top-level-key parser (these
-files only ever use flat string/bool keys).
+Exits 1 if any file fails a check. Requires PyYAML (exits 2 if missing).
 """
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+import _lib
+
+try:
+    import yaml  # type: ignore
+except ImportError:
+    print("FAIL: PyYAML is required (pip install pyyaml)", file=sys.stderr)
+    raise SystemExit(2)
 
 SPEC_KEYS = {"name", "description", "license", "compatibility", "metadata", "allowed-tools"}
 MAX_DESCRIPTION = 1024
@@ -28,33 +34,10 @@ def parse_frontmatter(text: str):
         return None
     block = text[4:end]
     try:
-        import yaml  # type: ignore
-    except ImportError:
-        return _parse_flat(block)
-    try:
         data = yaml.safe_load(block)
     except yaml.YAMLError:
         return None
     return data if isinstance(data, dict) else None
-
-
-def _parse_flat(block: str) -> dict:
-    """Minimal parser for flat `key: value` frontmatter (no nesting)."""
-    data: dict = {}
-    key = None
-    for line in block.splitlines():
-        if not line.strip():
-            continue
-        if line[:1] in (" ", "\t") and key is not None:
-            # continuation line — append to current key's value
-            data[key] = f"{data[key]} {line.strip()}"
-            continue
-        if ":" not in line:
-            continue
-        k, _, v = line.partition(":")
-        key = k.strip()
-        data[key] = v.strip().strip('"').strip("'")
-    return data
 
 
 def load_allowlist(lib: Path) -> dict:
@@ -110,7 +93,8 @@ def main() -> int:
     lib = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()
     allow = load_allowlist(lib)
 
-    files = sorted(lib.glob("skills/*/SKILL.md")) + sorted(lib.glob("skills-local/*/SKILL.md"))
+    files = [d / "SKILL.md" for d in _lib.skill_dirs(lib, "skills")]
+    files += [d / "SKILL.md" for d in _lib.skill_dirs(lib, "skills-local")]
     all_errors = []
     for f in files:
         all_errors.extend(check_file(f, lib, allow))
