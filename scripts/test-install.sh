@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # scripts/test-install.sh — regression tests for install.sh's guarded-block
-# refresh (--force) and drift check (--check). Runs against a scratch HOME,
-# never the caller's real ~/.claude. Exits 1 on any failed assertion.
+# refresh (--force) and drift check (--check). Drives everything through the
+# real CLI against scratch HOMEs under a single tmp root; never touches the
+# caller's real ~/.claude. Exits 1 on any failed assertion.
 #
 # Usage: bash scripts/test-install.sh
 
@@ -9,6 +10,12 @@ set -euo pipefail
 
 LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALL="$LIB/install.sh"
+
+bash -n "$INSTALL"
+
+TMPROOT="$(mktemp -d)"
+trap 'rm -rf "$TMPROOT"' EXIT
+
 FAIL=0
 
 pass() { echo "PASS: $*"; }
@@ -20,97 +27,250 @@ assert_eq() { # $1 = actual, $2 = expected, $3 = description
 
 assert_marker_count() { # $1 = file, $2 = expected count, $3 = description
   local n
-  n="$(grep -c "<!-- ways-of-working:" "$1" 2>/dev/null || true)"
+  n="$(grep -c "ways-of-working:" "$1" 2>/dev/null || true)"
   assert_eq "$n" "$2" "$3"
 }
 
 marker_line() { echo "<!-- ways-of-working:$1 -->"; }
+end_marker_line() { echo "<!-- /ways-of-working:$1 -->"; }
 
-# --- Test 1-4: --claude-user, fresh install, drift, force refresh, clean check ---
+# --- 1-4: --claude-user, fresh install, drift, force refresh, clean check ---
 
-HOME1="$(mktemp -d)"
+HOME1="$TMPROOT/home1"
+mkdir -p "$HOME1"
 export HOME="$HOME1"
 
 "$INSTALL" --claude-user --profile frontier >/dev/null
 
 CLAUDE_MD="$HOME1/.claude/CLAUDE.md"
 [ -f "$CLAUDE_MD" ] && pass "fresh install: CLAUDE.md created" || fail "fresh install: CLAUDE.md created"
-assert_marker_count "$CLAUDE_MD" 1 "fresh install: exactly one marker"
-grep -qF "$(marker_line frontier)" "$CLAUDE_MD" && pass "fresh install: frontier marker present" \
-  || fail "fresh install: frontier marker present"
+assert_marker_count "$CLAUDE_MD" 2 "fresh install: begin + end marker (2 lines)"
+grep -qxF "$(marker_line frontier)" "$CLAUDE_MD" && pass "fresh install: frontier begin marker present" \
+  || fail "fresh install: frontier begin marker present"
+grep -qxF "$(end_marker_line frontier)" "$CLAUDE_MD" && pass "fresh install: frontier end marker present" \
+  || fail "fresh install: frontier end marker present"
 
 # Edit one line inside the installed guarded block.
 sed -i 's/^\*\*Honesty\.\*\*.*/**Honesty.** EDITED FOR TEST./' "$CLAUDE_MD"
 grep -q "EDITED FOR TEST" "$CLAUDE_MD" && pass "drift setup: edited installed block" \
   || fail "drift setup: edited installed block"
 
-if "$INSTALL" --check --profile frontier >/tmp/check-drift.out 2>&1; then
+if "$INSTALL" --check --profile frontier >"$TMPROOT/check-drift.out" 2>&1; then
   fail "--check reports drift after edit (exited 0, expected 1)"
 else
   pass "--check exits non-zero after edit"
 fi
-grep -q "DRIFT: CLAUDE.md block (frontier)" /tmp/check-drift.out \
+grep -q "DRIFT: CLAUDE.md block (frontier)" "$TMPROOT/check-drift.out" \
   && pass "--check reports DRIFT: CLAUDE.md block (frontier)" \
   || fail "--check reports DRIFT: CLAUDE.md block (frontier)"
 
 "$INSTALL" --claude-user --profile frontier --force >/dev/null
-assert_marker_count "$CLAUDE_MD" 1 "--force: exactly one marker after refresh"
-expected_block="$(printf '%s\n' "$(marker_line frontier)"; cat "$LIB/claude-md/global-frontier.md")"
-actual_block="$(awk -v marker="$(marker_line frontier)" '
-  $0 == marker { print; skip = 1; next }
-  skip && index($0, "<!-- ways-of-working:") == 1 { exit }
-  skip { print }
-' "$CLAUDE_MD")"
-assert_eq "$actual_block" "$expected_block" "--force: block content equals claude-md/global-frontier.md"
+assert_marker_count "$CLAUDE_MD" 2 "--force: exactly one begin + one end marker after refresh"
+actual_block="$(sed -n '/^<!-- ways-of-working:frontier -->$/,/^<!-- \/ways-of-working:frontier -->$/p' "$CLAUDE_MD")"
+expected_block="$(printf '%s\n' "$(marker_line frontier)"; cat "$LIB/claude-md/global-frontier.md"; printf '%s\n' "$(end_marker_line frontier)")"
+assert_eq "$actual_block" "$expected_block" "--force: block content equals claude-md/global-frontier.md, bounded by markers"
 
-if "$INSTALL" --check --profile frontier >/tmp/check-clean.out 2>&1; then
+if "$INSTALL" --check --profile frontier >"$TMPROOT/check-clean.out" 2>&1; then
   pass "--check is clean after --force"
 else
   fail "--check is clean after --force"
-  cat /tmp/check-clean.out
+  cat "$TMPROOT/check-clean.out"
 fi
 
-# --- Test 5: profile switch with --force leaves exactly one marker ---
+# --- 5: trailing user content after the block survives --force and is not drift ---
+
+echo "" >> "$CLAUDE_MD"
+echo "## My personal notes" >> "$CLAUDE_MD"
+echo "Remember to buy milk." >> "$CLAUDE_MD"
+"$INSTALL" --claude-user --profile frontier --force >/dev/null
+grep -q "Remember to buy milk." "$CLAUDE_MD" && pass "trailing user content survives --force" \
+  || fail "trailing user content survives --force"
+if "$INSTALL" --check --profile frontier >"$TMPROOT/check-trailing.out" 2>&1; then
+  pass "trailing user content is not reported as drift"
+else
+  fail "trailing user content is not reported as drift"
+  cat "$TMPROOT/check-trailing.out"
+fi
+
+# --- 6: profile switch with --force leaves exactly one marker pair (the other profile's) ---
 
 "$INSTALL" --claude-user --profile local --force >/dev/null
-assert_marker_count "$CLAUDE_MD" 1 "profile switch --force: exactly one marker"
-grep -qF "$(marker_line local)" "$CLAUDE_MD" && pass "profile switch --force: local marker present" \
+assert_marker_count "$CLAUDE_MD" 2 "profile switch --force: exactly one begin + one end marker"
+grep -qxF "$(marker_line local)" "$CLAUDE_MD" && pass "profile switch --force: local marker present" \
   || fail "profile switch --force: local marker present"
-grep -qF "$(marker_line frontier)" "$CLAUDE_MD" && fail "profile switch --force: frontier marker removed" \
+grep -qxF "$(marker_line frontier)" "$CLAUDE_MD" && fail "profile switch --force: frontier marker removed" \
   || pass "profile switch --force: frontier marker removed"
+grep -q "Remember to buy milk." "$CLAUDE_MD" && pass "profile switch --force: trailing user content still survives" \
+  || fail "profile switch --force: trailing user content still survives"
 
 rm -rf "$HOME1"
 
-# --- Test 6: the guarded-block mechanism is generic, not hardcoded to
-# $HOME/.claude/CLAUDE.md — exercise the same helper functions directly
-# against a project-shaped scratch CLAUDE.md (as --claude-project would use).
+# --- 7: CRLF file — the range/marker logic tolerates \r line endings ---
 
-PROJ="$(mktemp -d)"
-PROJ_CLAUDE_MD="$PROJ/.claude/CLAUDE.md"
-mkdir -p "$PROJ/.claude"
+HOME2="$TMPROOT/home2"
+mkdir -p "$HOME2"
+export HOME="$HOME2"
+"$INSTALL" --claude-user --profile frontier >/dev/null
+CLAUDE_MD2="$HOME2/.claude/CLAUDE.md"
+sed -i 's/$/\r/' "$CLAUDE_MD2"
+"$INSTALL" --claude-user --profile frontier --force >/dev/null
+assert_marker_count "$CLAUDE_MD2" 2 "CRLF file: --force finds the real end marker, no duplication"
+[ -f "${CLAUDE_MD2}.bak" ] && fail "CRLF file: no legacy backup expected (a real end marker was present)" \
+  || pass "CRLF file: no legacy backup created"
 
-# shellcheck disable=SC1090
-source "$INSTALL"
-DRY_RUN=0
-FORCE=0
+rm -rf "$HOME2"
 
-marker="$(marker_line frontier)"
-mkdir -p "$(dirname "$PROJ_CLAUDE_MD")"
-{ echo ""; echo "$marker"; cat "$LIB/claude-md/global-frontier.md"; } >> "$PROJ_CLAUDE_MD"
-assert_marker_count "$PROJ_CLAUDE_MD" 1 "project CLAUDE.md: fresh install has one marker"
+# --- 8: legacy block (begin marker, no end marker) refreshes, backs up, and warns ---
 
-sed -i 's/^\*\*Honesty\.\*\*.*/**Honesty.** EDITED FOR TEST./' "$PROJ_CLAUDE_MD"
-before="$(extract_guarded_block "$PROJ_CLAUDE_MD" "$marker")"
-expected="$(printf '%s\n' "$marker"; cat "$LIB/claude-md/global-frontier.md")"
-[ "$before" != "$expected" ] && pass "project CLAUDE.md: edited block differs from source" \
-  || fail "project CLAUDE.md: edited block differs from source"
+HOME3="$TMPROOT/home3"
+mkdir -p "$HOME3/.claude"
+export HOME="$HOME3"
+CLAUDE_MD3="$HOME3/.claude/CLAUDE.md"
+{
+  echo ""
+  marker_line frontier
+  echo "STALE CONTENT FROM BEFORE THIS FIX"
+  echo ""
+  echo "My personal note that was appended after the old block."
+} > "$CLAUDE_MD3"
 
-guarded_block_replace "$PROJ_CLAUDE_MD" "$marker" "$LIB/claude-md/global-frontier.md"
-assert_marker_count "$PROJ_CLAUDE_MD" 1 "project CLAUDE.md: exactly one marker after refresh"
-after="$(extract_guarded_block "$PROJ_CLAUDE_MD" "$marker")"
-assert_eq "$after" "$expected" "project CLAUDE.md: block content equals source after refresh"
+legacy_out="$("$INSTALL" --claude-user --profile frontier --force 2>&1 >/dev/null)"
+echo "$legacy_out" | grep -q "legacy guarded block" && pass "legacy block: warning printed" \
+  || fail "legacy block: warning printed"
+echo "--- legacy backup warning line ---"
+echo "$legacy_out" | grep "legacy guarded block" || true
 
-rm -rf "$PROJ"
+[ -f "${CLAUDE_MD3}.bak" ] && pass "legacy block: .bak created" || fail "legacy block: .bak created"
+grep -q "My personal note that was appended after the old block." "${CLAUDE_MD3}.bak" \
+  && pass "legacy block: personal note preserved in .bak" \
+  || fail "legacy block: personal note preserved in .bak"
+grep -q "My personal note that was appended after the old block." "$CLAUDE_MD3" \
+  && fail "legacy block: personal note removed from the live file (expected — it must be re-added by hand)" \
+  || pass "legacy block: personal note removed from the live file (expected — it must be re-added by hand)"
+assert_marker_count "$CLAUDE_MD3" 2 "legacy block: exactly one begin + one end marker after refresh"
+if "$INSTALL" --check --profile frontier >"$TMPROOT/check-legacy.out" 2>&1; then
+  pass "legacy block: --check is clean after the one-time --force refresh"
+else
+  fail "legacy block: --check is clean after the one-time --force refresh"
+  cat "$TMPROOT/check-legacy.out"
+fi
+
+rm -rf "$HOME3"
+
+# --- 9: --check reports LEGACY (not DRIFT) for a block with no end marker ---
+
+HOME4="$TMPROOT/home4"
+mkdir -p "$HOME4/.claude"
+export HOME="$HOME4"
+CLAUDE_MD4="$HOME4/.claude/CLAUDE.md"
+{ echo ""; marker_line frontier; cat "$LIB/claude-md/global-frontier.md"; } > "$CLAUDE_MD4"
+if "$INSTALL" --check --profile frontier >"$TMPROOT/check-legacy-report.out" 2>&1; then
+  fail "--check exits non-zero-ish is not required, but LEGACY must be reported"
+fi
+grep -q "LEGACY: CLAUDE.md block (frontier) has no end marker; run --force once" "$TMPROOT/check-legacy-report.out" \
+  && pass "--check reports LEGACY for a block with no end marker" \
+  || fail "--check reports LEGACY for a block with no end marker"
+grep -q "^DRIFT: CLAUDE.md block" "$TMPROOT/check-legacy-report.out" \
+  && fail "--check must not report DRIFT for a legacy block (LEGACY only)" \
+  || pass "--check does not report DRIFT for a legacy block"
+
+rm -rf "$HOME4"
+
+# --- 10: legacy-name marker (pre-#13 prefix) migrates and refreshes in one run ---
+
+HOME5="$TMPROOT/home5"
+mkdir -p "$HOME5/.claude"
+export HOME="$HOME5"
+CLAUDE_MD5="$HOME5/.claude/CLAUDE.md"
+{ echo ""; echo "<!-- old-tool-name:frontier -->"; echo "OLD STALE BODY"; } > "$CLAUDE_MD5"
+
+"$INSTALL" --claude-user --profile frontier --force >/dev/null
+grep -qxF "$(marker_line frontier)" "$CLAUDE_MD5" && pass "legacy-name marker: migrated to the current marker text" \
+  || fail "legacy-name marker: migrated to the current marker text"
+assert_marker_count "$CLAUDE_MD5" 2 "legacy-name marker: exactly one begin + one end marker after the same-run refresh"
+grep -q "OLD STALE BODY" "$CLAUDE_MD5" \
+  && fail "legacy-name marker: stale body should have been refreshed away" \
+  || pass "legacy-name marker: stale body refreshed away in the same run"
+[ -f "${CLAUDE_MD5}.bak" ] && pass "legacy-name marker: .bak created (it was also a no-end-marker legacy block)" \
+  || fail "legacy-name marker: .bak created (it was also a no-end-marker legacy block)"
+
+rm -rf "$HOME5"
+
+# --- 11: duplicate begin marker fails loudly ---
+
+HOME6="$TMPROOT/home6"
+mkdir -p "$HOME6/.claude"
+export HOME="$HOME6"
+CLAUDE_MD6="$HOME6/.claude/CLAUDE.md"
+{
+  echo ""; marker_line frontier; echo "body one"; end_marker_line frontier
+  echo ""; marker_line frontier; echo "body two"; end_marker_line frontier
+} > "$CLAUDE_MD6"
+
+if "$INSTALL" --claude-user --profile frontier --force >"$TMPROOT/dup.out" 2>&1; then
+  fail "duplicate begin marker: --force should fail loudly (exited 0)"
+else
+  pass "duplicate begin marker: --force fails loudly (non-zero exit)"
+fi
+grep -qi "refusing" "$TMPROOT/dup.out" && pass "duplicate begin marker: error message explains the refusal" \
+  || fail "duplicate begin marker: error message explains the refusal"
+
+rm -rf "$HOME6"
+
+# --- 12: symlinked CLAUDE.md stays a symlink; its target gets the content ---
+
+HOME7="$TMPROOT/home7"
+mkdir -p "$HOME7/.claude" "$TMPROOT/real"
+export HOME="$HOME7"
+REAL_CLAUDE_MD="$TMPROOT/real/CLAUDE.real.md"
+: > "$REAL_CLAUDE_MD"
+ln -s "$REAL_CLAUDE_MD" "$HOME7/.claude/CLAUDE.md"
+
+"$INSTALL" --claude-user --profile frontier >/dev/null
+[ -L "$HOME7/.claude/CLAUDE.md" ] && pass "symlinked CLAUDE.md: stays a symlink after append" \
+  || fail "symlinked CLAUDE.md: stays a symlink after append"
+grep -qxF "$(marker_line frontier)" "$REAL_CLAUDE_MD" && pass "symlinked CLAUDE.md: real target got the appended block" \
+  || fail "symlinked CLAUDE.md: real target got the appended block"
+
+sed -i 's/^\*\*Honesty\.\*\*.*/**Honesty.** EDITED FOR TEST./' "$REAL_CLAUDE_MD"
+"$INSTALL" --claude-user --profile frontier --force >/dev/null
+[ -L "$HOME7/.claude/CLAUDE.md" ] && pass "symlinked CLAUDE.md: stays a symlink after --force refresh" \
+  || fail "symlinked CLAUDE.md: stays a symlink after --force refresh"
+grep -q "EDITED FOR TEST" "$REAL_CLAUDE_MD" \
+  && fail "symlinked CLAUDE.md: refresh should have replaced the edited line in the real target" \
+  || pass "symlinked CLAUDE.md: real target refreshed"
+echo "--- ls -la proving the symlink case ---"
+ls -la "$HOME7/.claude/CLAUDE.md"
+
+rm -rf "$HOME7"
+
+# --- 13: --dry-run writes nothing ---
+
+HOME8="$TMPROOT/home8"
+mkdir -p "$HOME8"
+export HOME="$HOME8"
+"$INSTALL" --claude-user --profile frontier --dry-run >/dev/null
+[ -f "$HOME8/.claude/CLAUDE.md" ] && fail "--dry-run: CLAUDE.md must not be created" \
+  || pass "--dry-run: CLAUDE.md not created"
+[ -d "$HOME8/.claude/skills" ] && fail "--dry-run: skills/ must not be created" \
+  || pass "--dry-run: skills/ not created"
+
+rm -rf "$HOME8"
+
+# --- 14: file mode is preserved across --force ---
+
+HOME9="$TMPROOT/home9"
+mkdir -p "$HOME9"
+export HOME="$HOME9"
+"$INSTALL" --claude-user --profile frontier >/dev/null
+CLAUDE_MD9="$HOME9/.claude/CLAUDE.md"
+chmod 640 "$CLAUDE_MD9"
+before_mode="$(stat -c '%a' "$CLAUDE_MD9" 2>/dev/null || stat -f '%Lp' "$CLAUDE_MD9")"
+"$INSTALL" --claude-user --profile frontier --force >/dev/null
+after_mode="$(stat -c '%a' "$CLAUDE_MD9" 2>/dev/null || stat -f '%Lp' "$CLAUDE_MD9")"
+assert_eq "$after_mode" "$before_mode" "file mode preserved across --force"
+
+rm -rf "$HOME9"
 
 if [ "$FAIL" -eq 1 ]; then
   echo "test-install.sh: FAILED"

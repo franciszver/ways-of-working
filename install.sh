@@ -46,6 +46,13 @@
 # lists any file that differs (symlinked installs never drift); it exits 1
 # if drift is found.
 #
+# The CLAUDE.md rules block --claude-user appends is guarded by begin/end
+# markers. --force refreshes it in place between those markers; a block
+# with no end marker (installed before this refresh support existed) is
+# backed up to CLAUDE.md.bak first, since the boundary is then only the
+# next marker or EOF and may include text you added by hand. --check
+# reports drift in the block (or LEGACY if it has no end marker yet).
+#
 # --skills DIR copies (or, with --link, symlinks) every skills/*/ directory
 # into DIR, for tools that read Agent Skills natively: Cursor
 # (`.cursor/skills`), the paid-tier Gemini CLI (`~/.gemini/skills`),
@@ -114,19 +121,21 @@ for_each_skill_dir() { # $1 = source root (skills|skills-local), $2 = callback f
   done
 }
 
-profile_layout() { # $1 = profile name (frontier|local); echoes "SKILLS_SUBDIR AGENTS_FLAG"
+profile_layout() { # $1 = profile name (frontier|local); echoes "SKILLS_SUBDIR AGENTS_FLAG MARKER_SUFFIX SNIPPET_BASENAME"
   # AGENTS_FLAG is the literal word "agents" when the profile installs
-  # agents/, or "-" when it does not. Single source of truth for which
-  # content each profile carries — keep in sync with the profile
-  # descriptions in the usage banner above.
+  # agents/, or "-" when it does not. MARKER_SUFFIX is the profile suffix
+  # used in the CLAUDE.md guard marker (<!-- ways-of-working:SUFFIX -->);
+  # SNIPPET_BASENAME is the claude-md/ file appended for that marker.
+  # Single source of truth for which content each profile carries — keep
+  # in sync with the profile descriptions in the usage banner above.
   case "$1" in
-    frontier) echo "build/claude-code/skills agents" ;;
-    local)    echo "skills-local -" ;;
+    frontier) echo "build/claude-code/skills agents frontier global-frontier.md" ;;
+    local)    echo "skills-local - local global-local.md" ;;
     *) echo "Unknown profile: $1" >&2; return 1 ;;
   esac
 }
 
-require_layout() { # $1 = profile name, $2 = context for the error message; echoes "SKILLS_SUBDIR AGENTS_FLAG" or exits 1
+require_layout() { # $1 = profile name, $2 = context for the error message; echoes profile_layout's output or exits 1
   local p="$1" ctx="$2" layout
   if ! layout="$(profile_layout "$p")"; then
     echo "Unknown profile '$p' ($ctx)." >&2
@@ -158,22 +167,88 @@ infer_installed_profile() { # $1 = base; echoes frontier|local, or nothing if no
   echo ""
 }
 
-strip_guarded_block() { # $1 = target file, $2 = marker line (e.g. "<!-- ways-of-working:frontier -->")
+resolve_target() { # $1 = path; echoes the resolved real path (dereferences a symlink), even if it doesn't exist yet
+  local path="$1"
+  if [ -e "$path" ]; then
+    readlink -f "$path"
+  else
+    echo "$path"
+  fi
+}
+
+count_marker_lines() { # $1 = target file, $2 = marker line; counts exact-line matches, tolerating a trailing CR (CRLF files)
   local target="$1" marker="$2"
+  [ -f "$target" ] || { echo 0; return 0; }
+  awk -v marker="$marker" '{ line = $0; sub(/\r$/, "", line); if (line == marker) c++ } END { print c + 0 }' "$target"
+}
+
+guarded_block_range() { # $1 = target file, $2 = begin marker line; echoes "START END LEGACY" or nothing if the marker is absent
+  # END is the line of the matching end marker (LEGACY=0), or the line
+  # before the next "<!-- ways-of-working:" marker / EOF when no end
+  # marker closes the block (LEGACY=1) — this also covers a duplicate of
+  # the same begin marker, which counts as "the next marker". Comparisons
+  # strip a trailing \r so CRLF files still match exactly.
+  local target="$1" marker="$2" end_marker
+  end_marker="${marker/ways-of-working:/\/ways-of-working:}"
+  awk -v marker="$marker" -v end_marker="$end_marker" '
+    {
+      line = $0
+      sub(/\r$/, "", line)
+    }
+    start == 0 && line == marker { start = NR; next }
+    start != 0 && end == 0 {
+      if (line == end_marker) { end = NR; legacy = 0; exit }
+      if (index(line, "<!-- ways-of-working:") == 1) { end = NR - 1; legacy = 1; exit }
+    }
+    END {
+      if (start != 0 && end == 0) { end = NR; legacy = 1 }
+      if (start != 0) print start, end, legacy
+    }
+  ' "$target"
+}
+
+_maybe_backup_legacy() { # $1 = target, $2 = legacy flag (0/1); backs up and warns before a write touches a legacy block
+  local target="$1" legacy="$2"
+  if [ "$legacy" -eq 1 ]; then
+    cp "$target" "${target}.bak"
+    echo "WARNING: legacy guarded block (no end marker) in $target — backed up to ${target}.bak." >&2
+    echo "         Any personal text after the old block was moved there; re-add it below the new end marker." >&2
+  fi
+}
+
+_finish_write() { # $1 = tmp file with new content, $2 = resolved real path to write to; preserves the target's mode
+  local tmp="$1" resolved="$2" perm
+  if [ -e "$resolved" ]; then
+    perm="$(stat -c '%a' "$resolved" 2>/dev/null || stat -f '%Lp' "$resolved" 2>/dev/null || echo "")"
+  else
+    perm=""
+  fi
+  mkdir -p "$(dirname "$resolved")"
+  mv "$tmp" "$resolved"
+  [ -n "$perm" ] && chmod "$perm" "$resolved"
+}
+
+strip_guarded_block() { # $1 = target file, $2 = marker line (e.g. "<!-- ways-of-working:frontier -->")
+  local target="$1" marker="$2" range start end legacy resolved tmp
   [ -f "$target" ] || return 0
-  grep -qF "$marker" "$target" || return 0
+  [ "$(count_marker_lines "$target" "$marker")" -gt 0 ] || return 0
+  range="$(guarded_block_range "$target" "$marker")"
+  [ -n "$range" ] || return 0
+  read -r start end legacy <<< "$range"
   if [ "$DRY_RUN" -eq 1 ]; then
     echo "[dry-run] strip guarded block $marker from $target"
     return 0
   fi
-  local tmp
-  tmp="$(mktemp "${target}.XXXXXX")"
-  awk -v marker="$marker" '
-    $0 == marker { skip = 1; next }
-    skip && index($0, "<!-- ways-of-working:") == 1 { skip = 0 }
-    !skip { print }
-  ' "$target" > "$tmp"
-  mv "$tmp" "$target"
+  _maybe_backup_legacy "$target" "$legacy"
+  resolved="$(resolve_target "$target")"
+  tmp="$(mktemp "${resolved}.XXXXXX")"
+  {
+    if [ "$start" -gt 1 ]; then
+      sed -n "1,$((start - 1))p" "$target"
+    fi
+    tail -n "+$((end + 1))" "$target"
+  } > "$tmp"
+  _finish_write "$tmp" "$resolved"
 }
 
 _copy_skill_dir_cb() { # $1 = source dir, $2 = name, $3 = dest skills dir
@@ -205,49 +280,78 @@ copy_skill_dirs() { # $1 = source root (skills|skills-local), $2 = dest skills d
   for_each_skill_dir "$src" _copy_skill_dir_cb "$dest"
 }
 
-guarded_block_replace() { # $1 = target file, $2 = marker line, $3 = source snippet file
-  # Replaces the block from the marker line through the line before the next
-  # "<!-- ways-of-working:" marker (or EOF) with the marker plus the current
-  # content of the source file. Everything before the marker, and the next
-  # marker's block onward, is left untouched.
-  local target="$1" marker="$2" source="$3"
+guarded_block_replace() { # $1 = target file, $2 = begin marker line, $3 = source snippet file
+  # Replaces the block bounded by the begin/end markers — or, for a legacy
+  # block with no end marker, from the marker line through the line before
+  # the next "<!-- ways-of-working:" marker or EOF — with the marker, the
+  # current source content, and a fresh end marker. Everything before the
+  # marker, and everything after the block, is left untouched.
+  local target="$1" marker="$2" source="$3" range start end legacy end_marker resolved tmp
+  [ -f "$target" ] || { echo "ERROR: $target not found." >&2; exit 1; }
+  range="$(guarded_block_range "$target" "$marker")"
+  if [ -z "$range" ]; then
+    echo "ERROR: marker not found in $target: $marker" >&2
+    exit 1
+  fi
+  read -r start end legacy <<< "$range"
   if [ "$DRY_RUN" -eq 1 ]; then
     echo "[dry-run] refresh guarded block $marker in $target"
     return 0
   fi
-  local tmp
-  tmp="$(mktemp "${target}.XXXXXX")"
-  awk -v marker="$marker" -v srcfile="$source" '
-    BEGIN {
-      while ((getline line < srcfile) > 0) src[n++] = line
-      close(srcfile)
-    }
-    $0 == marker {
-      print marker
-      for (i = 0; i < n; i++) print src[i]
-      skip = 1
-      next
-    }
-    skip && index($0, "<!-- ways-of-working:") == 1 { skip = 0 }
-    !skip { print }
-  ' "$target" > "$tmp"
-  mv "$tmp" "$target"
+  _maybe_backup_legacy "$target" "$legacy"
+  end_marker="${marker/ways-of-working:/\/ways-of-working:}"
+  resolved="$(resolve_target "$target")"
+  tmp="$(mktemp "${resolved}.XXXXXX")"
+  {
+    if [ "$start" -gt 1 ]; then
+      sed -n "1,$((start - 1))p" "$target"
+    fi
+    echo "$marker"
+    cat "$source"
+    echo "$end_marker"
+    tail -n "+$((end + 1))" "$target"
+  } > "$tmp"
+  _finish_write "$tmp" "$resolved"
 }
 
-extract_guarded_block() { # $1 = target file, $2 = marker line; prints marker..(next marker or EOF), nothing if absent
-  local target="$1" marker="$2"
+extract_guarded_block() { # $1 = target file, $2 = marker line; prints the block's marker+body (excludes a trailing end marker line), nothing if the marker is absent
+  local target="$1" marker="$2" range start end legacy last
   [ -f "$target" ] || return 0
-  grep -qF "$marker" "$target" || return 0
-  awk -v marker="$marker" '
-    $0 == marker { print; skip = 1; next }
-    skip && index($0, "<!-- ways-of-working:") == 1 { exit }
-    skip { print }
-  ' "$target"
+  range="$(guarded_block_range "$target" "$marker")"
+  [ -n "$range" ] || return 0
+  read -r start end legacy <<< "$range"
+  if [ "$legacy" -eq 1 ]; then
+    last="$end"
+  else
+    last=$((end - 1))
+  fi
+  sed -n "${start},${last}p" "$target"
 }
 
-append_guarded() { # $1 = snippet file, $2 = target file, $3 = marker
-  local snippet="$1" target="$2" marker="$3"
-  if [ -f "$target" ] && grep -qF "$marker" "$target"; then
+append_guarded() { # $1 = snippet file, $2 = target file, $3 = begin marker
+  local snippet="$1" target="$2" marker="$3" count suffix end_marker
+  if [ -f "$target" ] && [ "$(count_marker_lines "$target" "$marker")" -eq 0 ]; then
+    suffix="${marker#*:}"
+    suffix="${suffix% -->}"
+    if grep -qE "^<!-- [a-z0-9-]+:${suffix} -->\$" "$target"; then
+      note "migrated guard marker in $target"
+      if [ "$DRY_RUN" -eq 0 ]; then
+        sed -i -E "s|^<!-- [a-z0-9-]+:${suffix} -->\$|${marker}|" "$target"
+      else
+        echo "[dry-run] migrate guard marker in $target"
+      fi
+      # Fall through: the marker is now present (or would be, in dry-run) —
+      # the presence check below decides whether to also refresh its
+      # content, in the same run, instead of requiring a second pass.
+    fi
+  fi
+
+  if [ -f "$target" ] && [ "$(count_marker_lines "$target" "$marker")" -gt 0 ]; then
+    count="$(count_marker_lines "$target" "$marker")"
+    if [ "$count" -gt 1 ]; then
+      echo "ERROR: $count copies of '$marker' found in $target; refusing to guess which to replace. Fix the file by hand." >&2
+      exit 1
+    fi
     if [ "$FORCE" -eq 1 ]; then
       note "refreshing guarded block (--force): $target"
       guarded_block_replace "$target" "$marker" "$snippet"
@@ -256,23 +360,12 @@ append_guarded() { # $1 = snippet file, $2 = target file, $3 = marker
     note "already present (marker found), skipping append: $target"
     return 0
   fi
-  if [ -f "$target" ]; then
-    local suffix="${marker#*:}"
-    suffix="${suffix% -->}"
-    if grep -qE "<!-- [a-z0-9-]+:${suffix} -->" "$target"; then
-      note "migrated guard marker in $target"
-      if [ "$DRY_RUN" -eq 0 ]; then
-        sed -i -E "s|<!-- [a-z0-9-]+:${suffix} -->|${marker}|" "$target"
-      else
-        echo "[dry-run] migrate guard marker in $target"
-      fi
-      return 0
-    fi
-  fi
+
   note "appending $(basename "$snippet") -> $target"
   if [ "$DRY_RUN" -eq 0 ]; then
+    end_marker="${marker/ways-of-working:/\/ways-of-working:}"
     mkdir -p "$(dirname "$target")"
-    { echo ""; echo "$marker"; cat "$snippet"; } >> "$target"
+    { echo ""; echo "$marker"; cat "$snippet"; echo "$end_marker"; } >> "$target"
   else
     echo "[dry-run] append $snippet >> $target"
   fi
@@ -314,7 +407,7 @@ copy_file_safe() { # $1 = src, $2 = dest, $3 = 1 to honor --link (default: 0)
 profile_marker_path() { echo "$1/skills/.ways-of-working-profile"; } # $1 = base (e.g. $HOME/.claude)
 
 check_profile_marker() { # $1 = base; refuses a profile switch without --force
-  local base="$1" marker installed
+  local base="$1" marker installed old_suffix
   marker="$(profile_marker_path "$base")"
   if [ -f "$marker" ]; then
     installed="$(cat "$marker")"
@@ -335,7 +428,8 @@ check_profile_marker() { # $1 = base; refuses a profile switch without --force
     exit 1
   fi
   remove_other_profile_skills "$base" "$installed"
-  strip_guarded_block "$base/CLAUDE.md" "<!-- ways-of-working:$installed -->"
+  read -r _ _ old_suffix _ <<< "$(require_layout "$installed" "previous profile marker")"
+  strip_guarded_block "$base/CLAUDE.md" "<!-- ways-of-working:${old_suffix} -->"
 }
 
 profile_name_src() { # $1 = profile name; echoes the dir whose skill NAMES that profile owns
@@ -364,8 +458,8 @@ remove_other_profile_skills() { # $1 = base, $2 = previous profile name
   local base="$1" other="$2" other_names_src other_agents new_names_src new_agents
   other_names_src="$(profile_name_src "$other")"
   new_names_src="$(profile_name_src "$PROFILE")"
-  read -r _ other_agents <<< "$(require_layout "$other" "previous profile marker")"
-  read -r _ new_agents <<< "$(require_layout "$PROFILE" "requested profile")"
+  read -r _ other_agents _ _ <<< "$(require_layout "$other" "previous profile marker")"
+  read -r _ new_agents _ _ <<< "$(require_layout "$PROFILE" "requested profile")"
   for_each_skill_dir "$other_names_src" _remove_other_profile_skill_cb "$base" "$new_names_src" "$other"
   # An agents flag present on the old profile but not the new one means
   # leaving that profile removes its agents too.
@@ -395,20 +489,18 @@ write_profile_marker() { # $1 = base
 }
 
 do_claude_user() {
-  local base="$HOME/.claude" src_subdir agents_flag
+  local base="$HOME/.claude" src_subdir agents_flag suffix snippet_base marker snippet
   check_profile_marker "$base"
-  read -r src_subdir agents_flag <<< "$(require_layout "$PROFILE" "requested profile")"
+  read -r src_subdir agents_flag suffix snippet_base <<< "$(require_layout "$PROFILE" "requested profile")"
   copy_skill_dirs "$src_subdir" "$base/skills"
   if [ "$agents_flag" = "agents" ]; then
     run mkdir -p "$base/agents"
     local f
     for f in "$LIB"/agents/*.md; do copy_file_safe "$f" "$base/agents/$(basename "$f")" 1; done
   fi
-  if [ "$PROFILE" = "frontier" ]; then
-    append_guarded "$LIB/claude-md/global-frontier.md" "$base/CLAUDE.md" "<!-- ways-of-working:frontier -->"
-  else
-    append_guarded "$LIB/claude-md/global-local.md" "$base/CLAUDE.md" "<!-- ways-of-working:local -->"
-  fi
+  marker="<!-- ways-of-working:${suffix} -->"
+  snippet="$LIB/claude-md/${snippet_base}"
+  append_guarded "$snippet" "$base/CLAUDE.md" "$marker"
   copy_rules "$base/rules" 1
   write_profile_marker "$base"
   note "done. If ~/.claude/skills was created just now, restart Claude Code once."
@@ -558,30 +650,21 @@ _check_skill_dir_cb() { # $1 = dir, $2 = name, $3 = base
   _report_dir_diff "$dir" "$base/skills/$name"
 }
 
-claude_md_marker_for_profile() { # $1 = profile; echoes the marker line
-  case "$1" in
-    frontier) echo "<!-- ways-of-working:frontier -->" ;;
-    local)    echo "<!-- ways-of-working:local -->" ;;
-    *) echo "Unknown profile: $1" >&2; return 1 ;;
-  esac
-}
-
-claude_md_snippet_for_profile() { # $1 = profile; echoes the library snippet path
-  case "$1" in
-    frontier) echo "$LIB/claude-md/global-frontier.md" ;;
-    local)    echo "$LIB/claude-md/global-local.md" ;;
-    *) echo "Unknown profile: $1" >&2; return 1 ;;
-  esac
-}
-
-check_claude_md_block() { # $1 = base, $2 = profile; sets DRIFT=1 and prints a DRIFT line on mismatch or absence
-  local base="$1" profile="$2" target marker snippet expected actual
+check_claude_md_block() { # $1 = base, $2 = profile; sets DRIFT=1 and prints a DRIFT or LEGACY line as appropriate
+  local base="$1" profile="$2" target suffix snippet_base marker snippet range start end legacy expected actual
   target="$base/CLAUDE.md"
-  marker="$(claude_md_marker_for_profile "$profile")"
-  snippet="$(claude_md_snippet_for_profile "$profile")"
-  if [ ! -f "$target" ] || ! grep -qF "$marker" "$target"; then
+  read -r _ _ suffix snippet_base <<< "$(require_layout "$profile" "--profile, marker, or inferred")"
+  marker="<!-- ways-of-working:${suffix} -->"
+  snippet="$LIB/claude-md/${snippet_base}"
+  if [ ! -f "$target" ] || [ "$(count_marker_lines "$target" "$marker")" -eq 0 ]; then
     echo "DRIFT: CLAUDE.md block ($profile) not installed"
     DRIFT=1
+    return 0
+  fi
+  range="$(guarded_block_range "$target" "$marker")"
+  read -r start end legacy <<< "$range"
+  if [ "$legacy" -eq 1 ]; then
+    echo "LEGACY: CLAUDE.md block ($profile) has no end marker; run --force once"
     return 0
   fi
   expected="$(printf '%s\n' "$marker"; cat "$snippet")"
@@ -610,7 +693,7 @@ do_check() {
       [ -n "$profile" ] || profile="frontier" # nothing installed yet: default for messaging
     fi
   fi
-  read -r src_skills agents_flag <<< "$(require_layout "$profile" "--profile, marker, or inferred")"
+  read -r src_skills agents_flag _ _ <<< "$(require_layout "$profile" "--profile, marker, or inferred")"
   note "checking installed skills ($profile profile) against $src_skills/ ..."
 
   DRIFT=0
@@ -640,14 +723,6 @@ do_check() {
   note "no drift: installed copies match the library."
 }
 
-main() {
-  parse_args "$@"
-  for action in "${ACTIONS[@]}"; do "do_$action"; done
-  note "all requested installs processed."
-}
-
-# Guarded so scripts/test-install.sh can `source install.sh` to reuse the
-# guarded-block helpers directly, without running the CLI.
-if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
-  main "$@"
-fi
+parse_args "$@"
+for action in "${ACTIONS[@]}"; do "do_$action"; done
+note "all requested installs processed."
