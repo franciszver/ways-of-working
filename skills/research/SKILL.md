@@ -48,6 +48,15 @@ Stop when new sources stop changing the answer — novelty saturation — or whe
 - Confidence labels on key claims: confirmed / likely / uncertain. Readers act differently on each — hiding the difference transfers your risk to them.
 - Keep the three registers visibly separate: **fact** (sourced), **inference** (yours, from the facts — say so), **opinion/recommendation** (labeled, with the criterion it optimizes).
 
+## Report
+
+```
+Question: <what was asked>
+Answer: <synthesis, confidence-labeled>
+Sources: <citation log, primary sources flagged>
+Unknowns: <what wasn't found, or triangulated by only one source>
+```
+
 ## Rules
 
 - When the answer is checkable, check it — never present recalled knowledge as verified fact. If you assert from memory, label it: "from memory, unverified".

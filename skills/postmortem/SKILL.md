@@ -25,7 +25,7 @@ Also collect what went *well* (fast rollback, good log discipline) — those are
 
 Each one passes four tests: **specific** (a change to a system, not to vigilance) · **owned** (a name, not a team) · **dated** · **connected** (which timeline gap or failed defense does it fix — prevention, faster detection, faster mitigation, or smaller blast radius?). Rank by leverage: the fix that catches the whole bug *class* beats the fix for this bug; the detection fix that cuts every future incident's length can beat both. Three funded items beat twelve aspirational ones — a long list is where accountability goes to die. And schedule the check: a postmortem whose action items silently expire teaches the org that postmortems are theater.
 
-## 5. The document
+## 5. Report
 
 ```
 Summary (3 sentences: what broke, impact, duration) · Impact (users, data,
