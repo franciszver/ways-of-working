@@ -4,23 +4,25 @@ Exposes the skills and playbooks to **any MCP-capable agent** (Claude Code, Clau
 
 | Surface | What |
 |---|---|
-| tool `list_skills()` | Catalog: name, profile, one-liner |
+| tool `list_skills()` | Catalog: name, profile, one-liner — canonical plus local variants, including the local-only `iterate` and `quality` skills |
 | tool `get_skill(name, profile)` | Full skill text — canonical (frontier) or local profile |
 | tool `get_playbook(name)` | `routing` or `handoff` |
 | tool `route(task_description)` | Keyword first-pass hints + the full ROUTING playbook to apply |
 | prompts (one per canonical skill) | `/debug`, `/prove`, `/spec`, … inject the skill text + your task |
 
-## Status: smoke-tested 2026-07-06
+## Status: smoke-tested 2026-09-13
 
-Verified end-to-end over real stdio transport (mcp SDK on Python 3.12, 11/11 checks): tool registration, all 12 canonical prompts, canonical + local profiles, unknown-name error paths, `route()` hints, and prompt injection with a task argument. Not yet exercised: long-running use inside a real agent session.
+Verified end-to-end over real stdio transport (mcp SDK, `mcp<2`): tool registration (`list_skills`, `get_skill`, `get_playbook`, `route`), all canonical prompts, canonical + local profiles, unknown-name error paths, `route()` keyword hints (including the pull-request/incident/CI-triage edge cases), and prompt injection with a task argument. Not yet exercised: long-running use inside a real agent session.
 
-To re-verify after changes, the interactive route is:
+`mcp-server/test_library.py` covers the pure logic (skill discovery, `route()` matching) without needing the `mcp` package. `mcp-server/test_server.py` covers the MCP-wired server and is skipped automatically when `mcp` isn't installed. Run both with `python3 -m pytest mcp-server -q`.
+
+To re-verify the full server after changes, the interactive route is:
 
 ```bash
-cd mcp-server
-uv run --with "mcp[cli]" mcp dev server.py   # opens the MCP inspector
-# call list_skills → expect the catalog; get_skill("debug") → full skill text;
-# prompts tab → the 12 canonical skills.
+uv run --with "mcp[cli]<2" --directory /path/to/ways-of-working/mcp-server mcp dev server.py   # opens the MCP inspector
+# call list_skills → expect the full catalog;
+# get_skill("debug") → full skill text; route() → keyword hints;
+# prompts tab → all canonical skills, each injecting its skill text plus a task.
 ```
 
 Requires `uv` (or any Python ≥3.10 with the `mcp` package) — the machine this library was authored on shipped only Python 3.9, so check yours before registering.
@@ -44,6 +46,10 @@ claude mcp add ways-of-working -- uv run --directory /path/to/ways-of-working/mc
 }
 ```
 
+`uv run --directory ...` picks up `mcp-server/pyproject.toml`'s own dependencies (`mcp`, `pyyaml`), so registration doesn't need `--with`. The smoke-test command above adds `--with "mcp[cli]<2"` only because the inspector (`mcp dev`) is a separate CLI, not a project dependency.
+
+The server runs over stdio by default. For a shared deployment reachable over HTTP instead of one process per client, change the `mcp.run()` call at the bottom of `server.py` to `mcp.run(transport="streamable-http")`.
+
 **Upgrading from an earlier name:** if this server was registered under its previous name, remove that registration first (`claude mcp list` shows it), and re-export the library-root env var under its new name `WAYS_OF_WORKING_LIBRARY`.
 
 The server locates the library relative to its own path; set `WAYS_OF_WORKING_LIBRARY=/path/to/ways-of-working` to point elsewhere (e.g. a copied deployment).
@@ -52,5 +58,7 @@ The server locates the library relative to its own path; set `WAYS_OF_WORKING_LI
 
 - **Prompts are the primary surface** — an MCP prompt injects the protocol into the calling agent's context, which is exactly what a skill is. The tools exist for agents that want to browse or self-select.
 - `route()` is honest about being a heuristic: deterministic keyword hints, then the playbook for the calling model to apply. Judgment stays in ROUTING.md, not in regex.
-- Frontmatter parsing is deliberately minimal (flat `key: value` between `---` fences) to keep the dependency surface at exactly `mcp`.
+- Frontmatter parsing is shared with the repo's `scripts/_lib.py` (used by `scripts/check-frontmatter.py` too), so there's one YAML frontmatter reader for the whole repo, not two.
+- `library.py` holds the pure logic (skill discovery, `route()` matching) with no `mcp` import, so `test_library.py` runs without the `mcp` package installed. `server.py` is a thin MCP wrapper around it.
+- The server refuses to start with an empty skill catalog (wrong `WAYS_OF_WORKING_LIBRARY` or `LIBRARY_ROOT`) rather than silently serving an empty `instructions` blurb.
 - When Claude Code is the client, prefer installing `skills/` natively (`../install.sh --claude-user`) — native skills auto-invoke; MCP prompts are user-invoked.
