@@ -1,0 +1,15 @@
+{
+  "name": "ways-of-working",
+  "owner": {
+    "name": "Francisco de Guzman",
+    "url": "https://github.com/franciszver/ways-of-working"
+  },
+  "description": "One owner's ways of working, packaged as a Claude Code plugin: skills, agents, and hooks for near-frontier output on any model.",
+  "plugins": [
+    {
+      "name": "ways-of-working",
+      "source": "./",
+      "description": "A library of skills, playbooks, rules, and configs that capture one owner's ways of working."
+    }
+  ]
+}
