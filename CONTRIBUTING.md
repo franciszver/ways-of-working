@@ -208,6 +208,14 @@ Plugin installs (`claude plugin install`) only pull an update when
 `CHANGELOG.md` entry in the same PR — CI fails a pull request that touches
 those paths without a version bump (see `.github/workflows/ci.yml`).
 
+After the release PR merges: tag the merge commit `vX.Y.Z`, matching
+`.claude-plugin/plugin.json`'s version; push the tag; then create a GitHub
+release with `gh release create vX.Y.Z --notes-file <section>`, where
+`<section>` is that version's `CHANGELOG.md` section. The tag must equal
+`.claude-plugin/plugin.json`'s version.
+`build/claude-code/.claude-plugin/plugin.json` carries the same version;
+it is generated, so do not edit it by hand.
+
 ## Commits and PRs
 
 - Conventional commit messages (`feat:`, `fix:`, `docs:`, `test:`, `ci:`).

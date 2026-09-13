@@ -5,6 +5,14 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-13
+
+This is the first tagged release after the library's rename from its
+previous repo name. The library is now named ways-of-working. It
+includes all work packages completed on 2026-09-13. It ships as two
+plugins from one marketplace, plus `install.sh` targets for other
+harnesses.
+
 - **Generic harness install, single Antigravity path** (#30, #26):
   `install.sh --generic DIR` installs `AGENTS.md` plus skills into
   `DIR/.agents/skills`, for any harness that reads both (Codex CLI,

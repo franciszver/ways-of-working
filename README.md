@@ -31,6 +31,8 @@ claude plugin install ways-of-working@ways-of-working
 
 `install.sh` still covers every other target: local/frontier profile switching, per-project installs, and the non-Claude-Code ports (Antigravity, Cursor, Gemini CLI, AGENTS.md, MCP). See the quickstarts below.
 
+Releases are tagged `vX.Y.Z` and listed on the GitHub Releases page.
+
 ## Quickstarts
 
 **Claude Code, frontier models (Opus/Sonnet):**
