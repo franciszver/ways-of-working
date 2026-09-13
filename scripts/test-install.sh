@@ -327,7 +327,7 @@ else
   pass "--generic refuses a destination inside the library (non-zero exit)"
 fi
 assert_true "--generic: refusal message mentions the library" \
-  bash -c '[[ "$1" == *"library"* ]]' _ "$OUT"
+  grep -q "library" <<< "$OUT"
 
 if [ "$FAIL" -eq 1 ]; then
   echo "test-install.sh: FAILED"
