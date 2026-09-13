@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# PreToolUse and PermissionRequest hook (matcher: Bash) — registered on both
-# events belt-and-braces (PermissionRequest also fires for tool calls that
-# skip PreToolUse, e.g. already-approved-but-re-prompted commands).
-# Blocks a short list of catastrophic commands.
+# PreToolUse hook (matcher: Bash). Blocks a short list of catastrophic commands.
 # On block: prints the {"hookSpecificOutput": {"permissionDecision": "deny",
 # ...}} JSON form on stdout for clients that read it, and still exits 2 with
 # the reason on stderr as a fallback for clients that only honor the exit
@@ -10,43 +7,21 @@
 # Fail-open by design: if parsing is impossible, allow rather than brick the session.
 set -u
 
-INPUT="$(cat)"
-
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 command -v python3 >/dev/null 2>&1 || exit 0
+[ -f "$HOOK_DIR/_hook_lib.sh" ] || exit 0
+# shellcheck source=./_hook_lib.sh
+source "$HOOK_DIR/_hook_lib.sh"
 
-EVENT_NAME="$(printf '%s' "$INPUT" | python3 -c '
-import json, sys
-try:
-    data = json.load(sys.stdin)
-    print(data.get("hook_event_name", "PreToolUse"))
-except Exception:
-    print("PreToolUse")
-' 2>/dev/null)"
-[ -n "$EVENT_NAME" ] || EVENT_NAME="PreToolUse"
-
-CMD="$(printf '%s' "$INPUT" | python3 -c '
-import json, sys
-try:
-    data = json.load(sys.stdin)
-    print(data.get("tool_input", {}).get("command", ""))
-except Exception:
-    pass
-' 2>/dev/null)" || exit 0
+mapfile -d '' -t FIELDS < <(read_hook_input)
+EVENT_NAME="${FIELDS[0]:-PreToolUse}"
+CMD="${FIELDS[1]:-}"
 
 [ -n "$CMD" ] || exit 0
 
 block() {
   local reason="BLOCKED by guardrails hook: $1. If this is genuinely intended, the user must run it themselves in a terminal."
-  python3 -c '
-import json, sys
-print(json.dumps({
-    "hookSpecificOutput": {
-        "hookEventName": sys.argv[1],
-        "permissionDecision": "deny",
-        "permissionDecisionReason": sys.argv[2],
-    }
-}))
-' "$EVENT_NAME" "$reason" 2>/dev/null
+  emit_decision "$EVENT_NAME" "deny" "$reason"
   echo "$reason" >&2
   exit 2
 }

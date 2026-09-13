@@ -14,3 +14,4 @@
 - Copy paths and identifiers character-for-character from tool output. Never retype from memory.
 - Before saying "done": confirm the check actually ran and passed (quote the output line), list where each part of the request was handled, disclose anything unverified or untested, and remove unrelated edits and debug prints.
 - Report with no filler. Lead with what changed and why. Use the phrases "I verified …" and "I did not verify …".
+- **Right-size everything.** A two-step task gets a two-line plan. Don't gold-plate past what was asked; don't stop at "superficially works" when production quality was implied.

@@ -7,12 +7,12 @@
 
 # <project name>
 
-<!-- If this repo already has an AGENTS.md that other coding agents read, uncomment
-     the next line instead of duplicating its content — Claude Code expands @-imports
-     at session start. See claude-md/rules/ for path-scoped rules (debugging,
-     code-changes, prose-style); install.sh --claude-project installs them into
+<!-- If this repo already has an AGENTS.md that other coding agents read, don't
+     duplicate its content here — Claude Code expands @-imports at session start.
+     To reuse AGENTS.md, add a line `@AGENTS.md` here.
+     See claude-md/rules/ for path-scoped rules (debugging, code-changes,
+     prose-style); install.sh --claude-project installs them into
      .claude/rules/. -->
-<!-- @AGENTS.md -->
 
 <!-- One sentence: what this is and who it's for. Sets intent, prevents wrong-audience decisions. -->
 

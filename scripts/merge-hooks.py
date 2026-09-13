@@ -37,9 +37,11 @@ PLUGIN_HOOK_PREFIX = '"${CLAUDE_PLUGIN_ROOT}"/hooks/scripts/'
 # - format-on-stop.sh runs `npx --no-install prettier` (and equivalents),
 #   which resolves the *project's* node_modules/.bin — a cloned repo can
 #   ship code there and have the plugin's Stop hook execute it.
-# Both stay safe only because install.sh --hooks is an explicit,
-# per-project opt-in. Never add either back to the plugin.
-PLUGIN_EXCLUDED_SCRIPTS = ("test-gate.sh", "format-on-stop.sh")
+# - failure-counter.sh writes repo-resident content (.claude/failure-log)
+#   on every failed command in every project the plugin is active in.
+# All three stay safe only because install.sh --hooks is an explicit,
+# per-project opt-in. Never add any of them back to the plugin.
+PLUGIN_EXCLUDED_SCRIPTS = ("test-gate.sh", "format-on-stop.sh", "failure-counter.sh")
 
 
 def fail(message: str) -> int:

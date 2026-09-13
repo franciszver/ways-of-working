@@ -52,18 +52,30 @@ this: a `skills:` entry that names a skill absent from `skills/` fails the
 check, as does a body over 40 lines or a missing `disallowedTools` entry on
 the two review agents.
 
+`disallowedTools` is required on `code-reviewer` and `verifier` independent
+of their `tools:` list — it's a guard against `tools:` being widened later
+without someone noticing the agent could then edit code. `memory:` (subagent
+persistent memory) is deliberately not set on either agent: the memory docs
+say enabling it auto-enables Read/Write/Edit for the agent's own memory
+files, which would collide with `disallowedTools` on a read-only reviewer.
+
 ## CLAUDE.md and path-scoped rules
 
 `claude-md/global-frontier.md` and `global-local.md` carry only the
 always-on core (rules that must apply in every session regardless of what
-files are touched). Guidance that only matters for certain file types
-lives in `claude-md/rules/*.md` instead, scoped with the memory doc's
-`paths:` frontmatter (see
-[the memory docs](https://code.claude.com/docs/en/memory#path-specific-rules)).
-`install.sh --claude-user` and `--claude-project` install `claude-md/rules/*.md`
-into `.claude/rules/` alongside the core file. Add a new rule file, not a
-new paragraph in the core, when guidance is specific to a file type or
-directory.
+files are touched). Guidance that only matters for certain file types lives
+in `claude-md/rules/*.md` instead. `code-changes.md` is scoped with the
+memory doc's `paths:` frontmatter (see
+[the memory docs](https://code.claude.com/docs/en/memory#path-specific-rules));
+`debugging.md` and `prose-style.md` carry no `paths:` and load
+unconditionally — prose style governs commits, PR text, and replies, none
+of which are files Claude reads, so a path scope would miss most of what it
+governs. `install.sh --claude-user` and `--claude-project` install
+`claude-md/rules/*.md` into `.claude/rules/` alongside the core file
+(`--claude-project` always copies, never symlinks, since the memory docs
+treat an out-of-tree symlinked rule as an external import and drop its
+`paths:` scoping). Add a new rule file, not a new paragraph in the core,
+when guidance is specific to a file type or directory.
 
 ## Running the checks
 
@@ -76,7 +88,7 @@ python3 scripts/check-agents.py .        # agents/*.md frontmatter contract
 bash -n install.sh                       # installer syntax
 ```
 
-All five run in CI (`.github/workflows/ci.yml`) on every push and PR.
+All six run in CI (`.github/workflows/ci.yml`) on every push and PR.
 
 ## The three gates
 

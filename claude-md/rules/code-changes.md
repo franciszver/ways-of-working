@@ -1,6 +1,6 @@
 ---
 paths:
-  - "**/*.{py,ts,js,go,rs,sh}"
+  - "**/*.{py,pyi,ts,tsx,js,jsx,mjs,cjs,go,rs,sh,bash,rb,java,kt,swift,c,h,cpp,hpp,cs,php,sql,tf,yaml,yml,json,toml}"
 ---
 
 ## Code changes

@@ -9,3 +9,7 @@ __pycache__/
 
 # Local strategy / decision log
 prd/
+
+# failure-counter.sh's log (hooks/scripts/failure-counter.sh), opt-in via
+# install.sh --hooks
+.claude/failure-log
