@@ -19,15 +19,23 @@ All notable changes to this repo are recorded here. Format loosely follows
   version bump (see `CONTRIBUTING.md`'s Releasing section).
 - **Fix (#5)**: MCP server `route()` regex bugs fixed — `PR`, `CI`, `down`,
   `ui`, `ux`, and `css` no longer match inside unrelated words (e.g. "prove",
-  "cite", "download"). Pure logic (frontmatter parsing, skill discovery,
-  route matching) split into `mcp-server/library.py`, which has no `mcp`
-  import, so `mcp-server/test_server.py` runs without the `mcp` package
-  installed. The server's `instructions` text is now generated from
-  `discover_skills()` instead of a hand-maintained count and name list.
-  `pyproject.toml` gained a `[build-system]` section so
-  `[project.scripts]` resolves. `mcp-server/README.md` and `install.sh`'s
-  `--mcp` output now use the same registration/smoke-test invocation. CI
-  gained an mcp-server test step.
+  "cite", "download"). Every canonical skill now has a route hint mentioning
+  it by name. Pure logic (skill discovery, route matching) split into
+  `mcp-server/library.py`, which has no `mcp` import, so
+  `mcp-server/test_library.py` runs without the `mcp` package installed;
+  `mcp-server/test_server.py` covers the MCP-wired server and skips itself
+  when `mcp` isn't installed. Frontmatter parsing is now shared between
+  `mcp-server/library.py` and `scripts/check-frontmatter.py` via a new
+  `scripts/_lib.py::parse_frontmatter`. The server's `instructions` text is
+  generated from `discover_skills()` instead of a hand-maintained count and
+  name list, and the server now refuses to start on an empty skill catalog
+  instead of serving an empty blurb. `pyproject.toml` dropped
+  `[build-system]`/`[project.scripts]` (the console script was unused and a
+  wheel build would ship no skills) and gained a `pyyaml` dependency.
+  `mcp-server/README.md` and `install.sh`'s `--mcp` output now use the same
+  registration invocation, relying on the project's own `mcp`/`pyyaml`
+  dependencies instead of `--with`. CI runs the mcp-server tests twice —
+  once with `mcp` absent (proving the import boundary) and once installed.
 - **Release**: `.claude-plugin/plugin.json` version bumped to `0.2.0` —
   `hooks/` changed in that PR, and plugin installs only update on a
   version bump (see `CONTRIBUTING.md`'s Releasing section).
