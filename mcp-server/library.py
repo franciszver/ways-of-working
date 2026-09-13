@@ -8,12 +8,16 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 LIBRARY_ROOT = Path(
     os.environ.get("WAYS_OF_WORKING_LIBRARY", Path(__file__).resolve().parent.parent)
 )
+
+sys.path.insert(0, str(LIBRARY_ROOT / "scripts"))
+import _lib  # noqa: E402
 
 PROFILES = {
     "canonical": LIBRARY_ROOT / "skills",
@@ -33,26 +37,6 @@ class Skill:
         return self.path.read_text(encoding="utf-8")
 
 
-def _parse_frontmatter(text: str) -> dict[str, str]:
-    """Minimal frontmatter parser: single-line `key: value` pairs between --- fences.
-
-    Deliberately not YAML — the library's frontmatter is flat by convention, and
-    this keeps the server dependency-light.
-    """
-    fields: dict[str, str] = {}
-    if not text.startswith("---"):
-        return fields
-    match = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
-    if not match:
-        return fields
-    for line in match.group(1).splitlines():
-        if ":" not in line:
-            continue
-        key, _, value = line.partition(":")
-        fields[key.strip()] = value.strip().strip("\"'")
-    return fields
-
-
 def discover_skills(include_local: bool = False) -> list[Skill]:
     """Discover skills.
 
@@ -69,18 +53,18 @@ def discover_skills(include_local: bool = False) -> list[Skill]:
     profiles = PROFILES if include_local else {"canonical": PROFILES["canonical"]}
     skills: list[Skill] = []
     for profile, root in profiles.items():
-        if not root.is_dir():
-            continue
-        for skill_md in sorted(root.glob("*/SKILL.md")):
-            fm = _parse_frontmatter(skill_md.read_text(encoding="utf-8"))
+        for skill_dir in _lib.skill_dirs(root.parent, root.name):
+            skill_md = skill_dir / "SKILL.md"
+            fm = _lib.parse_frontmatter(skill_md)
             skills.append(
                 Skill(
-                    name=fm.get("name", skill_md.parent.name),
+                    name=fm.get("name", skill_dir.name),
                     description=fm.get("description", ""),
                     profile=profile,
                     path=skill_md,
                 )
             )
+    skills.sort(key=lambda s: (s.profile, s.name))
     return skills
 
 
@@ -124,13 +108,24 @@ def read_playbook(name: str) -> str:
     return book.read_text(encoding="utf-8")
 
 
-def build_instructions() -> str:
+def build_instructions(skills: list[Skill] | None = None) -> str:
     """Generate the server's `instructions` text from the discovered skill set.
 
     No hardcoded skill count or name list — it stays correct as skills are
-    added or removed.
+    added or removed. Fails loudly if the catalog is empty: an MCP server
+    with no skills to offer is a misconfiguration (wrong LIBRARY_ROOT), not
+    something to paper over with an empty instructions blurb.
     """
-    names = sorted({s.name for s in discover_skills()})
+    if skills is None:
+        skills = discover_skills()
+    names = sorted({s.name for s in skills})
+    if not names:
+        raise SystemExit(
+            "No skills found — refusing to start with an empty catalog. "
+            f"LIBRARY_ROOT resolved to {LIBRARY_ROOT}; check it's the repo root "
+            "(a `skills/` dir with SKILL.md files inside), or set "
+            "WAYS_OF_WORKING_LIBRARY to point at it."
+        )
     catalog = ", ".join(names)
     return (
         "Quality-process library: judgment-dense skills covering software "
@@ -146,12 +141,13 @@ def build_instructions() -> str:
 # route() returns for the caller to apply. Honest heuristic, not fake intelligence.
 #
 # Each entry is (patterns, hint): the hint fires if ANY pattern in the tuple
-# matches. Splitting stem-friendly tokens (which may carry a trailing `\w*`)
-# from short, code-like tokens (`PR`, `CI`, `down`, `ui`, `ux`, `css` — bounded
-# with `\b...\b` and no `\w*`) keeps the short tokens from swallowing unrelated
-# words: `\bdown\w*\b` used to match "download"; `\bPR\w*\b` (case-insensitive)
-# used to match "prove"; `\bCI\w*\b` (case-insensitive) used to match "cite".
-_ROUTE_HINTS: list[tuple[tuple[str, ...], str]] = [
+# matches. Short, code-like tokens (`PR`, `CI`, `down`, `ui`, `ux`, `css`) get
+# their own exact-bounded pattern instead of sharing a stem-friendly `\w*`
+# suffix with longer words — `\bdown\w*\b` used to match "download";
+# `\bPR\w*\b` (case-insensitive) used to match "prove"; `\bCI\w*\b`
+# (case-insensitive) used to match "cite". Patterns are precompiled once
+# below, at import.
+_ROUTE_HINT_SOURCE: list[tuple[tuple[str, ...], str]] = [
     (
         (r"(?i)\b(architect|design|schema|data model|api design|migration plan)\b",),
         "signals architecture/one-way-door work → highest available tier",
@@ -159,7 +155,7 @@ _ROUTE_HINTS: list[tuple[tuple[str, ...], str]] = [
     (
         (
             r"(?i)\b(frontend|layout|responsive|component|styling|stylesheet|design.?system|theme|accessib)\w*\b",
-            r"(?i)\b(ui|ux|css)\b",
+            r"(?i)\b(ui|ux|css)\d?s?\b",
         ),
         "signals UI/visual design work → frontend-design skill, commit to tokens before components",
     ),
@@ -182,7 +178,7 @@ _ROUTE_HINTS: list[tuple[tuple[str, ...], str]] = [
     (
         (
             r"(?i)\b(incident|outage|degraded|pager|on.?call|alert)\w*\b",
-            r"(?i)\bdown\b",
+            r"(?i)\bdown(time|ed)?\b",
         ),
         "signals production incident → use incident skill, mitigate before diagnosing",
     ),
@@ -252,6 +248,70 @@ _ROUTE_HINTS: list[tuple[tuple[str, ...], str]] = [
         (r"(?i)\b(summar|commit message|changelog|docstring)\w*\b",),
         "signals light text work → Haiku tier",
     ),
+    (
+        (r"(?i)\b(api.?design|sdk.?design|public.?api|interface.?design)\w*\b",),
+        "signals API/interface design → api-design skill, design from the consumer's side",
+    ),
+    (
+        (r"(?i)\b(break.?down|decompos|task.?breakdown)\w*\b",),
+        "signals work decomposition → breakdown skill, split into independently verifiable tasks",
+    ),
+    (
+        (r"(?i)\b(adversarial review|deep.?review|attack this code)\w*\b",),
+        "signals adversarial code review → deep-review skill",
+    ),
+    (
+        (r"(?i)\b(demo.?video|walkthrough recording|readme (gif|animation))\w*\b",),
+        "signals demo creation → demo-video skill",
+    ),
+    (
+        (r"(?i)\b(explain|teach|mentor)\w*\b",),
+        "signals teaching → explain skill, build from what the learner already knows",
+    ),
+    (
+        (r"(?i)\b(hand.?off|continuation brief|context running (low|long))\w*\b",),
+        "signals session continuity → handoff skill, write a continuation brief",
+    ),
+    (
+        (r"(?i)\b(max.?effort|token discipline|do it right the first time)\w*\b",),
+        "signals cost/quality discipline → lean-max-effort skill",
+    ),
+    (
+        (r"(?i)\b(ai writing tells?|sounds like ai|plain.?language)\w*\b",),
+        "signals AI-writing-tell cleanup → plain-language skill",
+    ),
+    (
+        (r"(?i)\bprov(e|en|es|ing)\b",),
+        "signals proof-of-work verification → prove skill, quote verbatim output",
+    ),
+    (
+        (r"(?i)\b(refactor|restructur|extract.?method)\w*\b",),
+        "signals refactoring → refactor skill, transform in small verified steps",
+    ),
+    (
+        (
+            r"(?i)\b(specification|acceptance criteria|requirements doc)\w*\b",
+            r"(?i)\bspec\b",
+        ),
+        "signals requirements definition → spec skill, numbered ledger with acceptance criteria",
+    ),
+    (
+        (r"(?i)\b(simplified technical english|ste.?writing)\w*\b",),
+        "signals technical prose style → ste-writing skill",
+    ),
+    (
+        (r"(?i)\b(test.?gen|add test coverage|write tests? for)\w*\b",),
+        "signals test authoring → testgen skill, hunt bugs not coverage theater",
+    ),
+    (
+        (r"(?i)\b(design doc|announcement|prose deliverable|readme draft)\w*\b",),
+        "signals long-form writing → write skill, audience then thesis then outline",
+    ),
+]
+
+_ROUTE_HINTS: list[tuple[tuple[re.Pattern[str], ...], str]] = [
+    (tuple(re.compile(pattern) for pattern in patterns), hint)
+    for patterns, hint in _ROUTE_HINT_SOURCE
 ]
 
 
@@ -262,7 +322,7 @@ def route(task_description: str) -> str:
     hints = [
         hint
         for patterns, hint in _ROUTE_HINTS
-        if any(re.search(pattern, task_description) for pattern in patterns)
+        if any(pattern.search(task_description) for pattern in patterns)
     ]
     hint_text = (
         "Keyword hints for this task:\n" + "\n".join(f"- {h}" for h in hints)

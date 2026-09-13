@@ -2,7 +2,6 @@ name: CI
 
 on:
   push:
-    branches: [main]
   pull_request:
 
 jobs:
@@ -19,7 +18,7 @@ jobs:
           python-version: "3.x"
 
       - name: Install Python dependencies
-        run: pip install pyyaml
+        run: pip install pyyaml pytest
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -109,8 +108,11 @@ jobs:
           claude plugin validate ./skills --strict
           claude plugin validate ./agents --strict
 
-      - name: Install mcp-server test dependencies
-        run: pip install "mcp<2" pytest
+      - name: mcp-server library tests (mcp package absent — proves the boundary)
+        run: python3 -m pytest mcp-server -q
 
-      - name: Run mcp-server tests
+      - name: Install mcp package
+        run: pip install "mcp<2"
+
+      - name: mcp-server tests (mcp package present — server test now runs)
         run: python3 -m pytest mcp-server -q

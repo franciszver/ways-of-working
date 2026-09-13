@@ -8,9 +8,9 @@ Stdio transport (the default; see README.md to switch to streamable-http).
 Library root resolves from the WAYS_OF_WORKING_LIBRARY env var, falling back
 to this file's parent repo.
 
-The pure logic (frontmatter parsing, skill discovery, route hints) lives in
-library.py, which has no dependency on the `mcp` package — see
-test_server.py.
+The pure logic (skill discovery, route hints) lives in library.py, which has
+no dependency on the `mcp` package — see test_library.py. Frontmatter
+parsing is shared with scripts/_lib.py, the repo's SKILL.md checks.
 """
 
 from __future__ import annotations
@@ -19,9 +19,10 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.fastmcp.prompts import Prompt
 
 import library
-from library import Skill
 
-mcp = FastMCP("ways-of-working", instructions=library.build_instructions())
+_CANONICAL_SKILLS = library.discover_skills()
+
+mcp = FastMCP("ways-of-working", instructions=library.build_instructions(_CANONICAL_SKILLS))
 
 
 @mcp.tool()
@@ -54,10 +55,10 @@ def route(task_description: str) -> str:
     return library.route(task_description)
 
 
-def _register_skill_prompts() -> None:
+def _register_skill_prompts(skills: list[library.Skill]) -> None:
     """One MCP prompt per canonical skill: /<name> injects the skill + the task."""
-    for skill in library.discover_skills():
-        def make_fn(s: Skill):
+    for skill in skills:
+        def make_fn(s: library.Skill):
             def prompt_fn(task: str = "") -> str:
                 header = f"Follow this protocol for the task.\n\n{s.body()}"
                 return f"{header}\n\n---\n\nTask: {task}" if task else header
@@ -73,7 +74,7 @@ def _register_skill_prompts() -> None:
         )
 
 
-_register_skill_prompts()
+_register_skill_prompts(_CANONICAL_SKILLS)
 
 
 def main() -> None:

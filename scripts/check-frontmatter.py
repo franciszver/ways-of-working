@@ -26,20 +26,6 @@ SPEC_KEYS = {"name", "description", "license", "compatibility", "metadata", "all
 MAX_DESCRIPTION = 1024
 
 
-def parse_frontmatter(text: str):
-    if not text.startswith("---\n") and not text.startswith("---\r\n"):
-        return None
-    end = text.find("\n---", 4)
-    if end == -1:
-        return None
-    block = text[4:end]
-    try:
-        data = yaml.safe_load(block)
-    except yaml.YAMLError:
-        return None
-    return data if isinstance(data, dict) else None
-
-
 def load_allowlist(lib: Path) -> dict:
     """scripts/frontmatter-allow.txt: one relative path per line, optional
     trailing '# comment'. Returns {relpath: comment}."""
@@ -59,9 +45,8 @@ def load_allowlist(lib: Path) -> dict:
 def check_file(path: Path, lib: Path, allow: dict) -> list:
     errors = []
     rel = str(path.relative_to(lib))
-    text = path.read_text()
-    data = parse_frontmatter(text)
-    if data is None:
+    data = _lib.parse_frontmatter(path)
+    if not data:
         return [f"{rel}: missing or malformed YAML frontmatter"]
 
     dirname = path.parent.name
