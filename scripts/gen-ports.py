@@ -10,9 +10,8 @@ Usage: python3 scripts/gen-ports.py [LIB_ROOT] [--check]
            drift + uniqueness check).
 Requires PyYAML (exits 2 if missing, via _lib.parse_frontmatter).
 
-A workflow stub's skill path (`.agents/skills/<name>/SKILL.md` or
-`.agent/skills/<name>/SKILL.md`) must match install.sh's ANTIGRAVITY_DIR
-(".agents") and ANTIGRAVITY_LEGACY_DIR (".agent") — keep the two in sync.
+A workflow stub's skill path (`.agents/skills/<name>/SKILL.md`) must match
+install.sh's ANTIGRAVITY_DIR (".agents") — keep the two in sync.
 """
 import sys
 from pathlib import Path
@@ -82,8 +81,8 @@ def gen_workflow(name: str, description: str) -> str:
     ).rstrip("\n")
     return (
         f"---\n{front}\n---\n\n"
-        f"Load and follow the skill at `.agents/skills/{name}/SKILL.md` "
-        f"(or `.agent/skills/{name}/SKILL.md`). Apply it to the argument given with the command.\n"
+        f"Load and follow the skill at `.agents/skills/{name}/SKILL.md`. "
+        f"Apply it to the argument given with the command.\n"
     )
 
 

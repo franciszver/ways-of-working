@@ -10,7 +10,7 @@ Format — last verified: see CHANGELOG — against [antigravity.google/docs/rul
 ./install.sh --antigravity <project>
 ```
 
-Antigravity's docs say rules, workflows, and skills live under `.agents/` (plural); older builds read `.agent/` (singular). Until a live install confirms which the running build reads (issue #11), `install.sh --antigravity` writes the real content once, under `.agents/`, and makes `.agent/` a symlink to it — so either build's reads land on the same files, and there is one copy to keep in sync. If a project already has a real `.agent/` directory (not a symlink), install.sh writes into it too instead of overwriting it with a symlink.
+`install.sh --antigravity` writes rules, workflows, and skills under `.agents/` (plural), the path documented at [antigravity.google/docs/skills](https://antigravity.google/docs/skills).
 
 Global rules are managed through Antigravity's settings UI ("Manage Rules") — paste `rules/baseline.md` there to make the baseline apply everywhere.
 
@@ -25,7 +25,7 @@ rules/
   security.md        trigger: model_decision — high-confidence-only vuln reporting, loads for security-sensitive code
   testing.md         trigger: model_decision — bug-hunting test design
 workflows/           slash-invoked: one thin stub per canonical skill (34), each pointing
-                     at `.agents/skills/<name>/SKILL.md` (or `.agent/skills/<name>/SKILL.md`)
+                     at `.agents/skills/<name>/SKILL.md`
 skills/               (installed by install.sh, not stored here) the 34 canonical skills, copied
                      from ../skills/ so Antigravity reads SKILL.md natively
 ```

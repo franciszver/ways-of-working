@@ -290,7 +290,7 @@ rm -rf "$GEN1"
 GEN2="$TMPROOT/gen2"
 mkdir -p "$GEN2/proj"
 "$INSTALL" --generic "$GEN2/proj" --link >/dev/null
-one_skill="$(find "$GEN2/proj/.agents/skills" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+one_skill="$(find "$GEN2/proj/.agents/skills" -mindepth 1 -maxdepth 1 | head -n1)"
 assert_true "--generic --link: skill dir is a symlink" [ -L "$one_skill" ]
 
 rm -rf "$GEN2"

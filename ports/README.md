@@ -11,6 +11,8 @@
 
 Claude Code doesn't use these — it gets the full-fidelity versions ([`../skills/`](../skills/), [`../claude-md/`](../claude-md/), [`../agents/`](../agents/)).
 
+For every other harness that reads AGENTS.md and `.agents/skills` (Codex CLI, GitHub Copilot, OpenCode, Zed, JetBrains Junie, Amp, and more), use `install.sh --generic DIR` or `--generic-user`. See the "Other harnesses" table in the root [`README.md`](../README.md).
+
 ## Maintenance note
 
 These are compressions of the canonical skills, not independent documents. When a canonical skill's judgment changes (a new rule, a changed threshold), propagate to every compression: the matching `../skills-local/` variant, the matching `cursor/*.mdc`, and — for always-on floors — the `../claude-md/` layers and `cursor/baseline.mdc`. The improvement-loop checklist treats cross-surface drift as a defect.

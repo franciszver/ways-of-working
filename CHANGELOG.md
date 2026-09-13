@@ -5,6 +5,20 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+- **Generic harness install, single Antigravity path** (#30, #26):
+  `install.sh --generic DIR` installs `AGENTS.md` plus skills into
+  `DIR/.agents/skills`, for any harness that reads both (Codex CLI,
+  GitHub Copilot, Cursor, OpenCode, Zed, JetBrains Junie, Amp).
+  `install.sh --generic-user` installs skills into `$HOME/.agents/skills`
+  only, no AGENTS.md, since each harness reads its own global file at
+  user scope. `--antigravity` now writes `.agents/` only — the `.agent`
+  symlink and legacy-directory handling are removed, confirmed against
+  [antigravity.google/docs/skills](https://antigravity.google/docs/skills).
+  README.md gains an "Other harnesses" table listing which harness reads
+  `SKILL.md` from where, whether it reads AGENTS.md, and its install
+  command; Roo Code, Windsurf Cascade, and free Gemini CLI are marked
+  retired in 2026.
+
 - **Frontmatter profiles** (#12): `skills/` now carries only Agent Skills
   spec keys (`name`, `description`, `license`, `compatibility`,
   `metadata`, `allowed-tools`) — spec-portable across tools. A new
