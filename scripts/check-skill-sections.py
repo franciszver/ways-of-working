@@ -3,15 +3,16 @@
 
 For every skills/*/SKILL.md, checks:
 
-  (a) Closing section spelling. The file's last `##` section, if its
-      heading means "binding constraints" or "failure modes to avoid" under
-      a fixed synonym list, must be spelled exactly "## Rules" or
-      "## Anti-patterns" — no other spelling, and no crossed labels (a
-      failure-modes list must not be titled "## Rules").
+  (a) Section spelling. Every `##` heading whose normalized text is one of
+      "rules", "hard rules", "anti-patterns", "antipatterns", "pitfalls",
+      or "failure modes" must be spelled exactly "## Rules" or
+      "## Anti-patterns" — no other spelling.
   (b) Report section. Every skill named in REPORT_REQUIRED must contain a
       "## Report" section (numbering prefixes like "## 6. Report" count).
-  (c) Duplicate paragraphs. No paragraph of >= MIN_DUP_WORDS words appears
-      verbatim (whitespace-normalized) in two different skills.
+  (c) Near-duplicate paragraphs. Paragraphs of >= MIN_DUP_WORDS words are
+      compared pairwise across different skills with word-shingle Jaccard
+      overlap (SHINGLE_SIZE-word shingles); a pair scoring >= DUP_THRESHOLD
+      is flagged. This catches paraphrases, not just byte-identical text.
 
 Exits 1 if any check fails. Requires no third-party packages.
 """
@@ -29,15 +30,17 @@ REPORT_REQUIRED = {
 }
 
 MIN_DUP_WORDS = 40
+SHINGLE_SIZE = 12
+DUP_THRESHOLD = 0.5
 
-RULE_SYNONYMS = {
-    "rules", "rule", "constraints", "musts", "non-negotiables", "binding rules",
-    "must follow",
-}
-ANTIPATTERN_SYNONYMS = {
-    "anti-patterns", "antipatterns", "anti patterns", "pitfalls",
-    "failure modes", "common mistakes", "mistakes to avoid", "gotchas",
-    "what to avoid", "things to avoid",
+# Normalized heading text -> the one spelling it must use.
+SECTION_ALIASES = {
+    "rules": "Rules",
+    "hard rules": "Rules",
+    "anti-patterns": "Anti-patterns",
+    "antipatterns": "Anti-patterns",
+    "pitfalls": "Anti-patterns",
+    "failure modes": "Anti-patterns",
 }
 
 CODE_FENCE_RE = re.compile(r"```.*?```", re.DOTALL)
@@ -55,37 +58,29 @@ def strip_frontmatter_and_fences(text: str) -> str:
 
 def normalize_heading(raw: str) -> str:
     """Strip a leading 'N. ' numbering and any ' — ...'/' (...)' trailing
-    annotation, then lowercase, for synonym matching."""
+    annotation, then lowercase, for alias matching."""
     s = NUMBERING_RE.sub("", raw).strip()
     s = re.split(r"\s+—|\s+\(", s, maxsplit=1)[0].strip()
     return s.lower()
 
 
-def check_closing_section(body: str, rel: str) -> list:
-    headings = HEADING_RE.findall(body)
-    if not headings:
-        return []
-    last_raw = headings[-1].strip()
-    norm = normalize_heading(last_raw)
+def check_headings(body: str, rel: str) -> list:
     errors = []
-    if norm in RULE_SYNONYMS and last_raw != "Rules":
-        errors.append(
-            f"{rel}: closing section '## {last_raw}' reads as Rules — "
-            "spell it exactly '## Rules'"
-        )
-    elif norm in ANTIPATTERN_SYNONYMS and last_raw != "Anti-patterns":
-        errors.append(
-            f"{rel}: closing section '## {last_raw}' reads as Anti-patterns — "
-            "spell it exactly '## Anti-patterns'"
-        )
+    for raw in HEADING_RE.findall(body):
+        raw = raw.strip()
+        norm = normalize_heading(raw)
+        want = SECTION_ALIASES.get(norm)
+        if want and raw != want:
+            errors.append(
+                f"{rel}: section '## {raw}' reads as {want} — spell it exactly '## {want}'"
+            )
     return errors
 
 
 def check_report_section(body: str, skill_name: str, rel: str) -> list:
     if skill_name not in REPORT_REQUIRED:
         return []
-    headings = HEADING_RE.findall(body)
-    for h in headings:
+    for h in HEADING_RE.findall(body):
         if normalize_heading(h.strip()) == "report":
             return []
     return [f"{rel}: skill is in REPORT_REQUIRED but has no '## Report' section"]
@@ -97,9 +92,48 @@ def paragraphs(body: str) -> list:
     for p in parts:
         norm = re.sub(r"\s+", " ", p).strip()
         norm = re.sub(r"^#+\s*", "", norm)
-        if len(norm.split()) >= MIN_DUP_WORDS:
-            out.append(norm)
+        words = norm.split()
+        if len(words) >= MIN_DUP_WORDS:
+            out.append((norm, words))
     return out
+
+
+def shingles(words: list, k: int = SHINGLE_SIZE) -> set:
+    tokens = [w.lower().strip(".,;:!?\"'()") for w in words]
+    if len(tokens) < k:
+        return {tuple(tokens)}
+    return {tuple(tokens[i:i + k]) for i in range(len(tokens) - k + 1)}
+
+
+def jaccard(a: set, b: set) -> float:
+    if not a and not b:
+        return 0.0
+    union = a | b
+    if not union:
+        return 0.0
+    return len(a & b) / len(union)
+
+
+def find_duplicates(entries: list) -> list:
+    """entries: list of (rel, paragraph_text, word_list). Returns error strings
+    for any cross-file pair scoring >= DUP_THRESHOLD."""
+    errors = []
+    shingle_sets = [shingles(words) for _, _, words in entries]
+    n = len(entries)
+    for i in range(n):
+        rel_i, text_i, _ = entries[i]
+        for j in range(i + 1, n):
+            rel_j, text_j, _ = entries[j]
+            if rel_i == rel_j:
+                continue
+            score = jaccard(shingle_sets[i], shingle_sets[j])
+            if score >= DUP_THRESHOLD:
+                snippet = text_i[:100] + ("…" if len(text_i) > 100 else "")
+                errors.append(
+                    f"near-duplicate paragraph (jaccard={score:.2f}, >= {DUP_THRESHOLD}) "
+                    f"in {rel_i} and {rel_j}: \"{snippet}\""
+                )
+    return errors
 
 
 def main() -> int:
@@ -112,7 +146,7 @@ def main() -> int:
         return 1
 
     all_errors = []
-    para_map = defaultdict(list)
+    para_entries = []
 
     for d in skill_dirs:
         path = d / "SKILL.md"
@@ -120,19 +154,13 @@ def main() -> int:
         raw = path.read_text(encoding="utf-8")
         body = strip_frontmatter_and_fences(raw)
 
-        all_errors.extend(check_closing_section(body, rel))
+        all_errors.extend(check_headings(body, rel))
         all_errors.extend(check_report_section(body, d.name, rel))
 
-        for p in paragraphs(body):
-            para_map[p].append(rel)
+        for text, words in paragraphs(body):
+            para_entries.append((rel, text, words))
 
-    for p, files in para_map.items():
-        uniq = sorted(set(files))
-        if len(uniq) > 1:
-            snippet = p[:100] + ("…" if len(p) > 100 else "")
-            all_errors.append(
-                f"duplicate paragraph (>= {MIN_DUP_WORDS} words) in {', '.join(uniq)}: \"{snippet}\""
-            )
+    all_errors.extend(find_duplicates(para_entries))
 
     print(f"Checked {len(skill_dirs)} skills/*/SKILL.md files.")
     if all_errors:

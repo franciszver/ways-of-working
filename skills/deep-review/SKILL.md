@@ -9,9 +9,7 @@ A review's value is real defects found minus false alarms raised. An unverified 
 
 ## 1. Scope and stakes
 
-Review the *change*, not the codebase. **Default scope: commits ahead of upstream plus uncommitted changes; an explicit argument overrides; a repo REVIEW.md overrides defaults.** (Every skill that reviews a diff points here for the scope definition, instead of restating it.) Diff first, then read enough surrounding code (callers, callees, the contract of the modified functions) to judge the change in context. Set depth by stakes — auth, payments, data migration, and concurrency get the full hunt; a README fix gets a proportional glance.
-
-If the repo has a `REVIEW.md` (or review guidance in `CLAUDE.md`), read it first and let it recalibrate severity, skip-paths, and repo-specific checks — the repo's definition of "Important" outranks the defaults below.
+Review the *change*, not the codebase. **Default scope: commits ahead of upstream plus uncommitted changes; an explicit argument overrides; a repo `REVIEW.md` (or review guidance in `CLAUDE.md`) overrides both, recalibrating severity, skip-paths, and repo-specific checks — its definition of "Important" outranks the defaults below.** (Every skill that reviews a diff points here for the scope definition, instead of restating it.) Diff first, then read enough surrounding code (callers, callees, the contract of the modified functions) to judge the change in context. Set depth by stakes — auth, payments, data migration, and concurrency get the full hunt; a README fix gets a proportional glance.
 
 ## 2. Understand before attacking
 

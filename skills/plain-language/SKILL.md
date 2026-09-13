@@ -11,8 +11,8 @@ third job: it checks whether the result reads as machine-generated, and strikes 
 The check is not taste. It is a set of published, dated observations about what current
 models actually produce, held in `references/` and refreshed on a schedule.
 
-**References last refreshed:** 2026-08-05 (`wp-aisigns.md`), 2026-07-30 (`ai-tells.md`).
-**Refresh due:** 2026-08-12 — overdue. See "Refreshing the references" below.
+**Refresh due:** see `references/wp-aisigns.md`'s header — that is the one authoritative
+date, kept there so it never drifts from a second copy. See "Refreshing the references" below.
 
 ## Sources, in priority order
 
@@ -49,10 +49,10 @@ a month as suspect.
 ## Constructions and vocabulary to strike
 
 Do not keep a local copy — grep the draft directly against `references/wp-aisigns.md`
-("Negative parallelisms", "Rule of three", "High density of AI vocabulary words" sections)
-and `references/ai-tells.md` ("Sentence constructions to strike", "Words and phrases to
-strike"). A local copy drifts from the source within weeks; the check order above tells you
-when to run it.
+("Negative parallelisms", "Rule of three", `### High density of "AI vocabulary" words`
+sections) and `references/ai-tells.md` ("Sentence constructions to strike", "Words and
+phrases to strike"). A local copy drifts from the source within weeks; the check order
+above tells you when to run it.
 
 ## Formatting tells
 
@@ -108,8 +108,10 @@ than about a month:
    date, and discard anything whose own prose has the cadence it claims to diagnose.
 3. Rewrite the reference with each entry attributed and dated. Mark which parts are
    durable (constructions) and which are perishable (word lists).
-4. Update the "References last refreshed" and "Refresh due" line near the top of this
-   file. The check order above is the only list still kept in this file; everything else
-   is read from `references/` directly, so nothing else needs syncing.
-5. Never route around a blocked source. If a page cannot be fetched, say so in the file
-   and ask for a manual copy rather than reaching for a mirror or scraper.
+4. Update the "Checked"/"Next refresh due" line in `references/wp-aisigns.md`'s own
+   header — the one place that date lives. The check order above is the only list still
+   kept in this SKILL.md; everything else is read from `references/` directly, so nothing
+   else needs syncing.
+5. Never route around a blocked source. If a page cannot be fetched, keep the old list,
+   say so in the file, and add a degraded-mode line ("references stale as of \<date\>:
+   treat the word lists as a floor") rather than reaching for a mirror or scraper.

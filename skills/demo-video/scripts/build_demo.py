@@ -5,13 +5,18 @@ Pipeline (see ../references/pipeline.md for the full rationale):
 
   1. Load screenshots (01-*.png ... 0N-*.png) in filename order.
   2. Overlay a caption bar on each frame (Pillow), from a captions JSON
-     sidecar, and pad odd dimensions so the video codec accepts them.
+     sidecar, onto one shared canvas size, and save each as
+     frame_%04d.png in a single temp directory.
   3. Synthesize a soundtrack with the stdlib only (wave + math + array) —
-     a gentle arpeggio, no numpy dependency.
-  4. Build a silent mp4 from the frames (imageio-ffmpeg's bundled ffmpeg),
-     then try to mux in the soundtrack. If muxing fails, keep the silent
-     mp4 rather than emit a corrupt file.
+     a gentle arpeggio, no numpy dependency — into the same temp directory.
+  4. Build a silent mp4 straight from the frame sequence already on disk
+     (imageio-ffmpeg's bundled ffmpeg), then try to mux in the soundtrack.
+     If muxing fails, keep the silent mp4 rather than emit a corrupt file.
   5. Build an animated gif from the same captioned frames.
+
+Only the final demo.mp4 and demo.gif are written to --out-dir; every
+intermediate (frames, wav, silent mp4) lives in one temp directory that is
+removed when the run finishes.
 
 Exits with a clear message (not a traceback) when Pillow or
 imageio-ffmpeg is missing, or when no screenshots are found.
@@ -22,8 +27,10 @@ import argparse
 import array
 import json
 import math
+import shutil
 import subprocess
 import sys
+import tempfile
 import wave
 from pathlib import Path
 
@@ -65,7 +72,11 @@ def load_captions(captions_path: Path) -> dict:
     if not captions_path.is_file():
         print(f"No captions file at {captions_path} — frames will run uncaptioned.", file=sys.stderr)
         return {}
-    data = json.loads(captions_path.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(captions_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        print(f"{captions_path} is not valid JSON: {e}", file=sys.stderr)
+        raise SystemExit(1)
     if not isinstance(data, dict):
         print(f"{captions_path} must contain a JSON object of filename -> caption.", file=sys.stderr)
         raise SystemExit(1)
@@ -106,9 +117,20 @@ def normalize_canvas(img, target_w: int, target_h: int):
     return canvas
 
 
-def caption_frame(img, text: str):
+def wrap_two_lines(text: str) -> list:
+    words = text.split()
+    if len(words) < 2:
+        return [text]
+    mid = len(words) // 2
+    return [" ".join(words[:mid]), " ".join(words[mid:])]
+
+
+def caption_frame(img, text: str, label: str = ""):
     """Return a copy of img with a caption bar drawn across the bottom
-    ~12%, centered light text that shrinks to fit."""
+    ~12%, centered light text that shrinks to fit. If it still doesn't fit
+    at the minimum font size, wraps to two lines and grows the bar, with a
+    warning to stderr — the caption is the point, so it never gets clipped
+    silently."""
     from PIL import Image, ImageDraw
 
     img = img.convert("RGB")
@@ -117,26 +139,53 @@ def caption_frame(img, text: str):
     if not text:
         return img
 
-    bar_h = max(int(h * 0.12), 36)
+    margin = int(w * 0.06)
+    max_avail_w = w - 2 * margin
+    base_bar_h = max(int(h * 0.12), 36)
+    min_font = 10
+
+    probe = ImageDraw.Draw(Image.new("RGB", (1, 1)))
+    lines = [text]
+    bar_h = base_bar_h
+    size = base_bar_h - 10
+    font = find_font(size)
+    while size > min_font:
+        font = find_font(size)
+        bbox = probe.textbbox((0, 0), text, font=font)
+        if bbox[2] - bbox[0] <= max_avail_w:
+            break
+        size -= 2
+
+    bbox = probe.textbbox((0, 0), text, font=font)
+    if bbox[2] - bbox[0] > max_avail_w:
+        lines = wrap_two_lines(text)
+        size = max(min_font, base_bar_h // 2 - 10)
+        font = find_font(size)
+        while size > min_font:
+            font = find_font(size)
+            widest = max(probe.textbbox((0, 0), ln, font=font)[2] for ln in lines)
+            if widest <= max_avail_w:
+                break
+            size -= 2
+        bar_h = min(base_bar_h * 2, int(h * 0.4))
+        where = f" ({label})" if label else ""
+        print(f"Warning: caption too long to fit on one line at the minimum "
+              f"font size{where}, wrapped to two lines: {text!r}", file=sys.stderr)
+
     overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
     draw.rectangle([(0, h - bar_h), (w, h)], fill=(0, 0, 0, 170))
 
-    max_font, min_font = bar_h - 10, 10
-    margin = int(w * 0.06)
-    font = find_font(max_font)
-    size = max_font
-    while size > min_font:
-        font = find_font(size)
-        bbox = draw.textbbox((0, 0), text, font=font)
-        if bbox[2] - bbox[0] <= w - 2 * margin:
-            break
-        size -= 2
-
-    bbox = draw.textbbox((0, 0), text, font=font)
-    tx = (w - (bbox[2] - bbox[0])) // 2 - bbox[0]
-    ty = h - bar_h + (bar_h - (bbox[3] - bbox[1])) // 2 - bbox[1]
-    draw.text((tx, ty), text, font=font, fill=(245, 245, 245, 255))
+    line_bbox = probe.textbbox((0, 0), "Ag", font=font)
+    line_h = line_bbox[3] - line_bbox[1]
+    gap = 6 if len(lines) > 1 else 0
+    total_h = line_h * len(lines) + gap * (len(lines) - 1)
+    y = h - bar_h + (bar_h - total_h) // 2
+    for ln in lines:
+        lbbox = probe.textbbox((0, 0), ln, font=font)
+        tx = (w - (lbbox[2] - lbbox[0])) // 2 - lbbox[0]
+        draw.text((tx, y - lbbox[1]), ln, font=font, fill=(245, 245, 245, 255))
+        y += line_h + gap
 
     return Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
 
@@ -205,29 +254,23 @@ def synth_soundtrack(path: Path, duration_s: float, sample_rate: int = 22050) ->
         wf.writeframes(samples.tobytes())
 
 
-def build_silent_video(frame_paths: list, out_path: Path, hold_s: float, fps: int, ffmpeg_exe: str) -> None:
-    import tempfile
-    from PIL import Image
-
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp = Path(tmp)
-        for i, fp in enumerate(frame_paths):
-            img = Image.open(fp)
-            img.save(tmp / f"frame_{i:04d}.png")
-            img.close()
-        cmd = [
-            ffmpeg_exe, "-y",
-            "-framerate", str(1.0 / hold_s),
-            "-i", str(tmp / "frame_%04d.png"),
-            "-r", str(fps),
-            "-pix_fmt", "yuv420p",
-            "-c:v", "libx264",
-            str(out_path),
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            print(result.stderr, file=sys.stderr)
-            raise SystemExit(f"ffmpeg failed to build the silent video: {out_path}")
+def build_silent_video(frames_dir: Path, out_path: Path, hold_s: float, fps: int, ffmpeg_exe: str) -> None:
+    """frames_dir must already contain frame_0000.png, frame_0001.png, ...
+    — captioned frames are saved directly in that layout so this shells
+    out to ffmpeg with no extra decode/re-encode round trip."""
+    cmd = [
+        ffmpeg_exe, "-y",
+        "-framerate", str(1.0 / hold_s),
+        "-i", str(frames_dir / "frame_%04d.png"),
+        "-r", str(fps),
+        "-pix_fmt", "yuv420p",
+        "-c:v", "libx264",
+        str(out_path),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(result.stderr, file=sys.stderr)
+        raise SystemExit(f"ffmpeg failed to build the silent video: {out_path}")
 
 
 def mux_audio(video_path: Path, audio_path: Path, out_path: Path, ffmpeg_exe: str) -> bool:
@@ -255,6 +298,10 @@ def build_gif(frame_imgs: list, out_path: Path, hold_s: float, max_mb: float) ->
             out_path, save_all=True, append_images=frames[1:],
             duration=int(hold_s * 1000), loop=0, optimize=True,
         )
+    size_mb = out_path.stat().st_size / 1024 / 1024
+    if size_mb > max_mb:
+        print(f"Warning: {out_path} is {size_mb:.2f} MB, over the {max_mb} MB "
+              f"target even at {frames[0].width}px wide.", file=sys.stderr)
 
 
 def main() -> int:
@@ -267,15 +314,14 @@ def main() -> int:
                          help="JSON file mapping screenshot filename -> caption text "
                               "(default: demo_captions.json inside --screenshots-dir).")
     parser.add_argument("--out-dir", type=Path, default=Path("."),
-                         help="Directory to write demo.mp4 and demo.gif into (default: cwd).")
+                         help="Directory to write demo.mp4 and demo.gif into (default: cwd). "
+                              "Only these two files are written here.")
     parser.add_argument("--hold", type=float, default=2.5,
                          help="Seconds each frame is held on screen (default: 2.5).")
     parser.add_argument("--fps", type=int, default=24,
                          help="Output video frame rate (default: 24).")
     parser.add_argument("--max-gif-mb", type=float, default=2.0,
                          help="Target maximum gif size in MB (default: 2.0).")
-    parser.add_argument("--no-music", action="store_true",
-                         help="Skip the synthesized soundtrack; ship a silent mp4.")
     args = parser.parse_args()
 
     require_deps()
@@ -290,6 +336,7 @@ def main() -> int:
     captions_path = args.captions or (args.screenshots_dir / "demo_captions.json")
     shots = load_screenshots(args.screenshots_dir)
     captions = load_captions(captions_path)
+    ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
 
     print(f"Normalizing {len(shots)} frame(s) to one canvas size...")
     sizes = []
@@ -301,58 +348,50 @@ def main() -> int:
     target_w += target_w % 2  # even dimensions: libx264's yuv420p rejects odd ones
     target_h += target_h % 2
 
-    print(f"Captioning {len(shots)} frame(s)...")
-    caption_list = []
-    captioned_imgs = []
-    import tempfile
-    tmp_frames_dir = Path(tempfile.mkdtemp(prefix="demo-frames-"))
-    frame_paths = []
-    for i, shot in enumerate(shots):
-        text = captions.get(shot.name, "")
-        caption_list.append((shot.name, text))
-        with Image.open(shot) as im:
-            normalized = normalize_canvas(im, target_w, target_h)
-        captioned = caption_frame(normalized, text)
-        captioned_imgs.append(captioned)
-        fp = tmp_frames_dir / f"{i:04d}.png"
-        captioned.save(fp)
-        frame_paths.append(fp)
-        print(f"  {shot.name}: {text!r}" if text else f"  {shot.name}: (no caption)")
+    with tempfile.TemporaryDirectory(prefix="demo-build-") as tmp_str:
+        tmp = Path(tmp_str)
 
-    ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
-    silent_mp4 = args.out_dir / "demo-silent.mp4"
-    final_mp4 = args.out_dir / "demo.mp4"
-    gif_path = args.out_dir / "demo.gif"
+        print(f"Captioning {len(shots)} frame(s)...")
+        captioned_imgs = []
+        for i, shot in enumerate(shots):
+            text = captions.get(shot.name, "")
+            with Image.open(shot) as im:
+                normalized = normalize_canvas(im, target_w, target_h)
+            captioned = caption_frame(normalized, text, label=shot.name)
+            captioned_imgs.append(captioned)
+            captioned.save(tmp / f"frame_{i:04d}.png")
+            print(f"  {shot.name}: {text!r}" if text else f"  {shot.name}: (no caption)")
 
-    print("Building silent video...")
-    build_silent_video(frame_paths, silent_mp4, args.hold, args.fps, ffmpeg_exe)
+        silent_mp4 = tmp / "demo-silent.mp4"
+        final_mp4 = args.out_dir / "demo.mp4"
+        gif_path = args.out_dir / "demo.gif"
 
-    has_audio = False
-    if args.no_music:
-        silent_mp4.replace(final_mp4)
-    else:
-        duration_s = len(frame_paths) * args.hold
-        wav_path = tmp_frames_dir / "soundtrack.wav"
+        print("Building silent video...")
+        build_silent_video(tmp, silent_mp4, args.hold, args.fps, ffmpeg_exe)
+
+        duration_s = len(shots) * args.hold
+        wav_path = tmp / "soundtrack.wav"
         print(f"Synthesizing {duration_s:.1f}s soundtrack (stdlib only)...")
         synth_soundtrack(wav_path, duration_s)
         print("Muxing audio into video...")
-        if mux_audio(silent_mp4, wav_path, final_mp4, ffmpeg_exe):
-            has_audio = True
-        else:
+        has_audio = mux_audio(silent_mp4, wav_path, final_mp4, ffmpeg_exe)
+        if not has_audio:
             print("Audio mux failed — keeping the silent mp4.", file=sys.stderr)
-            silent_mp4.replace(final_mp4)
+            shutil.copyfile(silent_mp4, final_mp4)
 
-    print("Building gif...")
-    build_gif(captioned_imgs, gif_path, args.hold, args.max_gif_mb)
+        print("Building gif...")
+        build_gif(captioned_imgs, gif_path, args.hold, args.max_gif_mb)
 
-    mp4_size = final_mp4.stat().st_size / 1024 / 1024
-    gif_size = gif_path.stat().st_size / 1024 / 1024
-    print("\nDone.")
-    print(f"  mp4: {final_mp4} ({mp4_size:.2f} MB, audio: {has_audio})")
-    print(f"  gif: {gif_path} ({gif_size:.2f} MB)")
-    print("Verify by looking: open one captioned frame, confirm audio with "
-          "`ffmpeg -i <mp4>` (look for an Audio: stream line), and check the "
-          "gif animates with the expected frame count before publishing.")
+        # everything in tmp (frames, wav, silent mp4) is removed on exit;
+        # only final_mp4 and gif_path, already in --out-dir, survive.
+        mp4_size = final_mp4.stat().st_size / 1024 / 1024
+        gif_size = gif_path.stat().st_size / 1024 / 1024
+        print("\nDone.")
+        print(f"  mp4: {final_mp4} ({mp4_size:.2f} MB, audio: {has_audio})")
+        print(f"  gif: {gif_path} ({gif_size:.2f} MB)")
+        print("Verify by looking: open one captioned frame, confirm audio with "
+              "`ffmpeg -i <mp4>` (look for an Audio: stream line), and check the "
+              "gif animates with the expected frame count before publishing.")
     return 0
 
 

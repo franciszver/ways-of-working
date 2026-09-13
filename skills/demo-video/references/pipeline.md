@@ -32,9 +32,14 @@ and produces a gif with a wrong or inconsistent palette.
 Captions are drawn with a semi-transparent dark bar across the bottom ~12%
 of each frame, centered light text that auto-shrinks to fit, loading a
 TrueType font if one exists and falling back to `ImageFont.load_default()`
-without crashing. Captions are applied identically to both the mp4 and the
-gif so they match, and live in a `demo_captions.json` sidecar (filename ->
-caption text) so text edits don't touch code.
+without crashing. If the text still doesn't fit at the minimum font size,
+it wraps to two lines and the bar grows to fit them, with a warning printed
+— a caption never gets clipped silently. Captions are applied identically
+to both the mp4 and the gif so they match, and live in a
+`demo_captions.json` sidecar (filename -> caption text) so text edits
+don't touch code. Each captioned frame is saved directly as
+`frame_%04d.png` in the run's temp directory, in the exact layout ffmpeg
+needs — no separate re-encode step.
 
 ## 3. Soundtrack — stdlib only
 
@@ -50,9 +55,11 @@ the 16-bit packing, and a short fade in/out sized to the video length. Do
 `imageio_ffmpeg.get_ffmpeg_exe()` and shell out to it. Build the silent mp4
 from the frame sequence first, then mux the wav in with
 `-i video -i wav -c:v copy -c:a aac -shortest`. If muxing fails, keep the
-silent mp4 rather than emit a corrupt one. Keep temp files in a
-`TemporaryDirectory` and close every reader/writer handle before cleanup
-(Windows locks open files).
+silent mp4 rather than emit a corrupt one. One `TemporaryDirectory` holds
+every intermediate for the run (frames, wav, silent mp4); only the final
+`demo.mp4` and `demo.gif` are written to `--out-dir`. Close every
+reader/writer handle before the directory is cleaned up (Windows locks
+open files).
 
 ## 5. Gif
 
@@ -64,8 +71,9 @@ frames — dropping frames changes the story being told.
 ## 6. Ship it like any change
 
 Branch, red-first tests for the pipeline code (caption overlay produces a
-visibly different frame; the mp4 has an audio stream with music on and none
-with it off; mismatched-size frames don't crash — all hermetic, handles
+visibly different frame; the mp4 has an audio stream when muxing succeeds
+and a valid silent mp4 when it fails; mismatched-size frames don't crash;
+an overlong caption wraps instead of clipping — all hermetic, handles
 closed before tmp cleanup), gate the tooling tests with
 `pytest.importorskip` so CI without Pillow/imageio-ffmpeg skips instead of
 erroring at collection, scope the formatter to the files you changed, then

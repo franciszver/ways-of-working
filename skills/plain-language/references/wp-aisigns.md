@@ -1,8 +1,19 @@
 # WP:AISIGNS — local cache
 
-Source: Wikipedia:Signs_of_AI_writing, revision **1367680556**, page last edited
-2026-08-04 14:48 UTC. Checked 2026-08-05 against the live MediaWiki API.
-Next refresh due 2026-08-12 (see "Refreshing the references" in the skill's SKILL.md).
+Source: Wikipedia:Signs_of_AI_writing, revision **1374467046**, page last edited
+August 2026. Checked 2026-09-13 via WebFetch against the live page.
+Next refresh due 2026-09-20 (see "Refreshing the references" in the skill's SKILL.md).
+
+**2026-09-13 refresh: no content change needed for this skill's scope.** The page
+gained two Wikipedia-specific structural tells since the last cache (a "Leads
+treating Wikipedia lists as proper nouns" item, and an "Awards and recognition"
+section-header pattern) — both about article/section naming conventions specific to
+wiki list-articles, so both are omitted under this cache's existing scope note
+(Wikipedia-specific sections are irrelevant outside Wikipedia editing). Every
+vocabulary list, construction pattern, and general-prose section below is unchanged
+and still current, confirmed against a fresh outline of the live page rather than a
+revision diff this time (the MediaWiki revision-diff API was not used), so treat
+this refresh as slightly coarser than the 2026-08-05 one.
 
 **2026-08-05 refresh: no content change needed.** Exactly one edit landed between the
 cached revision (1367549492) and current (1367680556), and it added a sentence about

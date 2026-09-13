@@ -15,7 +15,7 @@ Before touching a tool, extract every explicit and implicit requirement into a s
 
 ## 2. Plan
 
-Decide the approach before executing — a wrong path costs 10–100x a brief plan. Name which files change, or what evidence would answer the question, before the first tool call. Keep the plan proportional: two sentences for a two-step task. For hard-to-reverse decisions, run `architect`; for multi-step or multi-session work, run `breakdown`.
+Decide the approach before executing — a wrong path costs 10–100x a brief plan. Name which files change, or what evidence would answer the question, before the first tool call. If two approaches look equal, choose the one that is cheaper to verify. Keep the plan proportional: two sentences for a two-step task. For hard-to-reverse decisions, run `architect`; for multi-step or multi-session work, run `breakdown`.
 
 ## 3. Execute: lean
 
@@ -50,6 +50,7 @@ A failed check loops back to Execute — cap it at 3 iterations per failure; two
 - "Done!" without having run or opened the thing.
 - Re-reading a 500-line file for the third time because nothing was noted down.
 - Stopping at the first version that superficially works when production quality was implied — or its mirror, gold-plating past what was asked.
+- Answering at length a question the user did not ask while under-answering the one they did.
 - Open-ended self-revision loops with no objective signal.
 
 When the task is genuinely beyond available capability, say so and recommend escalation — honest escalation is cheaper than a confident wrong answer.

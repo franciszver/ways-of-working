@@ -82,7 +82,7 @@ Or use [`../install.sh`](../install.sh). If `~/.claude/skills/` didn't exist bef
 
 ## Closing sections
 
-A skill's closing section is `## Rules` for binding constraints, `## Anti-patterns` for failure modes to avoid, or both — no other spelling. Skills whose output is a deliverable (incident, postmortem, prove, research, spec, refactor, release, migrate, perf, sec-audit) also carry a `## Report` section with a short fenced skeleton. `scripts/check-skill-sections.py` enforces both, plus a duplicate-paragraph check across skills/.
+A section for binding constraints is `## Rules`; one for failure modes to avoid is `## Anti-patterns` — no other spelling ("hard rules", "pitfalls", "failure modes", etc. all get renamed). Skills whose output is a deliverable (incident, postmortem, prove, research, spec, refactor, release, migrate, perf, sec-audit) also carry a `## Report` section with a short fenced skeleton. `scripts/check-skill-sections.py` enforces both, plus a cross-skill near-duplicate-paragraph check (word-shingle overlap, so paraphrases are caught too, not just byte-identical text).
 
 ## Naming notes
 

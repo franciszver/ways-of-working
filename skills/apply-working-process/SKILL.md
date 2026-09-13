@@ -59,10 +59,12 @@ This is how the library's owner runs engineering work. It was proven on the Agen
 ## 7. Working norms
 
 - **Anything that can be done now gets done now** — environment setup runs immediately, outside tracked tasks, so problems surface before the first task's pipeline.
-- **Honest measurement.** Never game a metric: a non-deterministic test stays xfail rather than being flaked green; eval numbers report what actually happened. When an implementer's measurement against real data contradicts a reviewer's model of the risk, the measurement wins — don't spend a review round fixing a finding the implementer already checked doesn't apply. (Observed: a round was spent fixing a finding already measured to affect zero of 19 real user files; the fix introduced a worse defect than the one it addressed.)
+- **Honest measurement.** Never game a metric: a non-deterministic test stays xfail rather than being flaked green. When an implementer's measurement against real data contradicts a reviewer's model of the risk, the measurement wins (see `references/observations.md`).
 - **Autonomy with accountability.** When granted an unattended run: self-merge after the gates pass, and leave owner-gated items open and annotated rather than blocking on them.
 - **Check in on long-running subagents every 15 minutes.** A delegated task still "running" isn't proof it's progressing — read back its actual output or status and confirm real progress, not just that the process is alive. Prefer a free, independent spot-check of the environment (`git status`, `docker ps`, GPU/resource stats, artifact directories) before spending a message or resume on asking the agent itself. Stalled or looping work gets interrupted and redirected, not left to burn budget silently.
 - **CI watches are bounded, not open-ended, and post-push checks-absence needs one short poll first** (see `references/observations.md`).
+- Brief subagents with the CI ceiling and re-run rule, never an open-ended `--watch`.
+- The 15-minute spot-check includes: is it parked on a CI watch past the ceiling? (`gh run list` is free)
 - **Subagents never passively wait on background work — they poll in a bounded foreground loop instead** (see `references/observations.md`).
 
 ## Adapting to a new environment
