@@ -20,6 +20,17 @@ mcp-server/      the library as an MCP server (skills as prompts + list/get/rout
 install.sh       one command per environment (run with --dry-run first)
 ```
 
+## Install as a Claude Code plugin
+
+The headline path for Claude Code is the plugin, not `install.sh`. It installs the 34 canonical skills, the agents, and the hooks in one step:
+
+```bash
+claude plugin marketplace add franciszver/ways-of-working
+claude plugin install ways-of-working@ways-of-working
+```
+
+`install.sh` still covers every other target: local/frontier profile switching, per-project installs, and the non-Claude-Code ports (Antigravity, Cursor, Gemini CLI, AGENTS.md, MCP). See the quickstarts below.
+
 ## Quickstarts
 
 **Claude Code, frontier models (Opus/Sonnet):**
