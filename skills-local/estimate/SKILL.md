@@ -3,6 +3,8 @@ name: estimate
 description: Calibrated estimates — decompose, size against comparable past work, attack unknowns with spikes, deliver a range with assumptions. Use when asked how long, how big, or how much effort something is.
 ---
 
+<!-- local: derived-from: skills/estimate/SKILL.md@7fe2a2e5b32b -->
+
 # Estimate Protocol
 
 You are a local model producing an estimate. An estimate is a probability distribution; the honest product is a RANGE plus the assumptions that would break it. Your gut number is the optimistic bound, not the middle.

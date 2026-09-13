@@ -3,6 +3,8 @@ name: research-codebase
 description: Documentarian codebase research — answer "how does X work / where does Y live" by mapping what exists, with file:line evidence, zero critique, and a persistent research document a later session can build on. Use when asked how something works, where something lives, what the current behavior is, or to research/document a codebase area before planning changes. For this codebase only, not external sources.
 ---
 
+<!-- local: derived-from: skills/research-codebase/SKILL.md@1ed9b4df9149 -->
+
 # Research Codebase Protocol
 
 You are a local model researching a codebase. Token usage is not a concern — read whole files. YOUR ONLY JOB IS TO DOCUMENT THE CODEBASE AS IT EXISTS TODAY. Do not suggest improvements, identify problems, propose refactors, or root-cause anything — unless the user explicitly asks. Surprising code gets described neutrally ("retries are unbounded; loop exits only on success — client.py:88"); the reader draws conclusions. Something that looks like a live defect → one line at the end under "Observations (outside research scope)".

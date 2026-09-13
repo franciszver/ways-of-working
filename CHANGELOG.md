@@ -89,6 +89,45 @@ All notable changes to this repo are recorded here. Format loosely follows
   nine `skills-local/` twins with a changed rule got the matching minimal
   edit.
 
+- **skills-local** (#10): led the local-model story with the official
+  Claude Code path — `ANTHROPIC_BASE_URL` pointed at Ollama's or LM
+  Studio's native `/v1/messages` endpoint — and demoted
+  `claude-code-router` to the community multi-provider option it is,
+  in `README.md` and `skills-local/README.md`. Re-derived
+  `apply-working-process`, `prove`, `debug`, and `deep-review` from
+  their canonical skills, porting rules the twins had dropped (not
+  claimed to be every one — a later review pass on this same PR still
+  found and fixed gaps in `deep-review` and `prove`). Replaced an
+  earlier heading-set parity check with a provenance check:
+  `scripts/check_parity.py` now fails a canonical-backed twin with no
+  `<!-- local: derived-from: skills/<name>/SKILL.md@<hash> -->` marker
+  (`MISSING PROVENANCE`) or one whose hash no longer matches canonical's
+  current content (`STALE`); the heading-set version was dropped because
+  its waiver ended up on 22 of 29 twins, it counted fenced example lines
+  as real headings, and it couldn't see drift inside a heading that
+  stayed present. New `scripts/stamp-provenance.py --all|<name>` writes
+  the marker so re-deriving a twin never means hand-computing a hash. A
+  `<!-- local: deliberate divergence: <reason> -->` comment stays as
+  informational documentation on the three twins that truly diverge on
+  purpose (apply-working-process's two inversions, spec's section
+  merge) — it waives nothing. `iterate` shrank to a 12-line invoker of
+  `quality`'s named "Phase 4 — LOOP", with its round-budget-parsing rule
+  restored. Added five skills-local variants (`handoff`, `spec`,
+  `testgen`, `refactor`, `write`), each under 45 lines with the
+  canonical `description` verbatim; the remaining five gaps
+  (`architect`, `breakdown`, `lean-max-effort`, `plain-language`,
+  `research`) stay in `scripts/parity-allow.txt`, each on the real
+  criterion (token-discipline inversion, reference density, or judgment
+  a compact body would flatten) rather than "routes to a paid tier" —
+  `playbooks/ROUTING.md` groups some skills that got a variant with some
+  that didn't in the same routing row, so tier alone doesn't explain the
+  split; the parser now rejects an allowlist line with no reason.
+  `scripts/build-profile.py --check` (from #12/#21) now also compares
+  the generated plugin root (`plugin.json`, `agents/`, `hooks/`) against
+  the committed `build/claude-code/` tree, catching a version or
+  description bump that didn't propagate — as this PR's own
+  `plugin.json` bump initially didn't. `.claude-plugin/plugin.json`
+  bumped to `0.9.0`.
 - **Ports** (#11): retired the Gemini port — `ports/gemini/README.md`
   now points the paid-tier Gemini CLI at `install.sh --skills
   ~/.gemini/skills` (free tier retired 2026-06-18 for Antigravity CLI).

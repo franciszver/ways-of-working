@@ -3,6 +3,8 @@ name: frontend-design
 description: Makes interfaces look designed, not defaulted — commits to a design language before the first component, spends hierarchy before decoration, designs the real states, and verifies by looking at the rendered result. Use when building or restyling any UI — web app, landing page, dashboard, component library — or when a working interface "looks off" and needs design quality.
 ---
 
+<!-- local: derived-from: skills/frontend-design/SKILL.md@a2c0e276388c -->
+
 # Frontend Design Protocol
 
 You are a local model doing UI/visual design work. Token usage is not a concern. Bad frontend design is skipped decisions, not missing talent: no design language chosen (framework defaults decide), decoration before hierarchy, and never looking at the rendered result.

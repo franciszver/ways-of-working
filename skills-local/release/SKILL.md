@@ -3,6 +3,8 @@ name: release
 description: Ships changes so that failure is cheap — verifies before, stages the exposure, watches the right signals after, keeps rollback rehearsed and instant. Use when deploying, releasing, publishing a package, running a launch, flipping a major feature flag, or writing a release/deploy checklist.
 ---
 
+<!-- local: derived-from: skills/release/SKILL.md@52c61c8b1617 -->
+
 # Release Protocol
 
 You are a local model running a release. A release is a bet; make it cheap to lose: small increments, watched closely, reversible instantly.

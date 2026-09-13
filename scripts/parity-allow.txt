@@ -1,15 +1,18 @@
 # Tracked in #14; remove lines as gaps close.
-# One entry per line: surface:skill
+# One entry per line: surface:skill:reason (reason is free text after the
+# second colon; check_parity.py requires a non-blank reason on every line
+# and only reads surface and skill for the allowlist match).
 
 # skills-local: deliberate subset (compact imperative variants for local
-# models). These 10 skills have no skills-local counterpart yet.
-skills-local:architect
-skills-local:breakdown
-skills-local:handoff
-skills-local:lean-max-effort
-skills-local:plain-language
-skills-local:refactor
-skills-local:research
-skills-local:spec
-skills-local:testgen
-skills-local:write
+# models). Five of the ten original gaps got a local variant in #10
+# (handoff, spec, testgen, refactor, write); these five stay allowlisted,
+# each for a stated reason on the real criterion — compactability,
+# reference density, or a token-discipline inversion — not "routes to a
+# paid tier" (playbooks/ROUTING.md's table rows mix skills that did and
+# didn't get a variant, e.g. spec+breakdown and research+write share a
+# row, so tier routing alone doesn't explain the split):
+skills-local:architect:multi-option tradeoff analysis and one-way-door judgment calls do not compact into an imperative checklist without flattening the reasoning the skill exists to produce.
+skills-local:breakdown:task decomposition holds cross-task dependencies and risk-ordering in judgment as it goes; a compact directive body would have to pre-decide that judgment instead of applying it.
+skills-local:lean-max-effort:its token discipline is inverted for free local models (unbounded tokens, not scarce ones) — covered instead by skills-local/quality, which encodes the opposite discipline.
+skills-local:plain-language:a reference-heavy detection pass against a catalogued, evolving list of AI-writing signs; the list is the skill, so compacting it under a line budget would mean shipping a stale or partial list.
+skills-local:research:triangulation depends on weighing source reliability and cross-checking claims in judgment; a compact directive body would flatten that into false confidence instead of doing the weighing.

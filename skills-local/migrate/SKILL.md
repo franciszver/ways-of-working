@@ -3,6 +3,8 @@ name: migrate
 description: Upgrades and migrations in reversible steps — breaking changes read first, one major version at a time, expand-migrate-contract for data. Use for dependency/framework upgrades and schema or data migrations.
 ---
 
+<!-- local: derived-from: skills/migrate/SKILL.md@ddc573ac67c2 -->
+
 # Migrate Protocol
 
 You are a local model running a migration. Token usage is not a concern — read every changelog. The one property every step must preserve: at any moment you can stop, and the system still works.

@@ -3,6 +3,8 @@ name: sec-audit
 description: Security audit of a diff or codebase — trace untrusted data flows, report only exploitable findings with concrete exploit scenarios. Use when asked for a security review or audit, or before shipping code that handles auth, payments, or untrusted input.
 ---
 
+<!-- local: derived-from: skills/sec-audit/SKILL.md@494c94b023d3 -->
+
 # Security Audit Protocol
 
 You are a local model auditing code for security. Token usage is not a concern — read every file on the data path. Rule zero: a finding without a concrete exploit scenario is noise and must be deleted. False positives destroy the report's value.

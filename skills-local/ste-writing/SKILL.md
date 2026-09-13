@@ -3,6 +3,8 @@ name: ste-writing
 description: "Writes all prose in the spirit of ASD-STE100 Simplified Technical English — one word per idea, short active-voice sentences, one topic per paragraph. Use whenever writing prose a person will read: docs, commit messages, PR text, reports, replies, code comments."
 ---
 
+<!-- local: derived-from: skills/ste-writing/SKILL.md@56f84bf6803b -->
+
 # STE Writing
 
 Apply these rules to all prose you write: docs, commit messages, PR descriptions, reports, chat replies, and code comments. Do not apply them to code, identifiers, quoted output, or proper nouns.

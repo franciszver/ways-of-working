@@ -3,6 +3,8 @@ name: onboard
 description: Builds an accurate working model of an unfamiliar codebase fast — orients from the artifacts, traces one real flow end-to-end, verifies beliefs against runtime behavior, writes down the map built. Use when joining a project, picking up an unfamiliar repo/service/module, or before making changes in code you've never touched.
 ---
 
+<!-- local: derived-from: skills/onboard/SKILL.md@884b73c9eaa2 -->
+
 # Onboard Protocol
 
 You are a local model learning an unfamiliar codebase. Token usage is not a concern — read everything relevant. The danger is not ignorance; it's the plausible-but-wrong model built from file names and vibes. Every belief about this codebase is a hypothesis until verified against code or runtime.

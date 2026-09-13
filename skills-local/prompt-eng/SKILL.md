@@ -3,6 +3,8 @@ name: prompt-eng
 description: Prompts engineered like software — explicit contract with examples, tested against a case set, debugged by evidence. Use when writing or debugging prompts, system prompts, or LLM-powered features.
 ---
 
+<!-- local: derived-from: skills/prompt-eng/SKILL.md@17d6d32cf649 -->
+
 # Prompt Engineering Protocol
 
 You are a local model engineering a prompt. A prompt is a program run by a stochastic interpreter — it gets a spec, tests, and evidence-driven debugging. Iterating on vibes (rewrite, eyeball one output, repeat) is forbidden.

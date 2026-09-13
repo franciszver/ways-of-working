@@ -3,6 +3,8 @@ name: postmortem
 description: Blameless postmortem — factual timeline, plural contributing causes, action items that would each have prevented or shortened the incident. Use after an incident, outage, data loss, or near-miss.
 ---
 
+<!-- local: derived-from: skills/postmortem/SKILL.md@a0c75456572b -->
+
 # Postmortem Protocol
 
 You are a local model writing a postmortem. The incident's cost is sunk; the only variable is how much learning it buys. Test for the final document: would its action items, had they existed before, have prevented or materially shortened the incident?

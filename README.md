@@ -1,6 +1,6 @@
 # ways-of-working
 
-A library of skills, playbooks, rules, and configs that capture one owner's ways of working, written so that **any model, including cheaper and local ones, produces near-frontier output**: Opus/Sonnet in Claude Code, free local models via claude-code-router, Antigravity, Cursor, Gemini CLI, and any MCP-capable agent.
+A library of skills, playbooks, rules, and configs that capture one owner's ways of working, written so that **any model, including cheaper and local ones, produces near-frontier output**: Opus/Sonnet in Claude Code, free local models in Claude Code via `ANTHROPIC_BASE_URL` (Ollama, LM Studio), Antigravity, Cursor, Gemini CLI, and any MCP-capable agent.
 
 The premise: most of the gap between a mediocre run and a frontier run is **process, not raw intelligence** — dropped requirements, unverified "done", shotgun debugging, premature stopping. Process can be written down. This repo is that writing, plus the judgment about which model should do what (`playbooks/ROUTING.md`).
 
@@ -9,7 +9,7 @@ The premise: most of the gap between a mediocre run and a frontier run is **proc
 ```
 skills/          34 canonical skills — source of truth, tuned for Opus/Sonnet
 skills-local/    compact imperative variants for local models (quality, iterate,
-                 debug, deep-review, prove, + 21 new skills) — free tokens change the discipline
+                 debug, deep-review, prove, + 26 more) — free tokens change the discipline
 agents/          Claude Code subagents: code-reviewer, verifier, researcher, architect
 claude-md/       always-on CLAUDE.md layers: global-frontier, global-local, project template
 playbooks/       ROUTING.md (which model for what) · HANDOFF.md (cross-tool continuity)
@@ -40,11 +40,12 @@ claude plugin install ways-of-working@ways-of-working
 ./install.sh --hooks ~/code/myrepo                 # optional automation
 ```
 
-**Claude Code, local models (claude-code-router):**
+**Claude Code, local models:** the official path is `ANTHROPIC_BASE_URL` pointed at a local server that implements the Anthropic Messages API:
 ```bash
+export ANTHROPIC_BASE_URL=http://localhost:11434   # your local server's address
 ./install.sh --claude-user --profile local         # on the machine/config running local models
 ```
-One profile per setup — the packs share skill names by design (same muscle memory, opposite token economics; see below).
+Versions, ports, auth tokens, and the community `claude-code-router` alternative: [`skills-local/README.md`](skills-local/README.md). One profile per setup — the packs share skill names by design (same muscle memory, opposite token economics; see below).
 
 **Antigravity:** `./install.sh --antigravity ~/code/myrepo` → 5 rules + 34 thin workflow stubs, one per canonical skill, plus `skills/` itself (path rationale: `antigravity/README.md`)
 
