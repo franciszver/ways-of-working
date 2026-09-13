@@ -1,25 +1,29 @@
 # profile-claude-code.yaml — Claude-Code-only frontmatter keys, layered
 # onto canonical skills/**/SKILL.md by scripts/build-profile.py.
 #
-# skills/ stays spec-portable (Agent Skills spec keys only). Any key a
-# skill needs only in Claude Code (context, argument-hint,
-# disable-model-invocation, and allowed-tools syntax variants Claude Code
-# reads that other runtimes do not) belongs here, not in skills/.
+# skills/ stays spec-portable (Agent Skills spec keys only). A key a
+# skill needs only in Claude Code (argument-hint, disable-model-invocation,
+# context, agent, user-invocable, model, effort) belongs here, not in
+# skills/.
 #
 # Format: skill name -> mapping of extra frontmatter keys to merge in.
-# scripts/check-frontmatter.py checks the build output against this file;
-# scripts/build-profile.py generates it into build/claude-code/skills/.
+# scripts/build-profile.py validates this file (allowed keys only, no
+# collision with the canonical frontmatter, names must be canonical
+# skills) and generates build/claude-code/skills/ from it; `--check`
+# verifies the committed build tree is current.
+#
+# `context: fork` is deliberately not used yet: its interaction with
+# agents/*.md that already preload the same skill is unverified (it may
+# require an explicit `agent:` and could nest forks). Follow-up once
+# checked in a live session — see CONTRIBUTING.md.
 
 deep-review:
-  context: fork
   argument-hint: "[file|dir|branch|PR]"
 
 sec-audit:
-  context: fork
   argument-hint: "[diff|path]"
 
 research-codebase:
-  context: fork
   argument-hint: "<question>"
 
 declutter:

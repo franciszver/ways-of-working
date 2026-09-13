@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "ways-of-working-claude-code",
+  "description": "A library of skills, playbooks, rules, and configs that capture one owner's ways of working, written so that any model, including cheaper and local ones, produces near-frontier output: Opus/Sonnet in Claude Code, free local models via claude-code-router, Antigravity, Cursor, Gemini CLI, and any MCP-capable agent. This variant's skills/ carries Claude-Code-only frontmatter (argument-hint) generated from the portable library.",
+  "version": "0.7.0",
+  "author": {
+    "name": "Francisco de Guzman"
+  },
+  "homepage": "https://github.com/franciszver/ways-of-working",
+  "repository": "https://github.com/franciszver/ways-of-working",
+  "license": "MIT",
+  "hooks": "./hooks/plugin-hooks.json"
+}

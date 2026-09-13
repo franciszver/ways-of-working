@@ -38,7 +38,11 @@ frontmatter with:
 
 A file that must carry a non-spec key (for example, a Claude-Code-only
 `disable-model-invocation`) is listed in `scripts/frontmatter-allow.txt`
-with a comment pointing at the tracking issue, not silently exempted.
+with a comment pointing at this section, not silently exempted.
+`skills-local/iterate/SKILL.md` is the current example: `skills-local/` is
+Claude-Code-only by construction (see "Two profiles" below), so its
+non-spec keys stay inline rather than moving through the profile
+mechanism, which only reads canonical `skills/`.
 
 ## The agent contract
 
@@ -77,43 +81,56 @@ treat an out-of-tree symlinked rule as an external import and drop its
 `paths:` scoping). Add a new rule file, not a new paragraph in the core,
 when guidance is specific to a file type or directory.
 
-## Two profiles: portable skills/, generated Claude Code profile
+## Two profiles: portable skills/, committed Claude Code profile
 
 `skills/` is spec-portable by rule — it never carries a Claude-Code-only
-key, even for a skill Claude Code alone runs. A key such as `context:
-fork` or `argument-hint` goes in `scripts/profile-claude-code.yaml`
-instead, keyed by skill name.
+key, even for a skill Claude Code alone runs. A key such as
+`argument-hint` goes in `scripts/profile-claude-code.yaml` instead, keyed
+by skill name. Allowed profile keys: `context`, `agent`, `argument-hint`,
+`disable-model-invocation`, `user-invocable`, `model`, `effort`. A key
+outside that set, a skill name outside canonical `skills/`, or a key that
+already exists in that skill's canonical frontmatter is a hard error from
+`scripts/build-profile.py`.
 
-`scripts/build-profile.py` reads that file and writes
-`build/claude-code/skills/<name>/SKILL.md` for every canonical skill:
-the canonical frontmatter plus that skill's extra keys, body unchanged.
-It also writes `build/claude-code/` as a standalone plugin root (its own
-`.claude-plugin/plugin.json`, `agents/`, `hooks/`) — a plugin's own
-`./skills` is always scanned by default and the manifest's `skills` field
-only adds directories, so the enhanced profile needs its own plugin root
-rather than an entry on the existing `plugin.json`.
+`context: fork` is not used in the current profile: its interaction with
+`agents/*.md` entries that already preload the same skill is unverified
+— it may require an explicit `agent:` key, or nest forks. Follow-up once
+checked in a live session.
 
-`build/` is generated, never committed (see `.gitignore`). Run
-`python3 scripts/build-profile.py .` after any change to a canonical
-skill or to `scripts/profile-claude-code.yaml`, then
-`python3 scripts/build-profile.py . --check` to confirm it is current —
-both run in CI, before `claude plugin validate` and before
-`check-frontmatter.py`. `install.sh --claude-user`/`--claude-project`
-(frontier profile) and `install.sh --check` build it automatically.
+`scripts/build-profile.py` reads `scripts/profile-claude-code.yaml` and
+writes `build/claude-code/skills/<name>/SKILL.md` for every canonical
+skill: the canonical frontmatter plus that skill's extra keys, body
+unchanged. It also writes `build/claude-code/` as a standalone plugin
+root (its own `.claude-plugin/plugin.json`, `agents/`, `hooks/`) — a
+plugin's own `./skills` is always scanned by default and the manifest's
+`skills` field only adds directories, so the enhanced profile needs its
+own plugin root rather than an entry on the existing `plugin.json`.
+
+`build/claude-code/` is **committed**, the same way the antigravity stubs
+and `hooks/plugin-hooks.json` are — not generated at install or CI time.
+After any change to a canonical skill or to
+`scripts/profile-claude-code.yaml`, run `python3 scripts/build-profile.py
+.` and commit the result; `python3 scripts/build-profile.py . --check`
+(no writes) is the drift gate CI runs. `install.sh --claude-user`/
+`--claude-project` (frontier profile) and `--check` read the committed
+tree directly — no Python needed to install.
 
 ## Running the checks
 
 ```bash
 python3 scripts/check_parity.py          # canonical names vs skills-local + cursor's exact file set
 python3 scripts/gen-ports.py . --check   # antigravity stubs + AGENTS.md pointers vs skills/ (drift + uniqueness)
-python3 scripts/build-profile.py .       # generate build/claude-code/ (Claude Code profile)
-python3 scripts/build-profile.py . --check  # confirm it is current
-python3 scripts/check-frontmatter.py .   # SKILL.md frontmatter contract, plus the generated profile
+python3 scripts/build-profile.py . --check  # build/claude-code/ vs skills/ + profile-claude-code.yaml (drift + contract)
+python3 scripts/check-frontmatter.py .   # SKILL.md frontmatter contract
 python3 scripts/check-counts.py .        # README skill count vs disk
 python3 scripts/check-agents.py .        # agents/*.md frontmatter contract
 python3 scripts/check-skill-sections.py . # closing sections, ## Report, duplicate paragraphs
 bash -n install.sh                       # installer syntax
 ```
+
+After changing a canonical skill or `scripts/profile-claude-code.yaml`,
+run `python3 scripts/build-profile.py .` (writes) first, commit
+`build/claude-code/`, then run the `--check` above.
 
 All of these run in CI (`.github/workflows/ci.yml`) on every push and PR.
 

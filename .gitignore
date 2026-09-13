@@ -13,7 +13,3 @@ prd/
 # failure-counter.sh's log (hooks/scripts/failure-counter.sh), opt-in via
 # install.sh --hooks
 .claude/failure-log
-
-# Generated Claude Code profile (scripts/build-profile.py) — rebuilt in CI
-# and by install.sh, never committed. See CONTRIBUTING.md.
-/build/
