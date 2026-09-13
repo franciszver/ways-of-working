@@ -9,7 +9,12 @@
     {
       "name": "ways-of-working",
       "source": "./",
-      "description": "A library of skills, playbooks, rules, and configs that capture one owner's ways of working."
+      "description": "A library of skills, playbooks, rules, and configs that capture one owner's ways of working. Skills carry only Agent Skills spec keys, portable across tools."
+    },
+    {
+      "name": "ways-of-working-claude-code",
+      "source": "./build/claude-code",
+      "description": "The Claude Code profile of ways-of-working: same skills, plus generated context/argument-hint frontmatter for Claude Code (scripts/build-profile.py). Requires a built tree — see CONTRIBUTING.md."
     }
   ]
 }

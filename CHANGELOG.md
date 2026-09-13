@@ -5,6 +5,32 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+- **Frontmatter profiles** (#12): `skills/` now carries only Agent Skills
+  spec keys (`name`, `description`, `license`, `compatibility`,
+  `metadata`, `allowed-tools`) — spec-portable across tools. A new
+  `scripts/build-profile.py` generates `build/claude-code/`: canonical
+  skills plus Claude-Code-only frontmatter from
+  `scripts/profile-claude-code.yaml` (`argument-hint` for eight
+  argument-taking skills; `context: fork` deliberately not used yet, its
+  interaction with agents preloading the same skill is unverified), and a
+  standalone plugin root so `.claude-plugin/marketplace.json` can offer
+  `ways-of-working-claude-code` alongside the portable `ways-of-working`
+  plugin. `build/claude-code/` is **committed**, like the antigravity
+  stubs and `hooks/plugin-hooks.json` — `scripts/build-profile.py .
+  --check` (no writes) is the CI drift gate, and it also enforces the
+  frontmatter contract on the generated tree and rejects a profile entry
+  with a disallowed key, an unknown skill name, or a key already present
+  in that skill's canonical frontmatter. `install.sh --claude-user`/
+  `--claude-project` (frontier profile) and `--check` read the committed
+  tree directly — no Python required to install. Considered and reverted
+  adding `allowed-tools: Read, Grep, Glob, Bash` to `deep-review`,
+  `sec-audit`, `research`, `research-codebase`: the key pre-approves
+  tools for the turn without restricting anything else, so pre-approving
+  `Bash` on skills that read untrusted repos and diffs would remove the
+  one permission prompt standing between prompt injection in that content
+  and command execution. `agents/*.md`'s `disallowedTools` already
+  enforces read-only for the review agents.
+
 - **Ports** (#11): retired the Gemini port — `ports/gemini/README.md`
   now points the paid-tier Gemini CLI at `install.sh --skills
   ~/.gemini/skills` (free tier retired 2026-06-18 for Antigravity CLI).

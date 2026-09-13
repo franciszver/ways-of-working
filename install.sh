@@ -21,10 +21,18 @@
 #   ./install.sh --check
 #   Options: --dry-run  --force  --link  --profile frontier|local  -h/--help
 #
-# Profiles: 'frontier' installs skills/ + agents/ + global-frontier CLAUDE.md rules
-# (paid models — lean discipline). 'local' installs skills-local/ + global-local
-# rules (free local models — thoroughness discipline). One profile per setup;
-# the packs share skill names by design.
+# Profiles: 'frontier' installs the committed Claude Code profile
+# (build/claude-code/skills — canonical skills/ plus Claude-Code-only
+# frontmatter from scripts/profile-claude-code.yaml, generated and
+# committed like the antigravity stubs) + agents/ + global-frontier
+# CLAUDE.md rules (paid models — lean discipline). 'local' installs
+# skills-local/ + global-local rules (free local models — thoroughness
+# discipline). One profile per setup; the packs share skill names by
+# design. No python3/PyYAML needed to install either profile — a change
+# to a canonical skill or to scripts/profile-claude-code.yaml needs
+# `python3 scripts/build-profile.py` run once (a dev step, enforced in CI
+# by `python3 scripts/build-profile.py --check`) before a frontier
+# install picks it up.
 #
 # A marker file ($HOME/.claude/skills/.ways-of-working-profile) records
 # which profile --claude-user last installed. Requesting the other profile
@@ -110,7 +118,7 @@ profile_layout() { # $1 = profile name (frontier|local); echoes "SKILLS_SUBDIR A
   # content each profile carries — keep in sync with the profile
   # descriptions in the usage banner above.
   case "$1" in
-    frontier) echo "skills agents" ;;
+    frontier) echo "build/claude-code/skills agents" ;;
     local)    echo "skills-local -" ;;
     *) echo "Unknown profile: $1" >&2; return 1 ;;
   esac
@@ -283,9 +291,22 @@ check_profile_marker() { # $1 = base; refuses a profile switch without --force
   strip_guarded_block "$base/CLAUDE.md" "<!-- ways-of-working:$installed -->"
 }
 
-_remove_other_profile_skill_cb() { # $1 = dir, $2 = name, $3 = base, $4 = new_src, $5 = other profile name
-  local dir="$1" name="$2" base="$3" new_src="$4" other="$5"
-  [ -d "$LIB/$new_src/$name" ] && return 0 # shared name, the new pack keeps it
+profile_name_src() { # $1 = profile name; echoes the dir whose skill NAMES that profile owns
+  # Distinct from profile_layout's SKILLS_SUBDIR (the copy/check source,
+  # build/claude-code/skills for frontier): the name set a profile owns is
+  # always the canonical skills/ or skills-local/ names, one-to-one with
+  # the generated tree, so switching profiles never depends on the built
+  # tree's contents matching — only on it existing (it's committed).
+  case "$1" in
+    frontier) echo "skills" ;;
+    local)    echo "skills-local" ;;
+    *) echo "Unknown profile: $1" >&2; return 1 ;;
+  esac
+}
+
+_remove_other_profile_skill_cb() { # $1 = dir, $2 = name, $3 = base, $4 = new_names_src, $5 = other profile name
+  local dir="$1" name="$2" base="$3" new_names_src="$4" other="$5"
+  [ -d "$LIB/$new_names_src/$name" ] && return 0 # shared name, the new pack keeps it
   if [ -e "$base/skills/$name" ]; then
     note "removing skill from previous profile ($other), absent from $PROFILE pack: $name"
     run rm -rf "${base:?}/skills/${name:?}"
@@ -293,10 +314,12 @@ _remove_other_profile_skill_cb() { # $1 = dir, $2 = name, $3 = base, $4 = new_sr
 }
 
 remove_other_profile_skills() { # $1 = base, $2 = previous profile name
-  local base="$1" other="$2" other_src other_agents new_src new_agents
-  read -r other_src other_agents <<< "$(require_layout "$other" "previous profile marker")"
-  read -r new_src new_agents <<< "$(require_layout "$PROFILE" "requested profile")"
-  for_each_skill_dir "$other_src" _remove_other_profile_skill_cb "$base" "$new_src" "$other"
+  local base="$1" other="$2" other_names_src other_agents new_names_src new_agents
+  other_names_src="$(profile_name_src "$other")"
+  new_names_src="$(profile_name_src "$PROFILE")"
+  read -r _ other_agents <<< "$(require_layout "$other" "previous profile marker")"
+  read -r _ new_agents <<< "$(require_layout "$PROFILE" "requested profile")"
+  for_each_skill_dir "$other_names_src" _remove_other_profile_skill_cb "$base" "$new_names_src" "$other"
   # An agents flag present on the old profile but not the new one means
   # leaving that profile removes its agents too.
   if [ "$other_agents" = "agents" ] && [ "$new_agents" != "agents" ]; then
@@ -348,7 +371,7 @@ do_claude_project() {
   local proj="$ARG_CLAUDE_PROJECT" base="$ARG_CLAUDE_PROJECT/.claude"
   [ -d "$proj" ] || { echo "No such directory: $proj"; exit 1; }
   if [ "$PROFILE" = "frontier" ]; then
-    copy_skill_dirs "skills" "$base/skills"
+    copy_skill_dirs "build/claude-code/skills" "$base/skills"
     run mkdir -p "$base/agents"
     local f
     for f in "$LIB"/agents/*.md; do copy_file_safe "$f" "$base/agents/$(basename "$f")" 1; done

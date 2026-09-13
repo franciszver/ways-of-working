@@ -35,8 +35,8 @@ jobs:
           changed="$(git diff --name-only "origin/$GITHUB_BASE_REF...HEAD")"
           echo "Changed files:"
           echo "$changed"
-          if ! echo "$changed" | grep -qE '^(skills|agents|hooks)/'; then
-            echo "No skills/, agents/, or hooks/ changes — no version bump required."
+          if ! echo "$changed" | grep -qE '^(skills|agents|hooks|build|scripts/profile-claude-code\.yaml|scripts/build-profile\.py)(/|$)'; then
+            echo "No skills/, agents/, hooks/, build/, or profile-generator changes — no version bump required."
             exit 0
           fi
           if ! echo "$changed" | grep -qx '\.claude-plugin/plugin\.json'; then
@@ -73,6 +73,14 @@ jobs:
         # These are generated from skills/*/SKILL.md frontmatter; a skill
         # description change must regenerate them (scripts/gen-ports.py).
         run: python3 scripts/gen-ports.py . --check
+
+      - name: Claude Code profile drift check
+        # build/claude-code/ is committed, like the antigravity stubs and
+        # hooks/plugin-hooks.json. --check regenerates in memory only (no
+        # writes) and compares against the committed tree checked out
+        # above, so it actually gates drift — it must run before anything
+        # in this job could write to build/claude-code/ and mask it.
+        run: python3 scripts/build-profile.py . --check
 
       - name: SKILL.md frontmatter check
         run: python3 scripts/check-frontmatter.py .
@@ -118,6 +126,16 @@ jobs:
           claude plugin validate .claude-plugin/plugin.json --strict
           claude plugin validate ./skills --strict
           claude plugin validate ./agents --strict
+
+      - name: Validate the generated Claude Code profile plugin
+        # build/claude-code/ is a standalone plugin root (its own
+        # .claude-plugin/plugin.json, skills/, agents/, hooks/), committed
+        # and checked for drift above — validated here as its own plugin,
+        # the same way the portable one is validated above.
+        run: |
+          claude plugin validate ./build/claude-code --strict
+          claude plugin validate ./build/claude-code/.claude-plugin/plugin.json --strict
+          claude plugin validate ./build/claude-code/skills --strict
 
       - name: mcp-server library tests (mcp package absent — proves the boundary)
         run: python3 -m pytest mcp-server -q

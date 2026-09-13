@@ -1,0 +1,76 @@
+---
+name: apply-working-process
+description: Loads the owner's standard working process — orchestrator-only role split,
+  cheap-model implementation with fresh review tiered to what's being checked, board-as-plan
+  issue discipline, red-first TDD, three gates before merge, same-session decision
+  logging. Use when starting work in a repo, planning a feature, or before the first
+  edit of a session in a project.
+---
+
+# Apply Working Process
+
+This is how the library's owner runs engineering work. It was proven on the AgentForge series (a multi-phase portfolio build) and applies to any project unless they say otherwise. The principle underneath all of it: **the visible process is itself the evidence of quality** — red→green history, review gates, and an honest board are the deliverable, not overhead.
+
+## 1. Roles and model routing
+
+- **The orchestrator plans, sequences, delegates, reviews, and merges — it never edits files directly.**
+- Implementation runs on cheaper models: Sonnet-tier for all real work, Haiku-tier only for pure boilerplate (scaffolding, fixtures, config). Token savings are an explicit owner directive, not an optimization to debate.
+- **Every diff is reviewed by a fresh agent — model tier follows what the check is verifying, not the fact that it's a review.** "Fresh" (no implementation context, so it can't inherit the implementer's blind spots) applies at every tier below:
+  - Haiku-tier for mechanical/structural checks with a checkable right answer: orphaned imports and dead code after a deletion, deletion completeness (no dangling references), stale comments and doc drift, test-count deltas, naming and style consistency.
+  - Sonnet-tier for ordinary correctness review on contained diffs.
+  - Opus-tier (or the strongest available) for adversarial passes on high-stakes paths: anything that can destroy or corrupt user data, anything touching security boundaries, anything whose correctness depends on an assumption about an external system (hardware, a device protocol, a third-party API). Its use is called out explicitly.
+- Don't spend the expensive tier on pattern-matching work — routing an import check to a top-tier model buys nothing a cheap tier plus verification wouldn't also catch.
+- No subagents in this environment? Keep the *phase separation*: plan first, implement second, then review your own diff cold with `deep-review` before committing.
+- The orchestrator runs on the seat's top tier. If the seat's top tier is the ordinary frontier tier (Opus-class), run it at high reasoning effort and say so, rather than silently downgrading.
+- The full model-selection judgment lives in this library's `playbooks/ROUTING.md`; this section is its standing application, and ROUTING.md wins if they drift.
+
+## 2. The plan lives on a board, publicly
+
+- A public GitHub Project (or the environment's equivalent) is the **live operational plan**: phases → milestones, tasks → issues titled `P<phase>.<seq>`, labels for phase and implementation tier.
+- Each issue body carries: scope, a **Red-first** line (the failing artifact to write before implementing), **Done when** (acceptance criteria), and the Definition-of-Done checklist.
+- Planning documents freeze once imported to the board; plan changes happen in issues. (Exception: the test plan stays a living document.)
+- **The board never lags reality.** Work discovered mid-task gets an issue created *first* — with acceptance criteria — then a branch. No board access? Keep a `WORKPLAN.md` with the same structure.
+
+## 3. One issue = one branch = one PR
+
+- Nothing reaches `main` without a feature branch and a PR. No direct pushes, no "quick fixes."
+- Every PR links its issue via `Closes #N`; a PR with no linked issue does not merge.
+- Branches: `feat/p<N>-<slug>` (or `fix/`, `docs/`, `ci/`). Conventional commits, with an `Assisted-by: <tool>` trailer when an AI helped.
+- Once the branch exists, `pr-workflow` owns the craft: commit narrative, PR description, review dialogue.
+
+## 4. Red first — strict TDD, everywhere
+
+- The failing artifact is committed and **visibly failing in PR history** before implementation: unit test for logic, eval case for agent behavior, browser scenario for UI flows.
+- Every mock-based test of an external system is paired with a scenario against the real running stack — mocks mirror assumptions; scenarios check them.
+- Model-inference evals never run in CI: live runs happen locally and record outputs; CI replays recordings through deterministic assertions.
+- This is a conscious owner override of hybrid approaches — the ~20–30% schedule cost is accepted for uniform "no untested line" discipline. Don't relitigate it.
+
+## 5. Three gates before anything merges
+
+- On the full PR diff, in order: **simplify → security review → code review** (in Claude Code: `/simplify` → `/security-review` → `/code-review`; elsewhere use this library's `declutter`, `sec-audit`, `deep-review`).
+- Every finding fixed — not triaged into follow-ups — and the full test suite re-run green *after* the fixes. Applies to docs PRs too.
+- When a gate finds a real defect, **fix-first beats ship-with-follow-up**, even if the reviewer says shipping is acceptable.
+- **Scale the simplify gate's fan-out to the diff — security review and code review always run at full strength regardless of size.** Simplify normally fans out to four parallel angles (reuse, simplification, efficiency, altitude); on a small diff (roughly under ~150 changed lines, or confined to one or two files) collapse that to a single combined pass covering all four angles, on a cheap tier. Larger or structurally significant diffs keep the full parallel fan-out — structural significance overrides the size heuristic, so a large single-file rewrite is not a small diff. State explicitly when the reduced form is used, so a reduced gate is never mistaken for a full one — this proportionality rule applies to simplify only, never to security review or code review, which are the gates that catch defects.
+- **Two review→fix rounds on the same diff without convergence is the cap.** Stop and surface the situation to the owner with a recommendation instead of starting a third round — repeated rounds on one diff are evidence the approach is wrong, not that the fixes are nearly done. When an implementer's measurement against real data contradicts a reviewer's model, the measurement wins (see **Honest measurement** in §7).
+
+## 6. Decisions are logged the session they're made
+
+- A local, gitignored `prd/` directory holds the full plan and `DECISIONS.md`. Every owner decision gets an entry **in the same session**: `Decision / Alternatives rejected / Why`.
+- Judgment calls the agent makes autonomously are logged there *and* surfaced to the owner for review (as a board issue, or explicitly on return).
+- `DECISIONS.md` is the running owner log; one-way-door architecture decisions *additionally* get an ADR (see `architect`) — the log entry points at the ADR, not the other way around.
+- Three visibility tiers, never mixed: (1) committed/public docs and code — stripped of strategy and meta-framing; (2) the public board — the live plan; (3) local `prd/` — strategy, decision log, unverified findings. Unverified vulnerability claims are never published.
+
+## 7. Working norms
+
+- **Anything that can be done now gets done now** — environment setup runs immediately, outside tracked tasks, so problems surface before the first task's pipeline.
+- **Honest measurement.** Never game a metric: a non-deterministic test stays xfail rather than being flaked green. When an implementer's measurement against real data contradicts a reviewer's model of the risk, the measurement wins (see `references/observations.md`).
+- **Autonomy with accountability.** When granted an unattended run: self-merge after the gates pass, and leave owner-gated items open and annotated rather than blocking on them.
+- **Check in on long-running subagents every 15 minutes.** A delegated task still "running" isn't proof it's progressing — read back its actual output or status and confirm real progress, not just that the process is alive. Prefer a free, independent spot-check of the environment (`git status`, `docker ps`, GPU/resource stats, artifact directories) before spending a message or resume on asking the agent itself. Stalled or looping work gets interrupted and redirected, not left to burn budget silently.
+- **CI watches are bounded, not open-ended, and post-push checks-absence needs one short poll first** (see `references/observations.md`).
+- Brief subagents with the CI ceiling and re-run rule, never an open-ended `--watch`.
+- The 15-minute spot-check includes: is it parked on a CI watch past the ceiling? (`gh run list` is free)
+- **Subagents never passively wait on background work — they poll in a bounded foreground loop instead** (see `references/observations.md`).
+
+## Adapting to a new environment
+
+On first use in a tool or repo, map each element to what exists: which review skills stand in for the three gates, whether a board or `WORKPLAN.md` carries the plan, whether subagents or phase separation carry the role split. State the mapping once, then follow it — don't silently drop the elements the environment makes awkward.

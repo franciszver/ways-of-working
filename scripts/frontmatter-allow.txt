@@ -1,5 +1,5 @@
 # Files allowed to carry frontmatter keys outside the Agent Skills spec
 # set {name, description, license, compatibility, metadata, allowed-tools}.
-# One relative path per line, with a comment pointing at the tracking issue.
+# One relative path per line, with a comment pointing at the rationale.
 
-skills-local/iterate/SKILL.md  # disable-model-invocation, argument-hint — see issue #12
+skills-local/iterate/SKILL.md  # disable-model-invocation, argument-hint — Claude-Code-only by construction, see CONTRIBUTING.md's "Two profiles" section
