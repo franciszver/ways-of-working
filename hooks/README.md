@@ -10,6 +10,10 @@ Three hooks that enforce mechanically what the skills teach behaviorally. Skills
 
 `plugin-hooks.json` is generated from `settings-snippet.json` — run `scripts/merge-hooks.py --emit-plugin > hooks/plugin-hooks.json` after editing the snippet, never hand-edit it.
 
+`.claude/test-command` is executed as a shell command by `test-gate.sh` — treat it as code, not config.
+
+The plugin ships only `guardrails.sh` and `format-on-stop.sh`. The test gate is per-project opt-in via `install.sh --hooks`, never installed by the plugin.
+
 ## Install (per project)
 
 ```bash

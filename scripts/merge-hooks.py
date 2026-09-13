@@ -6,8 +6,11 @@ Usage: merge-hooks.py TARGET_SETTINGS_JSON SNIPPET_JSON
        merge-hooks.py --emit-plugin
 
 --emit-plugin reads hooks/settings-snippet.json, rewrites its project-path
-hook commands to plugin-root paths, and prints the result as JSON — this is
-how hooks/plugin-hooks.json is generated. It is never hand-edited.
+hook commands to plugin-root paths, drops test-gate.sh (the plugin ships only
+guardrails.sh and format-on-stop.sh — test-gate.sh stays per-project opt-in
+via install.sh --hooks; see hooks/README.md), and prints the result as
+JSON — this is how hooks/plugin-hooks.json is generated. It is never
+hand-edited.
 
 Merges snippet["hooks"][event] entries into target["hooks"][event],
 appending only entries not already present (safe to re-run). Never
@@ -20,6 +23,13 @@ from pathlib import Path
 
 PROJECT_HOOK_PREFIX = '"$CLAUDE_PROJECT_DIR"/.claude/hooks/'
 PLUGIN_HOOK_PREFIX = '"${CLAUDE_PLUGIN_ROOT}"/hooks/scripts/'
+
+# Excluded from the plugin manifest: plugin hooks fire in every project the
+# user opens, with no per-project opt-in. test-gate.sh runs the first line
+# of the repo-controlled file .claude/test-command as a shell command on
+# every commit-matching Bash call — safe only because install.sh --hooks is
+# an explicit, per-project opt-in. Never add it back to the plugin.
+PLUGIN_EXCLUDED_SCRIPTS = ("test-gate.sh",)
 
 
 def fail(message: str) -> int:
@@ -34,14 +44,26 @@ def emit_plugin() -> int:
     except (FileNotFoundError, json.JSONDecodeError) as e:
         return fail(f"{snippet_path} is not readable/valid JSON ({e})")
 
-    for entries in snippet.get("hooks", {}).values():
+    plugin_hooks = {}
+    for event, entries in snippet.get("hooks", {}).items():
+        kept_entries = []
         for entry in entries:
+            kept_hooks = []
             for hook in entry.get("hooks", []):
-                command = hook.get("command")
+                command = hook.get("command", "")
+                if any(script in command for script in PLUGIN_EXCLUDED_SCRIPTS):
+                    continue
                 if isinstance(command, str) and PROJECT_HOOK_PREFIX in command:
                     hook["command"] = command.replace(PROJECT_HOOK_PREFIX, PLUGIN_HOOK_PREFIX)
+                kept_hooks.append(hook)
+            if not kept_hooks:
+                continue
+            entry = dict(entry, hooks=kept_hooks)
+            kept_entries.append(entry)
+        if kept_entries:
+            plugin_hooks[event] = kept_entries
 
-    print(json.dumps(snippet, indent=2))
+    print(json.dumps({"hooks": plugin_hooks}, indent=2))
     return 0
 
 
