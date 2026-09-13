@@ -4,6 +4,7 @@ description: Blameless postmortem that converts an incident into systemic fixes 
   factual timeline, contributing causes (plural, not one root cause), action items
   that would each have prevented or shortened the incident. Use after an incident,
   outage, data loss, near-miss, or any "how did that happen" retrospective.
+disable-model-invocation: true
 ---
 
 # Postmortem

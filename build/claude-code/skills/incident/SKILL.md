@@ -4,6 +4,7 @@ description: Production incident response — stabilize before diagnosing, mitig
   with the smallest reversible action, keep a timestamped log, communicate on a cadence.
   Use when production is down or degraded, users are impacted, an alert is firing,
   or "something is wrong in prod" — before any root-cause work.
+disable-model-invocation: true
 ---
 
 # Incident
