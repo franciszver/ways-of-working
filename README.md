@@ -7,7 +7,7 @@ The premise: most of the gap between a mediocre run and a frontier run is **proc
 ## Map
 
 ```
-skills/          33 canonical skills — source of truth, tuned for Opus/Sonnet
+skills/          34 canonical skills — source of truth, tuned for Opus/Sonnet
 skills-local/    compact imperative variants for local models (quality, iterate,
                  debug, deep-review, prove, + 21 new skills) — free tokens change the discipline
 agents/          Claude Code subagents: code-reviewer, verifier, researcher, architect
