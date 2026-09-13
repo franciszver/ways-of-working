@@ -111,6 +111,9 @@ def main() -> int:
     default_lib = Path(__file__).resolve().parent.parent
     lib = Path(sys.argv[1]) if len(sys.argv) > 1 else default_lib
     canonical = sorted(_lib.skill_names(lib, "skills"))
+    if not canonical:
+        print(f"FAIL: 0 canonical skills found under {lib / 'skills'} — wrong LIB_ROOT?")
+        return 1
     allow = load_allowlist(lib)
 
     # surface name -> (dir, glob pattern, alias map or None)

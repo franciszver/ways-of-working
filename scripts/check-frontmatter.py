@@ -90,10 +90,16 @@ def check_file(path: Path, lib: Path, allow: dict) -> list:
 
 
 def main() -> int:
-    lib = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()
+    default_lib = Path(__file__).resolve().parent.parent
+    lib = Path(sys.argv[1]) if len(sys.argv) > 1 else default_lib
     allow = load_allowlist(lib)
 
-    files = [d / "SKILL.md" for d in _lib.skill_dirs(lib, "skills")]
+    canonical = _lib.skill_dirs(lib, "skills")
+    if not canonical:
+        print(f"FAIL: 0 canonical skills found under {lib / 'skills'} — wrong LIB_ROOT?")
+        return 1
+
+    files = [d / "SKILL.md" for d in canonical]
     files += [d / "SKILL.md" for d in _lib.skill_dirs(lib, "skills-local")]
     all_errors = []
     for f in files:

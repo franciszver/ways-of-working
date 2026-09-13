@@ -66,6 +66,14 @@ Before any PR merges, run on the full diff, in order:
 Fix every finding — do not defer a real defect to a follow-up issue. Re-run
 the test suite green after the fixes, including on docs-only PRs.
 
+## Releasing
+
+Plugin installs (`claude plugin install`) only pull an update when
+`.claude-plugin/plugin.json`'s `version` changes. Whenever a PR changes
+`skills/`, `agents/`, or `hooks/`, bump that `version` and add a
+`CHANGELOG.md` entry in the same PR — CI fails a pull request that touches
+those paths without a version bump (see `.github/workflows/ci.yml`).
+
 ## Commits and PRs
 
 - Conventional commit messages (`feat:`, `fix:`, `docs:`, `test:`, `ci:`).

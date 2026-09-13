@@ -45,6 +45,7 @@ DRY_RUN=0
 FORCE=0
 LINK=0
 PROFILE="frontier"
+PROFILE_EXPLICIT=0
 ACTIONS=()
 ARG_CLAUDE_PROJECT=""
 ARG_HOOKS=""
@@ -53,8 +54,8 @@ ARG_AGENTS_MD=""
 ARG_CURSOR=""
 ARG_GEMINI=""
 
-usage() { # $1 = exit code (default 1)
-  sed -n '2,39p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+usage() { # $1 = exit code (default 1); prints the header comment block (line 2 to the first blank line after it)
+  awk 'NR==1 { next } /^$/ { exit } { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
   exit "${1:-1}"
 }
 
@@ -75,7 +76,7 @@ while [ $# -gt 0 ]; do
     --gemini)         ACTIONS+=(gemini);         ARG_GEMINI="${2:?--gemini needs DIR or 'global'}"; shift ;;
     --mcp)            ACTIONS+=(mcp) ;;
     --check)          ACTIONS+=(check) ;;
-    --profile)        PROFILE="${2:?--profile needs frontier|local}"; shift ;;
+    --profile)        PROFILE="${2:?--profile needs frontier|local}"; PROFILE_EXPLICIT=1; shift ;;
     --link)           LINK=1 ;;
     --dry-run)        DRY_RUN=1 ;;
     --force)          FORCE=1 ;;
@@ -108,6 +109,56 @@ profile_layout() { # $1 = profile name (frontier|local); echoes "SKILLS_SUBDIR A
     local)    echo "skills-local -" ;;
     *) echo "Unknown profile: $1" >&2; return 1 ;;
   esac
+}
+
+require_layout() { # $1 = profile name, $2 = context for the error message; echoes "SKILLS_SUBDIR AGENTS_FLAG" or exits 1
+  local p="$1" ctx="$2" layout
+  if ! layout="$(profile_layout "$p")"; then
+    echo "Unknown profile '$p' ($ctx)." >&2
+    exit 1
+  fi
+  echo "$layout"
+}
+
+infer_installed_profile() { # $1 = base; echoes frontier|local, or nothing if no install is detected
+  local base="$1" dir name
+  if [ -d "$base/agents" ] && [ -n "$(find "$base/agents" -mindepth 1 -print -quit 2>/dev/null)" ]; then
+    echo "frontier"
+    return 0
+  fi
+  if [ -d "$base/skills" ]; then
+    for dir in "$LIB/skills"/*/; do
+      [ -f "${dir}SKILL.md" ] || continue
+      name="$(basename "$dir")"
+      if [ -e "$base/skills/$name" ] && [ ! -d "$LIB/skills-local/$name" ]; then
+        echo "frontier" # a frontier-only skill name is installed
+        return 0
+      fi
+    done
+    if [ -n "$(find "$base/skills" -mindepth 1 -print -quit 2>/dev/null)" ]; then
+      echo "local"
+      return 0
+    fi
+  fi
+  echo ""
+}
+
+strip_guarded_block() { # $1 = target file, $2 = marker line (e.g. "<!-- ways-of-working:frontier -->")
+  local target="$1" marker="$2"
+  [ -f "$target" ] || return 0
+  grep -qF "$marker" "$target" || return 0
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "[dry-run] strip guarded block $marker from $target"
+    return 0
+  fi
+  local tmp
+  tmp="$(mktemp "${target}.XXXXXX")"
+  awk -v marker="$marker" '
+    $0 == marker { skip = 1; next }
+    skip && index($0, "<!-- ways-of-working:") == 1 { skip = 0 }
+    !skip { print }
+  ' "$target" > "$tmp"
+  mv "$tmp" "$target"
 }
 
 _copy_skill_dir_cb() { # $1 = source dir, $2 = name, $3 = dest skills dir
@@ -176,6 +227,7 @@ copy_file_safe() { # $1 = src, $2 = dest, $3 = 1 to honor --link (default: 0)
     run ln -s "$1" "$2"
   else
     note "file: $1 -> $2"
+    run rm -f "$2"
     run cp "$1" "$2"
   fi
 }
@@ -185,8 +237,18 @@ profile_marker_path() { echo "$1/skills/.ways-of-working-profile"; } # $1 = base
 check_profile_marker() { # $1 = base; refuses a profile switch without --force
   local base="$1" marker installed
   marker="$(profile_marker_path "$base")"
-  [ -f "$marker" ] || return 0
-  installed="$(cat "$marker")"
+  if [ -f "$marker" ]; then
+    installed="$(cat "$marker")"
+    if [ -z "$installed" ] || ! profile_layout "$installed" >/dev/null 2>&1; then
+      echo "Profile marker $marker has invalid content: '$installed'." >&2
+      echo "Fix or remove it, then re-run." >&2
+      exit 1
+    fi
+  else
+    installed="$(infer_installed_profile "$base")"
+    [ -n "$installed" ] || return 0 # no existing install: nothing to refuse or prune
+    note "no profile marker found, but an existing install was detected; inferring profile '$installed'"
+  fi
   [ "$installed" = "$PROFILE" ] && return 0
   if [ "$FORCE" -ne 1 ]; then
     echo "Installed profile is '$installed', requested '$PROFILE'." >&2
@@ -194,6 +256,7 @@ check_profile_marker() { # $1 = base; refuses a profile switch without --force
     exit 1
   fi
   remove_other_profile_skills "$base" "$installed"
+  strip_guarded_block "$base/CLAUDE.md" "<!-- ways-of-working:$installed -->"
 }
 
 _remove_other_profile_skill_cb() { # $1 = dir, $2 = name, $3 = base, $4 = new_src, $5 = other profile name
@@ -207,8 +270,8 @@ _remove_other_profile_skill_cb() { # $1 = dir, $2 = name, $3 = base, $4 = new_sr
 
 remove_other_profile_skills() { # $1 = base, $2 = previous profile name
   local base="$1" other="$2" other_src other_agents new_src new_agents
-  read -r other_src other_agents <<< "$(profile_layout "$other")"
-  read -r new_src new_agents <<< "$(profile_layout "$PROFILE")"
+  read -r other_src other_agents <<< "$(require_layout "$other" "previous profile marker")"
+  read -r new_src new_agents <<< "$(require_layout "$PROFILE" "requested profile")"
   for_each_skill_dir "$other_src" _remove_other_profile_skill_cb "$base" "$new_src" "$other"
   # An agents flag present on the old profile but not the new one means
   # leaving that profile removes its agents too.
@@ -225,11 +288,13 @@ remove_other_profile_skills() { # $1 = base, $2 = previous profile name
 }
 
 write_profile_marker() { # $1 = base
-  local base="$1" marker
+  local base="$1" marker tmp
   marker="$(profile_marker_path "$base")"
   run mkdir -p "$base/skills"
   if [ "$DRY_RUN" -eq 0 ]; then
-    echo "$PROFILE" > "$marker"
+    tmp="$(mktemp "${marker}.XXXXXX")"
+    echo "$PROFILE" > "$tmp"
+    mv "$tmp" "$marker"
   else
     echo "[dry-run] write '$PROFILE' > $marker"
   fi
@@ -238,7 +303,7 @@ write_profile_marker() { # $1 = base
 do_claude_user() {
   local base="$HOME/.claude" src_subdir agents_flag
   check_profile_marker "$base"
-  read -r src_subdir agents_flag <<< "$(profile_layout "$PROFILE")"
+  read -r src_subdir agents_flag <<< "$(require_layout "$PROFILE" "requested profile")"
   copy_skill_dirs "$src_subdir" "$base/skills"
   if [ "$agents_flag" = "agents" ]; then
     run mkdir -p "$base/agents"
@@ -374,10 +439,24 @@ _check_skill_dir_cb() { # $1 = dir, $2 = name, $3 = base
 }
 
 do_check() {
-  local base="$HOME/.claude" marker="" profile="frontier" src_skills agents_flag
-  marker="$(profile_marker_path "$base")"
-  [ -f "$marker" ] && profile="$(cat "$marker")"
-  read -r src_skills agents_flag <<< "$(profile_layout "$profile")"
+  local base="$HOME/.claude" marker="" profile src_skills agents_flag
+  if [ "$PROFILE_EXPLICIT" -eq 1 ]; then
+    profile="$PROFILE"
+  else
+    marker="$(profile_marker_path "$base")"
+    if [ -f "$marker" ]; then
+      profile="$(cat "$marker")"
+      if [ -z "$profile" ] || ! profile_layout "$profile" >/dev/null 2>&1; then
+        echo "Profile marker $marker has invalid content: '$profile'." >&2
+        echo "Fix or remove it, or pass --profile explicitly, then re-run." >&2
+        exit 1
+      fi
+    else
+      profile="$(infer_installed_profile "$base")"
+      [ -n "$profile" ] || profile="frontier" # nothing installed yet: default for messaging
+    fi
+  fi
+  read -r src_skills agents_flag <<< "$(require_layout "$profile" "--profile, marker, or inferred")"
   note "checking installed skills ($profile profile) against $src_skills/ ..."
 
   DRIFT=0

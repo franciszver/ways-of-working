@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -22,6 +24,36 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+
+      - name: Plugin version bump check
+        # Plugin installs only update on a version bump (see
+        # CONTRIBUTING.md's Releasing section). pull_request-only: a push
+        # to a long-lived branch has no single base to diff against.
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin "$GITHUB_BASE_REF" --depth=1
+          changed="$(git diff --name-only "origin/$GITHUB_BASE_REF...HEAD")"
+          echo "Changed files:"
+          echo "$changed"
+          if ! echo "$changed" | grep -qE '^(skills|agents|hooks)/'; then
+            echo "No skills/, agents/, or hooks/ changes — no version bump required."
+            exit 0
+          fi
+          if ! echo "$changed" | grep -qx '\.claude-plugin/plugin\.json'; then
+            echo "FAIL: skills/, agents/, or hooks/ changed without bumping .claude-plugin/plugin.json's version." >&2
+            exit 1
+          fi
+          if git cat-file -e "origin/$GITHUB_BASE_REF:.claude-plugin/plugin.json" 2>/dev/null; then
+            old_version="$(git show "origin/$GITHUB_BASE_REF:.claude-plugin/plugin.json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')"
+            new_version="$(python3 -c 'import json; print(json.load(open(".claude-plugin/plugin.json"))["version"])')"
+            if [ "$old_version" = "$new_version" ]; then
+              echo "FAIL: plugin.json changed but version is still $old_version." >&2
+              exit 1
+            fi
+            echo "plugin.json version bumped: $old_version -> $new_version"
+          else
+            echo "plugin.json is new on this branch — counts as the version bump."
+          fi
 
       - name: Check install.sh syntax
         run: bash -n install.sh
@@ -63,9 +95,15 @@ jobs:
             npm install -g @anthropic-ai/claude-code@2.1.270
           fi
 
-      - name: Validate plugin manifest
-        # `claude plugin validate .` can require an authenticated session
-        # in some CI environments. Do not treat that as a hard CI failure
-        # until this is confirmed against GitHub Actions runners.
-        continue-on-error: true
-        run: claude plugin validate . --strict
+      - name: Validate plugin manifest and components
+        # `claude plugin validate .` only validates marketplace.json when
+        # both .claude-plugin/marketplace.json and plugin.json are present
+        # (this repo ships both) — it does not also check plugin.json,
+        # skills/, or agents/, so each is validated explicitly. Verified to
+        # pass offline, with no authenticated session, so this is a hard
+        # gate (no continue-on-error).
+        run: |
+          claude plugin validate . --strict
+          claude plugin validate .claude-plugin/plugin.json --strict
+          claude plugin validate ./skills --strict
+          claude plugin validate ./agents --strict

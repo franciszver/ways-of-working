@@ -5,12 +5,18 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
-- **Security**: the Claude Code plugin manifest excludes `test-gate.sh`
-  (`scripts/merge-hooks.py --emit-plugin`) — a plugin hook fires in every
-  project opened with no per-project opt-in, and `test-gate.sh` runs the
-  first line of the repo-controlled `.claude/test-command` as a shell
-  command, which would let a cloned malicious repo run arbitrary code.
-  The test gate stays available per-project, opt-in, via `install.sh --hooks`.
+- **Release**: `.claude-plugin/plugin.json` version bumped to `0.2.0` —
+  `hooks/` changed in this PR, and plugin installs only update on a
+  version bump (see `CONTRIBUTING.md`'s Releasing section).
+- **Security**: the Claude Code plugin manifest excludes `test-gate.sh` and
+  `format-on-stop.sh` (`scripts/merge-hooks.py --emit-plugin`) — a plugin
+  hook fires in every project opened with no per-project opt-in.
+  `test-gate.sh` runs the first line of the repo-controlled
+  `.claude/test-command` as a shell command; `format-on-stop.sh` runs
+  `npx --no-install prettier`, which resolves the *project's*
+  `node_modules/.bin`. Either would let a cloned malicious repo run
+  arbitrary code. Both stay available per-project, opt-in, via
+  `install.sh --hooks`; the plugin ships only `guardrails.sh`.
 - **Rename**: every reference to the repo's old model-branded name
   replaced with `ways-of-working` (MCP server name, pyproject, env var
   `WAYS_OF_WORKING_LIBRARY`, install guard comments, docs). README

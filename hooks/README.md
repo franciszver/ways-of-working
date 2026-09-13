@@ -12,7 +12,7 @@ Three hooks that enforce mechanically what the skills teach behaviorally. Skills
 
 `.claude/test-command` is executed as a shell command by `test-gate.sh` — treat it as code, not config.
 
-The plugin ships only `guardrails.sh` and `format-on-stop.sh`. The test gate is per-project opt-in via `install.sh --hooks`, never installed by the plugin.
+The plugin ships only `guardrails.sh`. `test-gate.sh` and `format-on-stop.sh` are per-project opt-in via `install.sh --hooks`, never installed by the plugin — `format-on-stop.sh` runs `npx --no-install`, which resolves the *project's* `node_modules/.bin`, so a plugin-installed copy would let a cloned repo run code via the Stop hook.
 
 ## Install (per project)
 
