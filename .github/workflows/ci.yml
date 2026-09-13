@@ -69,6 +69,11 @@ jobs:
       - name: Port parity check
         run: python3 scripts/check_parity.py .
 
+      - name: Antigravity workflow / AGENTS.md drift check
+        # These are generated from skills/*/SKILL.md frontmatter; a skill
+        # description change must regenerate them (scripts/gen-ports.py).
+        run: python3 scripts/gen-ports.py . --check
+
       - name: SKILL.md frontmatter check
         run: python3 scripts/check-frontmatter.py .
 
