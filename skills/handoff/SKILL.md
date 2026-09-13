@@ -47,6 +47,7 @@ Updated: <date> · State: <in progress | blocked | ready for review>
 ## Map
 - <file:line> — <what lives there / why it matters to this task>
 - Build: `<verbatim command>` · Test: `<verbatim command>` · Run: `<verbatim command>`
+- Branch: `<name>` · Working tree: `<clean | N files dirty | stashed>` · PR: `<link or "none yet">`
 
 ## Verification state
 I verified: <claims with evidence>. I did not verify: <claims + why>.

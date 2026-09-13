@@ -96,15 +96,15 @@ Read it aloud. If you would not say it to someone standing in front of you, rewr
 ## Refreshing the references
 
 The lists expire. ACES 2026 expects nearly all specific tells to differ within a year, and
-`ai-tells.md` says so in its own caveats.
+`references/ai-tells.md` says so in its own caveats.
 
-Refresh when `references/wp-aisigns.md` is older than about a week, or `ai-tells.md` older
+Refresh when `references/wp-aisigns.md` is older than about a week, or `references/ai-tells.md` older
 than about a month:
 
 1. Check the live revision of `Wikipedia:Signs of AI writing` against the cached revision
    id. If only irrelevant sections changed, record that and stop. Diffing revisions is
    cheaper than re-reading the page.
-2. For `ai-tells.md`, re-read the named sources, prefer ones with a named author and a
+2. For `references/ai-tells.md`, re-read the named sources, prefer ones with a named author and a
    date, and discard anything whose own prose has the cadence it claims to diagnose.
 3. Rewrite the reference with each entry attributed and dated. Mark which parts are
    durable (constructions) and which are perishable (word lists).

@@ -24,12 +24,14 @@
 # Profiles: 'frontier' installs the committed Claude Code profile
 # (build/claude-code/skills — canonical skills/ plus Claude-Code-only
 # frontmatter from scripts/profile-claude-code.yaml, generated and
-# committed like the antigravity stubs) + agents/ + global-frontier
-# CLAUDE.md rules (paid models — lean discipline). 'local' installs
-# skills-local/ + global-local rules (free local models — thoroughness
-# discipline). One profile per setup; the packs share skill names by
-# design. No python3/PyYAML needed to install either profile — a change
-# to a canonical skill or to scripts/profile-claude-code.yaml needs
+# committed like the antigravity stubs) + agents/ + playbooks/ (also
+# committed; playbooks/ROUTING.md is referenced by name from installed
+# skills, so it travels with them) + global-frontier CLAUDE.md rules
+# (paid models — lean discipline). 'local' installs skills-local/ +
+# global-local rules (free local models — thoroughness discipline). One
+# profile per setup; the packs share skill names by design. No
+# python3/PyYAML needed to install either profile — a change to a
+# canonical skill or to scripts/profile-claude-code.yaml needs
 # `python3 scripts/build-profile.py` run once (a dev step, enforced in CI
 # by `python3 scripts/build-profile.py --check`) before a frontier
 # install picks it up.
@@ -42,9 +44,10 @@
 # --link installs each skill/agent as a symlink into this library instead
 # of a copy — for personal installs, so edits to the library apply without
 # reinstalling. --check compares the installed copies under
-# $HOME/.claude/skills and $HOME/.claude/agents against the library and
-# lists any file that differs (symlinked installs never drift); it exits 1
-# if drift is found.
+# $HOME/.claude/skills, $HOME/.claude/agents, and $HOME/.claude/playbooks
+# (frontier only — flagged as drift if present under the local profile)
+# against the library and lists any file that differs (symlinked installs
+# never drift); it exits 1 if drift is found.
 #
 # The CLAUDE.md rules block --claude-user appends is guarded by begin/end
 # markers. --force refreshes it in place between those markers; a block
@@ -371,17 +374,24 @@ append_guarded() { # $1 = snippet file, $2 = target file, $3 = begin marker
   fi
 }
 
-copy_rules() { # $1 = dest rules dir, $2 = 1 to honor --link (default: 0 — always copy)
+copy_md_dir() { # $1 = source subdir under $LIB (e.g. claude-md/rules, playbooks), $2 = dest dir, $3 = 1 to honor --link (default: 0 — always copy)
+  # Shared by copy_rules's old job (claude-md/rules/*.md) and
+  # copy_playbooks's (playbooks/*.md — ROUTING.md is referenced by name
+  # from installed skills like apply-working-process, so it has to land
+  # alongside them or the reference is dangling in the installed copy;
+  # installing it keeps skills/ the single source of truth instead of
+  # inlining the routing rule into every skill that needs it).
+  #
   # A project's .claude/rules/ is never symlinked, even with --link: the
   # memory docs treat an out-of-tree symlinked rule as an external import,
   # and only its paths-less rules load until that import is approved — a
   # path-scoped rule like code-changes.md would silently stop applying.
-  # --claude-user's rules live under the user's own $HOME, not a shared
-  # project, so linking them is safe and honors --link like every other
-  # personal-install asset.
-  local dest="$1" allow_link="${2:-0}" f
+  # --claude-user's rules and playbooks live under the user's own $HOME,
+  # not a shared project, so linking them is safe and honors --link like
+  # every other personal-install asset.
+  local src_subdir="$1" dest="$2" allow_link="${3:-0}" f
   run mkdir -p "$dest"
-  for f in "$LIB"/claude-md/rules/*.md; do
+  for f in "$LIB"/"$src_subdir"/*.md; do
     copy_file_safe "$f" "$dest/$(basename "$f")" "$allow_link"
   done
 }
@@ -462,7 +472,8 @@ remove_other_profile_skills() { # $1 = base, $2 = previous profile name
   read -r _ new_agents _ _ <<< "$(require_layout "$PROFILE" "requested profile")"
   for_each_skill_dir "$other_names_src" _remove_other_profile_skill_cb "$base" "$new_names_src" "$other"
   # An agents flag present on the old profile but not the new one means
-  # leaving that profile removes its agents too.
+  # leaving that profile removes its agents too — playbooks/ ships under
+  # the same condition (frontier only), so it is removed alongside.
   if [ "$other_agents" = "agents" ] && [ "$new_agents" != "agents" ]; then
     local f name
     for f in "$LIB"/agents/*.md; do
@@ -472,6 +483,10 @@ remove_other_profile_skills() { # $1 = base, $2 = previous profile name
         run rm -f "${base:?}/agents/${name:?}"
       fi
     done
+    if [ -d "$base/playbooks" ]; then
+      note "removing playbooks from previous profile ($other)"
+      run rm -rf "${base:?}/playbooks"
+    fi
   fi
 }
 
@@ -501,7 +516,10 @@ do_claude_user() {
   marker="<!-- ways-of-working:${suffix} -->"
   snippet="$LIB/claude-md/${snippet_base}"
   append_guarded "$snippet" "$base/CLAUDE.md" "$marker"
-  copy_rules "$base/rules" 1
+  if [ "$PROFILE" = "frontier" ]; then
+    copy_md_dir playbooks "$base/playbooks" 1
+  fi
+  copy_md_dir claude-md/rules "$base/rules" 1
   write_profile_marker "$base"
   note "done. If ~/.claude/skills was created just now, restart Claude Code once."
 }
@@ -514,6 +532,7 @@ do_claude_project() {
     run mkdir -p "$base/agents"
     local f
     for f in "$LIB"/agents/*.md; do copy_file_safe "$f" "$base/agents/$(basename "$f")" 1; done
+    copy_md_dir playbooks "$base/playbooks" 0
   else
     copy_skill_dirs "skills-local" "$base/skills"
   fi
@@ -523,7 +542,7 @@ do_claude_project() {
   else
     note "CLAUDE.md exists, untouched. Template for reference: claude-md/project-template.md"
   fi
-  copy_rules "$base/rules" 0
+  copy_md_dir claude-md/rules "$base/rules" 0
 }
 
 do_hooks() {
@@ -707,6 +726,17 @@ do_check() {
     else
       _report_dir_diff "$LIB/agents" "$base/agents"
     fi
+    # Frontier profile only: playbooks/ (see copy_md_dir) is installed
+    # alongside agents/, so gate this check the same way.
+    if [ ! -d "$base/playbooks" ]; then
+      echo "DRIFT: playbooks not installed"
+      DRIFT=1
+    else
+      _report_dir_diff "$LIB/playbooks" "$base/playbooks"
+    fi
+  elif [ -d "$base/playbooks" ]; then
+    echo "DRIFT: playbooks installed under the local profile (frontier-only content)"
+    DRIFT=1
   fi
 
   if [ ! -d "$base/rules" ]; then

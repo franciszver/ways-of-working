@@ -51,6 +51,44 @@ All notable changes to this repo are recorded here. Format loosely follows
   into CI, replacing the standalone `bash -n install.sh` step since the
   test runs it first) covering all of the above end to end through the
   real CLI against scratch HOMEs.
+
+- **Content fixes** (#8): `scripts/check-skill-sections.py` gained a
+  dangling-reference check (folded in rather than kept as a separate
+  script) scanning both `skills/` and `skills-local/` plus each skill's
+  `references/*.md`: a backticked `*.md` token must resolve against its
+  own file's directory, its skill's directory, or the repo root, unless
+  its basename is allowlisted for that specific (pack, skill) pair; a
+  backticked skill name after "use"/"see"/an arrow must name a real
+  directory in the pack being scanned. It caught `prompt-eng`'s stale
+  `REVIEW.md` reference, now pointing at `declutter`, and a bare
+  `ai-tells.md` mention in `plain-language` missing its `references/`
+  prefix. `prompt-eng` gained an "Agent and tool prompts" section
+  (schema-as-contract, system/user placement, caching, tool-selection
+  evals) cross-linked to a new `sec-audit` category, "LLM and pipeline
+  surfaces" (prompt injection via repo/tool content, CI script injection,
+  agent-tool SSRF). `incident` gained a SEV1–3 paging/cadence table;
+  `handoff`'s Map block gained Branch/Working tree/PR lines; `ci-triage`
+  now opens with `gh run view --log-failed`; `frontend-design` names the
+  project's run/launch command as the screenshot mechanism, with an
+  "I could not render it" fallback; `data-analysis` gained a fenced
+  `## Report` skeleton. `lean-max-effort`/`research` already used "scratch
+  file" wording (no `/tmp` left to fix); `prove` conditions the `verifier`
+  subagent on running in Claude Code (its `skills-local` twin conditions
+  on the subagent existing, for non-Claude-Code hosts); `postmortem`
+  cross-references `incident` (input) and `release` (output);
+  `apply-working-process` drops a residual "(Opus-class)" parenthetical
+  and now names the installed ROUTING-playbook path explicitly (its local
+  twin states the routing rule inline instead, since the local profile
+  installs no playbooks). `install.sh --claude-user`/`--claude-project`
+  now also install `playbooks/*.md` (frontier profile only, via a
+  `copy_md_dir` helper shared with the CLAUDE.md rules copy) and `--check`
+  covers them both ways — present and matching under frontier, absent
+  under local — and a profile switch away from frontier removes them, so
+  `playbooks/ROUTING.md` — referenced by name from an installed skill —
+  actually exists once installed and never lingers after a switch. All
+  nine `skills-local/` twins with a changed rule got the matching minimal
+  edit.
+
 - **Ports** (#11): retired the Gemini port — `ports/gemini/README.md`
   now points the paid-tier Gemini CLI at `install.sh --skills
   ~/.gemini/skills` (free tier retired 2026-06-18 for Antigravity CLI).

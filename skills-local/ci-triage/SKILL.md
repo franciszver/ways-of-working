@@ -9,7 +9,7 @@ You are a local model fixing a red build. Token usage is not a concern — read 
 
 ## Step 1 — READ
 
-Find the FIRST failure in the run, not the last (later failures are cascade). Read the actual failing output, not the step name; copy the decisive line verbatim into your notes. List what changed since the last green run: the diff, but also dependencies, base images, runners — "no code changed" never means "nothing changed".
+GET THE LOG FIRST: `gh run list --limit 5` to find the run, then `gh run view <id> --log-failed` for only the failed steps. Find the FIRST failure in the run, not the last (later failures are cascade). Read the actual failing output, not the step name; copy the decisive line verbatim into your notes. List what changed since the last green run: the diff, but also dependencies, base images, runners — "no code changed" never means "nothing changed".
 
 ## Step 2 — CLASSIFY
 

@@ -40,6 +40,16 @@ Exploring — cutting the data many ways, hunting patterns — is legitimate and
 
 Code hygiene rides along: the analysis is a program (`prove` applies) — seed randomness, version the queries, and make the notebook run top-to-bottom clean before anyone sees its numbers.
 
+## Report
+
+```
+Question: <decision-shaped question, and what decision it informs>
+Finding: <effect size + uncertainty, in decision-relevant units>
+Chain of custody: <source, filters, metric definitions, n at each stage>
+Caveats: <proxy gaps, excluded population, load-bearing assumptions>
+What would change this: <the falsifiability clause>
+```
+
 ## Anti-patterns
 
 - Computing on data you haven't looked at.

@@ -37,7 +37,7 @@ Name the clichés so they're recognizable and avoidable: the purple-gradient her
 
 ## 8. Verify by looking
 
-UI work is unverified until it's rendered and looked at — screenshot it (this is `prove` for pixels). Then: resize test (does it hold at narrow and wide), keyboard-tab test (focus visible on every interactive element), squint test (the right thing still pops), both themes, and the real-data states from step 5. "It works" is not a design verdict; "I looked at it in both themes at three widths and it holds" is.
+UI work is unverified until it's rendered and looked at — screenshot it with the project's run/launch command (see its README or CLAUDE.md) or a headless-browser screenshot command (e.g. Playwright/Puppeteer) (this is `prove` for pixels). If neither is available, say so plainly: "I could not render it" — never claim a look you didn't take. Then: resize test (does it hold at narrow and wide), keyboard-tab test (focus visible on every interactive element), squint test (the right thing still pops), both themes, and the real-data states from step 5. "It works" is not a design verdict; "I looked at it in both themes at three widths and it holds" is.
 
 ## Anti-patterns
 

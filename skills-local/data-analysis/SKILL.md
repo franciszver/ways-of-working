@@ -36,6 +36,16 @@ Exploring (many cuts, pattern hunting) is legitimate — but a pattern FOUND by 
 - Precision matches knowledge: "roughly 40%" when error bars are ±10pp.
 Code: seed randomness, version queries, notebook runs top-to-bottom clean before anyone sees its numbers.
 
+## Report
+
+```
+Question: <decision-shaped question, and what decision it informs>
+Finding: <effect size + uncertainty, in decision-relevant units>
+Chain of custody: <source, filters, metric definitions, n at each stage>
+Caveats: <proxy gaps, excluded population, load-bearing assumptions>
+What would change this: <the falsifiability clause>
+```
+
 ## Hard rules
 
 - Never compute on data you haven't looked at.

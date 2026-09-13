@@ -46,6 +46,10 @@ I did not verify: <claim> — <why> — <what it would take>
 ```
 Every claim from Step 1 appears in one of the two lists. NO claim may be implied as passing without appearing under "I verified". A partial-but-honest verdict beats a confident blanket "all done" every time.
 
+## Production-critical work
+
+Add one more pass: independent verification with fresh context, plus the edge hunt on the ERROR paths specifically. Delegate the fresh-context pass to the `verifier` subagent if one exists; otherwise re-run the checks in a fresh session (no memory of writing the code).
+
 ## When a check fails
 
 Do NOT soften it, hide it, or silently patch and move on. Report it, fix it under the `debug` skill protocol, then re-run this protocol from Step 3 — the fix was an edit, so all earlier proof is void.

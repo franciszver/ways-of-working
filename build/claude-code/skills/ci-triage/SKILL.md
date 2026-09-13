@@ -13,6 +13,7 @@ A red build is a message; triage is reading it correctly. The expensive failure 
 
 ## 1. Read the log like a debugger
 
+- **Get the log first**: `gh run list --limit 5` to find the run, then `gh run view <id> --log-failed` for only the failed steps' output — cheaper and faster than opening the web UI.
 - Find the **first** failure in the run, not the last — later failures are usually cascade (a failed build step makes every test "fail").
 - Read the actual failing output, not just the step name. The decisive line is usually within 20 lines of the first non-zero exit. Copy it verbatim into your notes.
 - Check what *changed*: the diff under test, but also the things CI re-resolves every run — dependency versions, base images, runners, external services. "No code changed" never means "nothing changed".
