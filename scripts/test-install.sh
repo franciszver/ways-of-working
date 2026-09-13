@@ -268,6 +268,67 @@ assert_eq "$after_mode" "$before_mode" "file mode preserved across --force"
 
 rm -rf "$HOME9"
 
+# --- 15: --generic DIR installs AGENTS.md + skills into DIR/.agents/skills ---
+
+GEN1="$TMPROOT/gen1"
+mkdir -p "$GEN1/proj"
+export HOME="$TMPROOT/home-unused-15"
+"$INSTALL" --generic "$GEN1/proj" >/dev/null
+assert_true "--generic: AGENTS.md written" [ -f "$GEN1/proj/AGENTS.md" ]
+n_skills="$(find "$GEN1/proj/.agents/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+assert_eq "$n_skills" "34" "--generic: 34 skill dirs under DIR/.agents/skills"
+
+"$INSTALL" --generic "$GEN1/proj" >/dev/null
+n_skills_rerun="$(find "$GEN1/proj/.agents/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+assert_eq "$n_skills_rerun" "34" "--generic: idempotent re-run, still 34 skill dirs"
+assert_true "--generic: idempotent re-run, AGENTS.md still present" [ -f "$GEN1/proj/AGENTS.md" ]
+
+rm -rf "$GEN1"
+
+# --- 16: --generic DIR --link installs skills as symlinks ---
+
+GEN2="$TMPROOT/gen2"
+mkdir -p "$GEN2/proj"
+"$INSTALL" --generic "$GEN2/proj" --link >/dev/null
+one_skill="$(find "$GEN2/proj/.agents/skills" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+assert_true "--generic --link: skill dir is a symlink" [ -L "$one_skill" ]
+
+rm -rf "$GEN2"
+
+# --- 17: --generic-user installs skills into $HOME/.agents/skills, no AGENTS.md at HOME ---
+
+HOME10="$TMPROOT/home10"
+mkdir -p "$HOME10"
+export HOME="$HOME10"
+"$INSTALL" --generic-user >/dev/null
+n_skills_user="$(find "$HOME10/.agents/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+assert_eq "$n_skills_user" "34" "--generic-user: 34 skill dirs under \$HOME/.agents/skills"
+assert_false "--generic-user: no AGENTS.md written at \$HOME" [ -f "$HOME10/AGENTS.md" ]
+
+rm -rf "$HOME10"
+
+# --- 18: --antigravity writes .agents/{rules,workflows,skills} only, no .agent entry ---
+
+ANTIG1="$TMPROOT/antig1"
+mkdir -p "$ANTIG1/proj"
+"$INSTALL" --antigravity "$ANTIG1/proj" >/dev/null
+assert_true "--antigravity: .agents/rules is a real dir" [ -d "$ANTIG1/proj/.agents/rules" ]
+assert_true "--antigravity: .agents/workflows is a real dir" [ -d "$ANTIG1/proj/.agents/workflows" ]
+assert_true "--antigravity: .agents/skills is a real dir" [ -d "$ANTIG1/proj/.agents/skills" ]
+assert_false "--antigravity: no .agent entry at all (symlink or dir)" [ -e "$ANTIG1/proj/.agent" ]
+
+rm -rf "$ANTIG1"
+
+# --- 19: --generic refuses a DIR inside the library ---
+
+if OUT="$("$INSTALL" --generic "$LIB/skills" 2>&1)"; then
+  fail "--generic refuses a destination inside the library (exited 0, expected non-zero)"
+else
+  pass "--generic refuses a destination inside the library (non-zero exit)"
+fi
+assert_true "--generic: refusal message mentions the library" \
+  bash -c '[[ "$1" == *"library"* ]]' _ "$OUT"
+
 if [ "$FAIL" -eq 1 ]; then
   echo "test-install.sh: FAILED"
   exit 1
