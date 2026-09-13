@@ -1,6 +1,6 @@
 ---
 name: spec
-description: Turn a request into a numbered requirements ledger with acceptance criteria, explicit non-goals, surfaced ambiguities, and the riskiest assumption marked. Use at the start of any non-trivial task, when requirements feel fuzzy or contradictory, when scoping a feature, or when asked to write a spec or requirements doc.
+description: Turns a request into a numbered requirements ledger with acceptance criteria, explicit non-goals, surfaced ambiguities, and the riskiest assumption marked. Use when requirements are fuzzy or contradictory, when scoping a feature, or when asked for a spec.
 ---
 
 # Spec

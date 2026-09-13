@@ -1,6 +1,6 @@
 ---
 name: ci-triage
-description: Get a red build green for the right reason — read the first real failure, classify it (code, test, flake, infra, drift), reproduce locally, fix or quarantine with a ticket, never retry-until-green as a fix. Use when CI fails, a pipeline breaks, a build goes red, or a test is flaky.
+description: Gets a red build green for the right reason — reads the first real failure, classifies it (code, test, flake, infra, drift), reproduces locally, fixes or quarantines with a ticket, never retries-until-green as a fix. Use when CI fails, a pipeline breaks, a build goes red, or a test is flaky. A local failure goes to `debug`.
 ---
 
 # CI Triage

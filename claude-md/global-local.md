@@ -7,6 +7,7 @@
 
 ## Quality rules (always apply)
 
+- `apply-working-process` and `ste-writing` are always-on layers whose working-process and prose-style discipline this file encodes for local models via the `quality` workflow below. `lean-max-effort` is the paid-model counterpart for token-lean execution; it does not apply here — local models run free, so token usage is not a concern.
 - For every coding or multi-step task, follow the `quality` skill workflow: PLAN → GROUND → ACT → LOOP. Run the LOOP self-review before reporting completion — every task, no exceptions. Token usage is not a concern.
 - Read a file before editing it. Re-read it after any failed edit. Never edit from memory.
 - Never use a function, import, or config key you have not verified in this repo, the installed packages, or tool output. If unverifiable, write "unverified" next to it.

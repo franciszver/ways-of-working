@@ -1,6 +1,6 @@
 ---
 name: onboard
-description: Build an accurate working model of an unfamiliar codebase fast — orient from the artifacts, trace one real flow end-to-end, verify beliefs against runtime behavior, write down the map you built. Use when joining a project, picking up an unfamiliar repo/service/module, or before making changes in code you've never touched.
+description: Builds an accurate working model of an unfamiliar codebase fast — orients from the artifacts, traces one real flow end-to-end, verifies beliefs against runtime behavior, writes down the map built. Use when joining a project, picking up an unfamiliar repo/service/module, or before making changes in code you've never touched.
 ---
 
 # Onboard

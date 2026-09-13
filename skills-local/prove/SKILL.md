@@ -1,6 +1,6 @@
 ---
 name: prove
-description: Mandatory verification before claiming ANY task is done — run the real thing, check every requirement against observed output, hunt edge cases, quote evidence verbatim. Use before reporting completion, before commits, and whenever the user asks "does it work?".
+description: Proves work actually works before calling it done — strongest available evidence per claim, edge-case hunt, regression check, verbatim output quotes, and honest "I verified / I did not verify" verdicts. Use before reporting any task complete, before commits and handoffs, after fixes, and whenever the user asks "does it work?".
 ---
 
 # Prove Protocol

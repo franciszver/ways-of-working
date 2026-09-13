@@ -1,6 +1,6 @@
 ---
 name: api-design
-description: Design interfaces from the consumer's side — write the calls you wish existed, make the contract explicit including errors, plan evolution before v1 ships. Use when designing or reviewing an HTTP/RPC API, a library's public surface, a CLI, an event schema, or any boundary other people's code will depend on.
+description: Designs interfaces from the consumer's side — writes the calls you wish existed, makes the contract explicit including errors, plans evolution before v1 ships. Use when designing or reviewing an HTTP/RPC API, a library's public surface, a CLI, an event schema, or any boundary other people's code will depend on.
 ---
 
 # API Design

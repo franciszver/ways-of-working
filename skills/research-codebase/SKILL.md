@@ -1,6 +1,6 @@
 ---
 name: research-codebase
-description: Documentarian codebase research — answer "how does X work / where does Y live" by mapping what exists, with file:line evidence, zero critique, and a persistent research document a later session can build on. Use when asked how something works, where something lives, what the current behavior is, or to research/document a codebase area before planning changes. (Adapted from Humanlayer's research_codebase command.)
+description: Documentarian codebase research — answer "how does X work / where does Y live" by mapping what exists, with file:line evidence, zero critique, and a persistent research document a later session can build on. Use when asked how something works, where something lives, what the current behavior is, or to research/document a codebase area before planning changes. For this codebase only; external sources go to `research`.
 ---
 
 # Research Codebase
@@ -56,3 +56,5 @@ The `git_commit` line matters: code moves, and a map without its commit is a rum
 - Precision beats coverage: "I traced A and B; C is unexamined" outranks a confident map with unmarked guesses. The Open-questions section is a feature, not an apology.
 - Keep the synthesis context clean: gathering is delegable (subagents, sweeps); synthesis — connecting findings and writing the document — is the main thread's job.
 - This skill feeds the others: run it before `spec`/`architect`/`breakdown` on unfamiliar ground, and let `onboard` use its output as the trail map. When research findings make change-work start, the stance switches — critique reactivates outside this skill.
+
+Adapted from Humanlayer's research_codebase command.

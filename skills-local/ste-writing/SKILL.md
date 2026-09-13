@@ -1,6 +1,6 @@
 ---
 name: ste-writing
-description: Write all prose in the spirit of Simplified Technical English (ASD-STE100) — one word per idea, short active sentences, one topic per paragraph. Applies to docs, commits, PR descriptions, reports, replies, and code comments.
+description: "Writes all prose in the spirit of ASD-STE100 Simplified Technical English — one word per idea, short active-voice sentences, one topic per paragraph. Use whenever writing prose a person will read: docs, commit messages, PR text, reports, replies, code comments."
 ---
 
 # STE Writing

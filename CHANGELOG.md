@@ -5,8 +5,20 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+- **Skills** (#6): rewrote skill descriptions in third person, dropped
+  imperative openers and "always on" phrasing, added a description lint
+  to `check-frontmatter.py`, and added task-shaped triggers plus
+  disambiguation clauses for overlapping pairs (`research`/
+  `research-codebase`, `debug`/`ci-triage`, `explain`/`write`). Moved
+  the "always on" statements for `apply-working-process`,
+  `lean-max-effort`, and `ste-writing` into `claude-md/global-frontier.md`
+  and `claude-md/global-local.md`. Propagated the changed descriptions to
+  `skills-local/` where the same skill exists.
+- **Release**: `.claude-plugin/plugin.json` version bumped to `0.3.0` —
+  `skills/` changed in this PR, and plugin installs only update on a
+  version bump (see `CONTRIBUTING.md`'s Releasing section).
 - **Release**: `.claude-plugin/plugin.json` version bumped to `0.2.0` —
-  `hooks/` changed in this PR, and plugin installs only update on a
+  `hooks/` changed in that PR, and plugin installs only update on a
   version bump (see `CONTRIBUTING.md`'s Releasing section).
 - **Security**: the Claude Code plugin manifest excludes `test-gate.sh` and
   `format-on-stop.sh` (`scripts/merge-hooks.py --emit-plugin`) — a plugin
