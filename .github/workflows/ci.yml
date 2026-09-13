@@ -58,6 +58,9 @@ jobs:
       - name: Check install.sh syntax
         run: bash -n install.sh
 
+      - name: install.sh guarded-block tests
+        run: bash scripts/test-install.sh
+
       - name: shellcheck (if available)
         run: |
           if command -v shellcheck >/dev/null 2>&1 || sudo apt-get install -y shellcheck; then

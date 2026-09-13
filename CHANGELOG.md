@@ -30,7 +30,14 @@ All notable changes to this repo are recorded here. Format loosely follows
   one permission prompt standing between prompt injection in that content
   and command execution. `agents/*.md`'s `disallowedTools` already
   enforces read-only for the review agents.
-
+- **Install** (#22): `install.sh --force` now refreshes an installed guarded
+  CLAUDE.md block in place (marker line through the next marker or EOF),
+  instead of skipping it once the marker exists. `--check` diffs the
+  installed block against the library source per active profile and
+  reports `DRIFT: CLAUDE.md block (<profile>)` on mismatch. Added
+  `scripts/test-install.sh` (wired into CI after the syntax check) covering
+  fresh install, drift detection, force refresh, profile switch, and the
+  same behaviour for a project-scratch CLAUDE.md.
 - **Ports** (#11): retired the Gemini port — `ports/gemini/README.md`
   now points the paid-tier Gemini CLI at `install.sh --skills
   ~/.gemini/skills` (free tier retired 2026-06-18 for Antigravity CLI).

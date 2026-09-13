@@ -78,29 +78,31 @@ run() {
 
 note() { echo "==> $*"; }
 
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --claude-user)    ACTIONS+=(claude_user) ;;
-    --claude-project) ACTIONS+=(claude_project); ARG_CLAUDE_PROJECT="${2:?--claude-project needs DIR}"; shift ;;
-    --hooks)          ACTIONS+=(hooks);          ARG_HOOKS="${2:?--hooks needs DIR}"; shift ;;
-    --antigravity)    ACTIONS+=(antigravity);    ARG_ANTIGRAVITY="${2:?--antigravity needs DIR}"; shift ;;
-    --agents-md)      ACTIONS+=(agents_md);      ARG_AGENTS_MD="${2:?--agents-md needs DIR}"; shift ;;
-    --cursor)         ACTIONS+=(cursor);         ARG_CURSOR="${2:?--cursor needs DIR}"; shift ;;
-    --skills)         ACTIONS+=(skills);         ARG_SKILLS="${2:?--skills needs DIR}"; shift ;;
-    --mcp)            ACTIONS+=(mcp) ;;
-    --check)          ACTIONS+=(check) ;;
-    --profile)        PROFILE="${2:?--profile needs frontier|local}"; PROFILE_EXPLICIT=1; shift ;;
-    --link)           LINK=1 ;;
-    --dry-run)        DRY_RUN=1 ;;
-    --force)          FORCE=1 ;;
-    -h|--help)        usage 0 ;;
-    *) echo "Unknown option: $1"; usage 1 ;;
-  esac
-  shift
-done
+parse_args() {
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --claude-user)    ACTIONS+=(claude_user) ;;
+      --claude-project) ACTIONS+=(claude_project); ARG_CLAUDE_PROJECT="${2:?--claude-project needs DIR}"; shift ;;
+      --hooks)          ACTIONS+=(hooks);          ARG_HOOKS="${2:?--hooks needs DIR}"; shift ;;
+      --antigravity)    ACTIONS+=(antigravity);    ARG_ANTIGRAVITY="${2:?--antigravity needs DIR}"; shift ;;
+      --agents-md)      ACTIONS+=(agents_md);      ARG_AGENTS_MD="${2:?--agents-md needs DIR}"; shift ;;
+      --cursor)         ACTIONS+=(cursor);         ARG_CURSOR="${2:?--cursor needs DIR}"; shift ;;
+      --skills)         ACTIONS+=(skills);         ARG_SKILLS="${2:?--skills needs DIR}"; shift ;;
+      --mcp)            ACTIONS+=(mcp) ;;
+      --check)          ACTIONS+=(check) ;;
+      --profile)        PROFILE="${2:?--profile needs frontier|local}"; PROFILE_EXPLICIT=1; shift ;;
+      --link)           LINK=1 ;;
+      --dry-run)        DRY_RUN=1 ;;
+      --force)          FORCE=1 ;;
+      -h|--help)        usage 0 ;;
+      *) echo "Unknown option: $1"; usage 1 ;;
+    esac
+    shift
+  done
 
-[ ${#ACTIONS[@]} -gt 0 ] || usage 1
-case "$PROFILE" in frontier|local) ;; *) echo "Invalid --profile: $PROFILE"; exit 1 ;; esac
+  [ ${#ACTIONS[@]} -gt 0 ] || usage 1
+  case "$PROFILE" in frontier|local) ;; *) echo "Invalid --profile: $PROFILE"; exit 1 ;; esac
+}
 
 for_each_skill_dir() { # $1 = source root (skills|skills-local), $2 = callback fn, $3.. = extra args passed after (dir, name)
   local src="$1" cb="$2" dir name
@@ -203,9 +205,54 @@ copy_skill_dirs() { # $1 = source root (skills|skills-local), $2 = dest skills d
   for_each_skill_dir "$src" _copy_skill_dir_cb "$dest"
 }
 
+guarded_block_replace() { # $1 = target file, $2 = marker line, $3 = source snippet file
+  # Replaces the block from the marker line through the line before the next
+  # "<!-- ways-of-working:" marker (or EOF) with the marker plus the current
+  # content of the source file. Everything before the marker, and the next
+  # marker's block onward, is left untouched.
+  local target="$1" marker="$2" source="$3"
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "[dry-run] refresh guarded block $marker in $target"
+    return 0
+  fi
+  local tmp
+  tmp="$(mktemp "${target}.XXXXXX")"
+  awk -v marker="$marker" -v srcfile="$source" '
+    BEGIN {
+      while ((getline line < srcfile) > 0) src[n++] = line
+      close(srcfile)
+    }
+    $0 == marker {
+      print marker
+      for (i = 0; i < n; i++) print src[i]
+      skip = 1
+      next
+    }
+    skip && index($0, "<!-- ways-of-working:") == 1 { skip = 0 }
+    !skip { print }
+  ' "$target" > "$tmp"
+  mv "$tmp" "$target"
+}
+
+extract_guarded_block() { # $1 = target file, $2 = marker line; prints marker..(next marker or EOF), nothing if absent
+  local target="$1" marker="$2"
+  [ -f "$target" ] || return 0
+  grep -qF "$marker" "$target" || return 0
+  awk -v marker="$marker" '
+    $0 == marker { print; skip = 1; next }
+    skip && index($0, "<!-- ways-of-working:") == 1 { exit }
+    skip { print }
+  ' "$target"
+}
+
 append_guarded() { # $1 = snippet file, $2 = target file, $3 = marker
   local snippet="$1" target="$2" marker="$3"
   if [ -f "$target" ] && grep -qF "$marker" "$target"; then
+    if [ "$FORCE" -eq 1 ]; then
+      note "refreshing guarded block (--force): $target"
+      guarded_block_replace "$target" "$marker" "$snippet"
+      return 0
+    fi
     note "already present (marker found), skipping append: $target"
     return 0
   fi
@@ -511,6 +558,39 @@ _check_skill_dir_cb() { # $1 = dir, $2 = name, $3 = base
   _report_dir_diff "$dir" "$base/skills/$name"
 }
 
+claude_md_marker_for_profile() { # $1 = profile; echoes the marker line
+  case "$1" in
+    frontier) echo "<!-- ways-of-working:frontier -->" ;;
+    local)    echo "<!-- ways-of-working:local -->" ;;
+    *) echo "Unknown profile: $1" >&2; return 1 ;;
+  esac
+}
+
+claude_md_snippet_for_profile() { # $1 = profile; echoes the library snippet path
+  case "$1" in
+    frontier) echo "$LIB/claude-md/global-frontier.md" ;;
+    local)    echo "$LIB/claude-md/global-local.md" ;;
+    *) echo "Unknown profile: $1" >&2; return 1 ;;
+  esac
+}
+
+check_claude_md_block() { # $1 = base, $2 = profile; sets DRIFT=1 and prints a DRIFT line on mismatch or absence
+  local base="$1" profile="$2" target="$base/CLAUDE.md" marker snippet expected actual
+  marker="$(claude_md_marker_for_profile "$profile")"
+  snippet="$(claude_md_snippet_for_profile "$profile")"
+  if [ ! -f "$target" ] || ! grep -qF "$marker" "$target"; then
+    echo "DRIFT: CLAUDE.md block ($profile) not installed"
+    DRIFT=1
+    return 0
+  fi
+  expected="$(printf '%s\n' "$marker"; cat "$snippet")"
+  actual="$(extract_guarded_block "$target" "$marker")"
+  if [ "$expected" != "$actual" ]; then
+    echo "DRIFT: CLAUDE.md block ($profile)"
+    DRIFT=1
+  fi
+}
+
 do_check() {
   local base="$HOME/.claude" marker="" profile src_skills agents_flag
   if [ "$PROFILE_EXPLICIT" -eq 1 ]; then
@@ -534,6 +614,7 @@ do_check() {
 
   DRIFT=0
   for_each_skill_dir "$src_skills" _check_skill_dir_cb "$base"
+  check_claude_md_block "$base" "$profile"
 
   if [ "$agents_flag" = "agents" ]; then
     if [ ! -d "$base/agents" ]; then
@@ -558,5 +639,14 @@ do_check() {
   note "no drift: installed copies match the library."
 }
 
-for action in "${ACTIONS[@]}"; do "do_$action"; done
-note "all requested installs processed."
+main() {
+  parse_args "$@"
+  for action in "${ACTIONS[@]}"; do "do_$action"; done
+  note "all requested installs processed."
+}
+
+# Guarded so scripts/test-install.sh can `source install.sh` to reuse the
+# guarded-block helpers directly, without running the CLI.
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+  main "$@"
+fi
