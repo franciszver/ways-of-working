@@ -65,6 +65,7 @@ REFERENCE_ALLOWLIST = {
     "CLAUDE.md": {("skills", "deep-review")},
     "HANDOFF.md": {("skills", "handoff"), ("skills-local", "handoff"), ("skills", "local-llm-loop")},
     "LOOP_SUMMARY.md": {("skills", "local-llm-loop")},
+    "NEXT_STEP.md": {("skills", "local-llm-loop")},
     "WORKPLAN.md": {("skills", "apply-working-process"), ("skills-local", "apply-working-process")},
     "TASKS.md": {("skills", "breakdown")},
     "DECISIONS.md": {("skills", "apply-working-process"), ("skills-local", "apply-working-process")},

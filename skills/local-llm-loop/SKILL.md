@@ -7,7 +7,7 @@ description: "Runs the working loop for a coding agent backed by a local, small-
 
 A local ~3B-active model is reliable at small, checked steps and unreliable at one long unsupervised generation — this is a measured property of the model class, not a style preference. `local-coding-env` (`results/`) is the benchmark repo behind every rule below; each rule cites the file that justifies it. The headline contrast: 3,718 of 3,718 tool calls valid across 69 runs and 27 configurations at small granularity (`results/phase4/corpus_validity.json`), against a ~5,600-token one-shot game that fails to parse in 3 of 3 byte-identical runs (`results/phase5/suiteB/summary.csv`, config `p5b-qwopus-final`; `results/phase5/suiteB/p5b-qwopus-final/run1/mechanical.json`). The loop below keeps the agent inside the region the model is actually reliable in, and puts the recovering in the harness, not the weights.
 
-**Prerequisites:** an OpenAI-compatible endpoint with tool calling (llama-server or similar), Goose CLI, and `OPENAI_HOST`/`OPENAI_API_KEY`/`GOOSE_MODEL` set. See `references/setup.md` for server flags, the install line, and the endpoint env vars.
+**Prerequisites:** an OpenAI-compatible endpoint with tool calling (llama-server or similar), a CLI harness that accepts a prompt file (Goose by default, or another one via `LOOP_HARNESS_CMD`), and `OPENAI_HOST`/`OPENAI_API_KEY`/`GOOSE_MODEL` set. See `references/setup.md` for server flags, the install line, the endpoint env vars, and the harness seam.
 
 ## Run it
 
@@ -23,9 +23,11 @@ bash scripts/run_loop.sh <repo> plan.md --test-cmd "python3 -m unittest discover
 execute/test/review/fix cycles, each stage checkpointed with its own
 commit on a disposable git worktree branch at
 `<repo>/.loop/<timestamp>/`. Inside that worktree: `PLAN.md` (the step
-checklist), `HANDOFF.md` (updated every stage), `DIFF.txt` and
-`REVIEW.md` (each iteration's review pass), `TEST_OUTPUT.txt`, and on
-completion `LOOP_SUMMARY.md` plus a `LOOP_DONE` marker. Run
+checklist), `NEXT_STEP.md` (the one step execute.md works on),
+`HANDOFF.md` (updated every stage), `.loop-run/DIFF.txt` and
+`REVIEW.md` (each iteration's review pass, scoped to the delta since
+the last review), `TEST_OUTPUT.txt`, and on completion `LOOP_SUMMARY.md`
+plus a `LOOP_DONE` marker. Run
 `bash scripts/run_loop.sh <repo> plan.md --dry-run` first — it exercises
 the worktree, prompts, and mechanical test stage for real without
 calling the model, so plumbing problems surface before spending an
@@ -54,7 +56,7 @@ once you're done with a run, so `git status` in `<repo>` stays clean.
 
 7. **Expect recovery behavior to differ by model — don't assume one recovery style.** Given a missing file at a hinted-wrong path, one model asks and stops; another keeps exploring toward the right name. *Why:* Qwen3.6 tries once, lists the directory, and gives up ("I cannot determine the port from it," `results/phase2/shakedown/suiteA/shakedown-qwen36-think/run1/rc1_wrong_path_hint.json`), while Qwopus keeps exploring toward `config/settings.yaml` (`results/phase3/suiteA/final-qwopus-combined/run1/rc1_wrong_path_hint.json`); aggregate pass medians in `results/phase3/step1_rescored.csv`.
 
-8. **Prefer accuracy settings over speed settings.** Don't tune flags for tokens/sec alone. *Why*, three measured cases in `results/phase3/suiteA/summary.csv`: speculative decoding (`s7-qwopus-spec1..4`) scores 24/25, flipping the same task (`sp2_delete_trap`) every run, against `spec0`'s 25/25 (REPORT.md, lines 264-265), despite 15–19% faster wall time (spec0 median 241.6s vs spec1–4 medians 198–206s); q8_0 KV cache (`s4-qwopus-c65536-kvq8_0`) scores 23/25 and is *slower* than f16 KV's 25/25 (`kvf16` run1 238.5s vs `kvq8_0` run1 290.3s); micro-batch 1024 crashes the server outright with a CUDA illegal-memory-access (results/phase3/crashes/REPRO.md), and even 768 only reaches 23/25 (`iso-ub768-cache` row).
+8. **Prefer accuracy settings over speed settings.** Don't tune flags for tokens/sec alone — every speed-oriented flag measured against this loop's accuracy suite (speculative decoding, quantized KV cache, an oversized micro-batch) scored worse, one of them by crashing the server outright, despite each looking faster in isolation. See `references/setup.md` for the current flags and the measured figures behind this rule.
 
 9. **Keep the harness light and the tool count small.** Since prefill scales with what's in the prompt (step 1's citation), fewer tool definitions and a shorter system prompt buy back exactly the prefill budget the loop needs for small, checked steps. *Why:* results/phase5/harness-install.md (the harness install/config notes this loop was validated against).
 

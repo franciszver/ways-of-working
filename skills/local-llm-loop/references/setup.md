@@ -28,6 +28,22 @@ Re-run your own tool-calling and accuracy suite before trusting these
 flags on a different model family, quantization stack, or GPU — see
 this skill's SKILL.md, "What would change this."
 
+## Harness seam
+
+`run_loop.sh` drives each stage through `LOOP_HARNESS_CMD`, a command
+template with `{prompt}` substituted for that stage's prompt file.
+Default:
+
+```
+LOOP_HARNESS_CMD="goose run --no-session -i {prompt}"
+```
+
+Goose is the shipped default and this loop is validated against it; the
+`GOOSE_*` environment variables below are still exported to whatever
+command `LOOP_HARNESS_CMD` names. Set `LOOP_HARNESS_CMD` to point the
+loop at a different CLI harness that accepts a prompt file the same way
+— for example another agent CLI with its own `--file`-style flag.
+
 ## Installing Goose
 
 Official installer:

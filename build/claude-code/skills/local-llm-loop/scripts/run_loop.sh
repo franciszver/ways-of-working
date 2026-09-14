@@ -47,6 +47,14 @@ Environment (see env.example):
                         isolated Goose config from. If unset, the bundled
                         goose-config.example.yaml is used directly.
   LOOP_STAGE_TIMEOUT   Optional. Per-stage timeout in seconds (default 1800).
+  LOOP_HARNESS_CMD     Optional. The CLI harness command to run each stage
+                        through, with `{prompt}` substituted for the stage's
+                        prompt file. Default: `goose run --no-session -i
+                        {prompt}`. Set this to point the loop at a different
+                        CLI harness that accepts a prompt file the same way;
+                        Goose stays the default and its env vars (GOOSE_*)
+                        are still exported to the command regardless of
+                        which harness is configured.
 EOF
 }
 
@@ -140,6 +148,7 @@ PLAN_FILE_ABS="$(cd "$(dirname "$PLAN_FILE")" && pwd)/$(basename "$PLAN_FILE")"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROMPTS_DIR="$SCRIPT_DIR/prompts"
 BUNDLED_GOOSE_CONFIG="$SCRIPT_DIR/goose-config.example.yaml"
+COMMON_RULES_FILE="$PROMPTS_DIR/common-rules.md"
 
 MISSING=()
 [ -z "${OPENAI_HOST:-}" ] && MISSING+=("OPENAI_HOST")
@@ -154,6 +163,17 @@ OPENAI_API_KEY="${OPENAI_API_KEY:-sk-local}"
 GOOSE_MODEL="${GOOSE_MODEL:-dry-run-placeholder}"
 
 STAGE_TIMEOUT="${LOOP_STAGE_TIMEOUT:-1800}"
+
+# Harness seam: the CLI command each stage is run through. `{prompt}` is
+# substituted for the stage's prompt file. Goose is the shipped default;
+# setting LOOP_HARNESS_CMD points the loop at any other CLI harness that
+# accepts a prompt file the same way. See references/setup.md.
+# (Two-step default, not `${LOOP_HARNESS_CMD:-...}`: bash's parameter-
+# expansion brace matching ends at the first literal `}` in the default
+# word, so a `{prompt}` inside it would truncate the expansion.)
+if [ -z "${LOOP_HARNESS_CMD:-}" ]; then
+  LOOP_HARNESS_CMD='goose run --no-session -i {prompt}'
+fi
 
 # --------------------------------------------------------------------
 # Worktree setup (always real, even under --dry-run, so plumbing checks
@@ -174,6 +194,12 @@ BASE_COMMIT="$(git -C "$WORKTREE" rev-parse HEAD)"
 LOG_DIR="$WORKTREE/.loop-run/logs"
 GOOSE_CONFIG_DIR="$WORKTREE/.loop-run/goose-config"
 mkdir -p "$LOG_DIR" "$GOOSE_CONFIG_DIR/goose"
+
+# Tracks the commit the review stage last saw, so each review's DIFF.txt
+# covers only the delta since then, not the whole run. Starts at
+# BASE_COMMIT (nothing reviewed yet).
+LAST_REVIEWED_FILE="$WORKTREE/.loop-run/LAST_REVIEWED"
+echo "$BASE_COMMIT" > "$LAST_REVIEWED_FILE"
 
 # Seed this run's isolated Goose config: from $XDG_CONFIG_HOME/goose/config.yaml
 # if the caller pointed one at us, else from the bundled hardened example.
@@ -229,6 +255,19 @@ plan_has_unchecked() {
   grep -q '\[ \]' "$WORKTREE/PLAN.md"
 }
 
+# Extracts the first unchecked PLAN.md step into NEXT_STEP.md, so
+# execute.md reads one step's text directly instead of scanning the
+# whole checklist. PLAN.md stays authoritative and is only read back to
+# tick the box once the step is done.
+write_next_step() {
+  if [ -f "$WORKTREE/PLAN.md" ]; then
+    grep -m1 '\[ \]' "$WORKTREE/PLAN.md" > "$WORKTREE/NEXT_STEP.md" || true
+  fi
+  if [ ! -s "$WORKTREE/NEXT_STEP.md" ]; then
+    echo "(no unchecked step found in PLAN.md)" > "$WORKTREE/NEXT_STEP.md"
+  fi
+}
+
 commit_stage() {
   local name="$1" n="$2"
   if $DRY_RUN; then
@@ -238,10 +277,41 @@ commit_stage() {
   (cd "$WORKTREE" && git add -A && git commit --allow-empty -q -m "loop: $name $n")
 }
 
+# Single checkpoint-commit-or-warn path shared by run_model_stage and
+# run_test_stage, so both report a failed commit the same way.
+commit_or_warn() {
+  local name="$1" n="$2"
+  if ! commit_stage "$name" "$n" && ! $DRY_RUN; then
+    echo "run_loop.sh: WARNING stage '$name' checkpoint commit failed -- the worktree's git history may be missing this stage's commit" >&2
+  fi
+}
+
+# Builds the effective prompt goose actually reads: the stage prompt
+# followed by the shared rules in common-rules.md, so the four rules
+# (small steps, one file per write, test after each write, no delete/git
+# beyond status+diff) live in exactly one file instead of being retyped
+# in every stage prompt.
+build_stage_prompt() {
+  local base_prompt="$1" out="$2"
+  cat "$base_prompt" "$COMMON_RULES_FILE" > "$out"
+}
+
 invoke_goose() {
   local prompt_file="$1" log_file="$2"
+  local word cmd=()
+  # LOOP_HARNESS_CMD is whitespace-split with `{prompt}` substituted for
+  # the actual prompt file; built once into an array so the dry-run
+  # print and the real call can never drift from each other.
+  for word in $LOOP_HARNESS_CMD; do
+    if [ "$word" = "{prompt}" ]; then
+      cmd+=("$prompt_file")
+    else
+      cmd+=("$word")
+    fi
+  done
+
   if $DRY_RUN; then
-    echo "[dry-run] would run: (cd $WORKTREE && env XDG_CONFIG_HOME=$GOOSE_CONFIG_DIR OPENAI_HOST=$OPENAI_HOST OPENAI_API_KEY=*** GOOSE_PROVIDER=openai GOOSE_MODEL=$GOOSE_MODEL GOOSE_DISABLE_KEYRING=1 GOOSE_TELEMETRY_ENABLED=false timeout $STAGE_TIMEOUT goose run --no-session -i $prompt_file) > $log_file 2>&1"
+    echo "[dry-run] would run: (cd $WORKTREE && env XDG_CONFIG_HOME=$GOOSE_CONFIG_DIR OPENAI_HOST=$OPENAI_HOST OPENAI_API_KEY=*** GOOSE_PROVIDER=openai GOOSE_MODEL=$GOOSE_MODEL GOOSE_DISABLE_KEYRING=1 GOOSE_TELEMETRY_ENABLED=false timeout $STAGE_TIMEOUT $(printf '%q ' "${cmd[@]}")) > $log_file 2>&1"
     : > "$log_file"
     return 0
   fi
@@ -251,58 +321,87 @@ invoke_goose() {
         OPENAI_HOST="$OPENAI_HOST" OPENAI_API_KEY="$OPENAI_API_KEY" \
         GOOSE_PROVIDER=openai GOOSE_MODEL="$GOOSE_MODEL" GOOSE_DISABLE_KEYRING=1 \
         GOOSE_TELEMETRY_ENABLED=false \
-        timeout "$STAGE_TIMEOUT" goose run --no-session -i "$prompt_file"
+        timeout "$STAGE_TIMEOUT" "${cmd[@]}"
   ) > "$log_file" 2>&1
   return $?
 }
 
+# Retry trigger, general rule: any HTTP 500 means the tool-call grammar
+# rejected a malformed call, on any OpenAI-compatible server.
+RETRY_TRIGGER_HTTP_500='HTTP 500'
+# Retry trigger, documented fallback: llama.cpp's own rejection message,
+# kept in case a proxy or client strips the "HTTP 500" text but passes
+# this fragment through. Comes from llama.cpp's grammar-constrained
+# decoding path specifically -- not a general server behavior, so it is
+# checked separately rather than folded into the regex above as if the
+# two were equivalent.
+RETRY_TRIGGER_LLAMACPP_FALLBACK='does not match the expected'
+
+log_has_retry_trigger() {
+  grep -qE "$RETRY_TRIGGER_HTTP_500" "$1" 2>/dev/null \
+    || grep -qF "$RETRY_TRIGGER_LLAMACPP_FALLBACK" "$1" 2>/dev/null
+}
+
 # Runs one fresh-context goose stage, retrying once on a format
-# rejection (HTTP 500 / "does not match the expected") and aborting the
+# rejection (HTTP 500, or llama.cpp's fallback message) and aborting the
 # whole loop on a 404 ("Resource not found"). Returns 0 on success, 3
 # to signal "abort: endpoint misconfigured".
 run_model_stage() {
   local name="$1" prompt_file="$2"
-  local n log_file
-  n="$(next_step_n)"
+  local n log_file goose_rc attempt built_prompt
   STAGES_RUN+=("$name")
-  log_file="$LOG_DIR/${name}_${n}.log"
 
-  local goose_rc
-  invoke_goose "$prompt_file" "$log_file"
-  goose_rc=$?
+  built_prompt="$LOG_DIR/${name}_prompt.md"
+  build_stage_prompt "$prompt_file" "$built_prompt"
 
-  if grep -q 'Resource not found' "$log_file" 2>/dev/null; then
-    return 3
-  fi
-
-  if grep -qE 'HTTP 500|does not match the expected' "$log_file" 2>/dev/null; then
-    echo "run_loop.sh: stage '$name' hit a format rejection; retrying once" >&2
+  for attempt in 1 2; do
     n="$(next_step_n)"
-    log_file="$LOG_DIR/${name}_${n}_retry.log"
-    invoke_goose "$prompt_file" "$log_file"
+    if [ "$attempt" -eq 1 ]; then
+      log_file="$LOG_DIR/${name}_${n}.log"
+    else
+      log_file="$LOG_DIR/${name}_${n}_retry.log"
+    fi
+
+    invoke_goose "$built_prompt" "$log_file"
     goose_rc=$?
+
     if grep -q 'Resource not found' "$log_file" 2>/dev/null; then
       return 3
     fi
-    if grep -qE 'HTTP 500|does not match the expected' "$log_file" 2>/dev/null && ! $DRY_RUN; then
-      # The retry hit the same format rejection -- don't go silent.
-      # The operator needs to know this stage failed twice, not just
-      # that a retry was attempted.
-      echo "run_loop.sh: WARNING stage '$name' hit a format rejection again on retry in $log_file -- giving up on this stage, not a success" >&2
-    fi
-  elif [ "$goose_rc" -ne 0 ] && ! $DRY_RUN; then
-    # Not a recognized retry/abort pattern, but goose (or `timeout`)
-    # still exited nonzero -- surface it loudly instead of silently
-    # treating a crashed/missing/timed-out stage as a success. The
-    # stage's expected output file (PLAN.md, HANDOFF.md, ...) is most
-    # likely missing now, which plan_has_unchecked() below treats as
-    # "not done" -- but the operator needs to see why.
-    echo "run_loop.sh: WARNING stage '$name' exited $goose_rc with no recognized retry/abort pattern in $log_file -- treating as a failed stage, not a success" >&2
-  fi
 
-  if ! commit_stage "$name" "$n" && ! $DRY_RUN; then
-    echo "run_loop.sh: WARNING stage '$name' checkpoint commit failed -- the worktree's git history may be missing this stage's commit" >&2
-  fi
+    if log_has_retry_trigger "$log_file"; then
+      if [ "$attempt" -lt 2 ]; then
+        echo "run_loop.sh: stage '$name' hit a format rejection; retrying once" >&2
+        continue
+      elif ! $DRY_RUN; then
+        # The retry hit the same format rejection -- don't go silent.
+        # The operator needs to know this stage failed twice, not just
+        # that a retry was attempted.
+        echo "run_loop.sh: WARNING stage '$name' hit a format rejection again on retry in $log_file -- giving up on this stage, not a success" >&2
+      fi
+    elif [ "$goose_rc" -ne 0 ] && ! $DRY_RUN; then
+      # Not a recognized retry/abort pattern, but goose (or `timeout`)
+      # still exited nonzero -- surface it loudly instead of silently
+      # treating a crashed/missing/timed-out stage as a success. The
+      # stage's expected output file (PLAN.md, HANDOFF.md, ...) is most
+      # likely missing now, which plan_has_unchecked() below treats as
+      # "not done" -- but the operator needs to see why.
+      echo "run_loop.sh: WARNING stage '$name' exited $goose_rc with no recognized retry/abort pattern in $log_file -- treating as a failed stage, not a success" >&2
+    fi
+    break
+  done
+
+  commit_or_warn "$name" "$n"
+  return 0
+}
+
+# Runs a model stage and aborts the whole loop immediately if it signals
+# "endpoint misconfigured" (exit code 3), instead of repeating the
+# rc-check at every call site.
+stage_or_abort() {
+  run_model_stage "$@"
+  local rc=$?
+  [ "$rc" -eq 3 ] && abort_misconfigured
   return 0
 }
 
@@ -320,9 +419,7 @@ run_test_stage() {
     fi
   } > "$WORKTREE/TEST_OUTPUT.txt" 2>&1
   local rc=$?
-  if ! commit_stage "test" "$n" && ! $DRY_RUN; then
-    echo "run_loop.sh: WARNING test-stage checkpoint commit failed -- the worktree's git history may be missing this stage's commit" >&2
-  fi
+  commit_or_warn "test" "$n"
   return "$rc"
 }
 
@@ -383,9 +480,7 @@ START_TS=$(date +%s)
 ITER=0
 LAST_TEST_RC=1
 
-run_model_stage plan "$PROMPTS_DIR/plan.md"
-rc=$?
-[ "$rc" -eq 3 ] && abort_misconfigured
+stage_or_abort plan "$PROMPTS_DIR/plan.md"
 
 # --------------------------------------------------------------------
 # Loop: execute -> test -> review -> fix -> test, until PLAN.md has no
@@ -394,22 +489,27 @@ rc=$?
 while [ "$ITER" -lt "$MAX_ITERATIONS" ]; do
   ITER=$((ITER + 1))
 
-  run_model_stage execute "$PROMPTS_DIR/execute.md"
-  rc=$?
-  [ "$rc" -eq 3 ] && abort_misconfigured
+  write_next_step
+
+  stage_or_abort execute "$PROMPTS_DIR/execute.md"
 
   run_test_stage
   LAST_TEST_RC=$?
 
-  git -C "$WORKTREE" diff "$BASE_COMMIT" HEAD > "$WORKTREE/DIFF.txt" 2>&1 || true
+  # DIFF.txt (read by review.md) covers only the delta since the last
+  # review, so each pass prefills just the new work. FULL_DIFF.txt keeps
+  # the whole run's diff available under a different name for the
+  # summary. Both live under .loop-run/ (gitignored), not the worktree
+  # root -- committing DIFF.txt itself into the worktree would make its
+  # own past content part of the next iteration's diff.
+  LAST_REVIEWED="$(cat "$LAST_REVIEWED_FILE" 2>/dev/null || echo "$BASE_COMMIT")"
+  git -C "$WORKTREE" diff "$BASE_COMMIT" HEAD > "$WORKTREE/.loop-run/FULL_DIFF.txt" 2>&1 || true
+  git -C "$WORKTREE" diff "$LAST_REVIEWED" HEAD > "$WORKTREE/.loop-run/DIFF.txt" 2>&1 || true
+  git -C "$WORKTREE" rev-parse HEAD > "$LAST_REVIEWED_FILE"
 
-  run_model_stage review "$PROMPTS_DIR/review.md"
-  rc=$?
-  [ "$rc" -eq 3 ] && abort_misconfigured
+  stage_or_abort review "$PROMPTS_DIR/review.md"
 
-  run_model_stage fix "$PROMPTS_DIR/fix.md"
-  rc=$?
-  [ "$rc" -eq 3 ] && abort_misconfigured
+  stage_or_abort fix "$PROMPTS_DIR/fix.md"
 
   run_test_stage
   LAST_TEST_RC=$?
