@@ -1,0 +1,187 @@
+{
+  "tests/test_store.py": {
+    "test_set_and_get": {
+      "lines": [
+        "def test_set_and_get(self):",
+        "    store = Store()",
+        "    store.set(\"a\", 1)",
+        "    self.assertEqual(store.get(\"a\"), 1)"
+      ],
+      "assert_hashes": [
+        "673a6d5bc62612d53b1804486185ddbfb3bc71f53216d2a3c52d23971a5dd03f"
+      ],
+      "body_hash": "0ad808d64d817e6ce011b388b97d8ff6b43a8e18cad64a583592fbf38b4fc0d4"
+    },
+    "test_get_missing_returns_none": {
+      "lines": [
+        "def test_get_missing_returns_none(self):",
+        "    store = Store()",
+        "    self.assertIsNone(store.get(\"nope\"))"
+      ],
+      "assert_hashes": [
+        "2de8e50193e3b1caa5c620530df1905cb6b0e33247ae82a0b694fd7c2ae2b8ba"
+      ],
+      "body_hash": "53150156d5d7ccf4a0600a1eea6c187a0b46b1aefc6a3b9b67ea72af529f1d51"
+    },
+    "test_ttl_expiry": {
+      "lines": [
+        "def test_ttl_expiry(self):",
+        "    clock = FakeClock()",
+        "    store = Store(clock=clock)",
+        "    store.set(\"a\", \"value\", ttl=10)",
+        "    self.assertEqual(store.get(\"a\"), \"value\")",
+        "    clock.advance(11)",
+        "    self.assertIsNone(store.get(\"a\"))"
+      ],
+      "assert_hashes": [
+        "4183133396ac61f96cd062bb385edb47db61c5ec513ad432bba296ae8ab39bb7",
+        "bbb65a09e364dfd2d78a9daa4bbe27f42c059a0e6d93c883b3f0ee2ff451cbae"
+      ],
+      "body_hash": "cdff13b270d41d76e9a6a8376de05f9683016e1613f085c5dfcd8447e69ad95b"
+    },
+    "test_delete": {
+      "lines": [
+        "def test_delete(self):",
+        "    store = Store()",
+        "    store.set(\"a\", 1)",
+        "    store.delete(\"a\")",
+        "    self.assertIsNone(store.get(\"a\"))",
+        "    store.delete(\"nonexistent\")  # should not raise"
+      ],
+      "assert_hashes": [
+        "bbb65a09e364dfd2d78a9daa4bbe27f42c059a0e6d93c883b3f0ee2ff451cbae"
+      ],
+      "body_hash": "f450896731461fd8243b9f5b001056f5d5cbf7e13798e44b598db4840d2290eb"
+    },
+    "test_keys_excludes_expired": {
+      "lines": [
+        "def test_keys_excludes_expired(self):",
+        "    clock = FakeClock()",
+        "    store = Store(clock=clock)",
+        "    store.set(\"a\", 1, ttl=5)",
+        "    store.set(\"b\", 2)",
+        "    clock.advance(6)",
+        "    self.assertEqual(store.keys(), [\"b\"])"
+      ],
+      "assert_hashes": [
+        "36d748a48fe442fbcf4b0a79620c6e4976763d552b6c9052cda137545b1703ec"
+      ],
+      "body_hash": "4a5ab6817bb3b437cb06dc639976a9a8055b69963e2202447c39c112313c4f47"
+    },
+    "test_is_expired": {
+      "lines": [
+        "def test_is_expired(self):",
+        "    clock = FakeClock()",
+        "    store = Store(clock=clock)",
+        "    store.set(\"a\", 1, ttl=5)",
+        "    self.assertFalse(store.is_expired(\"a\"))",
+        "    clock.advance(6)",
+        "    self.assertTrue(store.is_expired(\"a\"))",
+        "    self.assertFalse(store.is_expired(\"nonexistent\"))"
+      ],
+      "assert_hashes": [
+        "d548f0cbae9ed3415d15dd206ddfdb4a96ef7688fb2611cb18268125d603a417",
+        "3d6fbb405bf46bf94944bf0f2e170c3136876dbaab5ec75011b34145a5826618",
+        "944447b3662b6151d15897fff3aa7fe55b72393ba2b77427aedc1f2af060aedb"
+      ],
+      "body_hash": "7a33a629afbf57d06e95a797f27ade6c5dbdbe81aa0c8da75bef904a23d5162c"
+    }
+  },
+  "tests/test_serializer.py": {
+    "test_roundtrip_basic_values": {
+      "lines": [
+        "def test_roundtrip_basic_values(self):",
+        "    store = Store()",
+        "    store.set(\"a\", 1)",
+        "    store.set(\"b\", \"text\")",
+        "    data = dumps(store)",
+        "    restored = loads(data)",
+        "    self.assertEqual(restored.get(\"a\"), 1)",
+        "    self.assertEqual(restored.get(\"b\"), \"text\")"
+      ],
+      "assert_hashes": [
+        "276cb3c86bd86410621b443f83f4832c303aed4eb07e1b332e1ac77ffcdf201b",
+        "618316138f1c689eaa616a7ede90f39340753225c9e3311fa850ca10dd8644bc"
+      ],
+      "body_hash": "eca6f0f52306a66cdc288dc21167026236d12d830a8b7890a4f7f319be2374a7"
+    },
+    "test_roundtrip_set_and_tuple": {
+      "lines": [
+        "def test_roundtrip_set_and_tuple(self):",
+        "    store = Store()",
+        "    store.set(\"s\", {1, 2, 3})",
+        "    store.set(\"t\", (1, \"two\", 3.0))",
+        "    data = dumps(store)",
+        "    restored = loads(data)",
+        "    self.assertEqual(restored.get(\"s\"), {1, 2, 3})",
+        "    self.assertEqual(restored.get(\"t\"), (1, \"two\", 3.0))"
+      ],
+      "assert_hashes": [
+        "63470d39bce6364f129db8ec79dcb1e33f73d7330c6f329e835cbfc22a290d8f",
+        "4005cfd4ab5ccdc25640f09c29a7bdbd3966a719a8073ec6d5a375fec7484ba4"
+      ],
+      "body_hash": "b93308c75e8fbb8ded8d2c45a9be81a648e332ffcdc949ceb0a2df24c12faeb8"
+    },
+    "test_dumps_produces_json_with_entries": {
+      "lines": [
+        "def test_dumps_produces_json_with_entries(self):",
+        "    store = Store()",
+        "    store.set(\"a\", 1)",
+        "    data = dumps(store)",
+        "    self.assertIn('\"entries\"', data)",
+        "    self.assertIn('\"a\"', data)"
+      ],
+      "assert_hashes": [
+        "df9071c4d94e6d55a32de369ebf8a9981b83226d2ac24c5dd4202287d763fd03",
+        "0bf25263c576b9b33077bc1c383065ddcb89518347fa9ab38793895385cee6be"
+      ],
+      "body_hash": "f1d9c00123533463c4ab0c84e96e19befd1613ff84d49f7ef1bdb33259ab7009"
+    }
+  },
+  "tests/test_cli.py": {
+    "test_set_then_get": {
+      "lines": [
+        "def test_set_then_get(self):",
+        "    code, _ = self._run(\"set\", \"name\", \"alice\")",
+        "    self.assertEqual(code, 0)",
+        "    code, out = self._run(\"get\", \"name\")",
+        "    self.assertEqual(code, 0)",
+        "    self.assertEqual(out.strip(), \"alice\")"
+      ],
+      "assert_hashes": [
+        "b0d6f0483bb8b94edd4b7cfd26e67d7f72a339e2b4db0912b6420879fc9738f7",
+        "b0d6f0483bb8b94edd4b7cfd26e67d7f72a339e2b4db0912b6420879fc9738f7",
+        "fff775e32618ce671a2042488f2dd6c5d1c7bb0596b29a9eaa225703e795a0fe"
+      ],
+      "body_hash": "fdeb0b544e411e8c55e7c978f6abdeb52c96b5646bbb5f62f9cb700d9918bdce"
+    },
+    "test_get_missing_prints_placeholder": {
+      "lines": [
+        "def test_get_missing_prints_placeholder(self):",
+        "    code, out = self._run(\"get\", \"nope\")",
+        "    self.assertEqual(code, 0)",
+        "    self.assertEqual(out.strip(), \"(missing)\")"
+      ],
+      "assert_hashes": [
+        "b0d6f0483bb8b94edd4b7cfd26e67d7f72a339e2b4db0912b6420879fc9738f7",
+        "88202ce9e5f74fb25c2a5ad50c450c762445ba6f9fbd2fe1b6e201bb174ea5f4"
+      ],
+      "body_hash": "423c76a989590bf3618f31aba111d34e61979585cfdd796268d7fa23d3354de9"
+    },
+    "test_keys_lists_set_keys": {
+      "lines": [
+        "def test_keys_lists_set_keys(self):",
+        "    self._run(\"set\", \"a\", \"1\")",
+        "    self._run(\"set\", \"b\", \"2\")",
+        "    code, out = self._run(\"keys\")",
+        "    self.assertEqual(code, 0)",
+        "    self.assertEqual(sorted(out.split()), [\"a\", \"b\"])"
+      ],
+      "assert_hashes": [
+        "b0d6f0483bb8b94edd4b7cfd26e67d7f72a339e2b4db0912b6420879fc9738f7",
+        "357e34b171d49b8cebadf0519301a79d559c2506a14f5a5d995d0ab83251cdbf"
+      ],
+      "body_hash": "985fe501586be92d1771f4b5f9edc51562d78a4e975277817f193eb1ff84455e"
+    }
+  }
+}
