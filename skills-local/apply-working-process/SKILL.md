@@ -3,7 +3,7 @@ name: apply-working-process
 description: Loads the owner's standard working process — orchestrator-only role split, cheap-model implementation with fresh review tiered to what's being checked, board-as-plan issue discipline, red-first TDD, three gates before merge, same-session decision logging. Use when starting work in a repo, planning a feature, or before the first edit of a session in a project.
 ---
 
-<!-- local: derived-from: skills/apply-working-process/SKILL.md@ff9dca76591b -->
+<!-- local: derived-from: skills/apply-working-process/SKILL.md@c601177595fe -->
 <!-- local: deliberate divergence: section 5 does not scale the simplify gate down on small diffs — that reduction exists only to save paid tokens, and local tokens are free, so all four simplify angles run on every diff regardless of size. -->
 <!-- local: deliberate divergence: section 1's "token savings are an explicit owner directive" is inverted here — a free local model has no token budget to protect, so the directive becomes "spend tokens on thoroughness instead". -->
 

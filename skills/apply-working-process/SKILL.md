@@ -69,4 +69,4 @@ This is how the library's owner runs engineering work. It was proven on the Agen
 
 ## Adapting to a new environment
 
-On first use in a tool or repo, map each element to what exists: which review skills stand in for the three gates, whether a board or `WORKPLAN.md` carries the plan, whether subagents or phase separation carry the role split. State the mapping once, then follow it — don't silently drop the elements the environment makes awkward.
+On first use in a tool or repo, map each element to what exists: which review skills stand in for the three gates, whether a board or `WORKPLAN.md` carries the plan, whether subagents or phase separation carry the role split. State the mapping once, then follow it — don't silently drop the elements the environment makes awkward. With no subagents and only a local model, see `local-llm-loop`: its driver runs the three gates as sequential fresh-process stages.

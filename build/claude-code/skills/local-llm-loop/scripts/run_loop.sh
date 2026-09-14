@@ -5,10 +5,14 @@
 #   run_loop.sh <repo_path> <plan_file> [--max-iterations N] [--test-cmd "..."] [--dry-run]
 #
 # Runs a plan through a fresh-context Goose stage sequence
-# (plan -> execute -> test -> review -> fix -> test, looping
-# execute..test until the plan has no unchecked steps and tests pass, or
-# --max-iterations is reached) in a disposable git worktree, committing
-# after every stage. The endpoint is passed as explicit environment
+# (plan -> execute -> test -> gates, looping until the plan has no
+# unchecked steps and tests pass, or --max-iterations is reached) in a
+# disposable git worktree, committing after every stage. The gates are
+# three fresh-context review passes in a fixed order -- simplify,
+# security, review -- each followed by a fix stage and a test stage
+# when it reports findings, capped at two fix rounds per gate per
+# iteration (a third round means the approach is wrong, not that the
+# fixes are nearly done; the loop stops and reports "not converged"). The endpoint is passed as explicit environment
 # variables on the goose command itself, never relying on a config file
 # for OPENAI_HOST/OPENAI_API_KEY/GOOSE_MODEL, so a stale config can't
 # silently override it.
@@ -24,11 +28,16 @@ set -o pipefail
 
 usage() {
   cat <<'EOF'
-Usage: run_loop.sh <repo_path> <plan_file> [--max-iterations N] [--test-cmd "..."] [--dry-run]
+Usage: run_loop.sh <repo_path> <plan_file> [--max-iterations N] [--test-cmd "..."] [--gates LIST] [--dry-run]
 
   <repo_path>          Path to an existing git repo to run the loop against.
   <plan_file>          Path to a file describing the task to plan and execute.
-  --max-iterations N   Cap on execute/test/review/fix/test cycles (default 3).
+  --max-iterations N   Cap on execute/test/gates cycles (default 3).
+  --gates LIST         Comma-separated gates to run after each execute, in
+                        this fixed order: simplify,security,review (the
+                        default). "none" skips every gate. Each gate that
+                        reports findings is followed by a fix stage and a
+                        test stage, at most twice per gate per iteration.
   --test-cmd "..."     Mechanical test command to run in the worktree.
                         Default: `python3 -m unittest discover -s tests -t .`
                         if tests/ exists, else `make test` if the Makefile
@@ -47,6 +56,14 @@ Environment (see env.example):
                         isolated Goose config from. If unset, the bundled
                         goose-config.example.yaml is used directly.
   LOOP_STAGE_TIMEOUT   Optional. Per-stage timeout in seconds (default 1800).
+  LOOP_DIFF_SPLIT_BYTES
+                       Optional. When an iteration's diff is larger than
+                        this many bytes and touches more than one file, each
+                        gate runs once per changed file on that file's diff
+                        alone, so no single prompt carries the whole diff
+                        (default 32768, about 8K tokens).
+  LOOP_GATE_ROUNDS     Optional. Fix rounds allowed per gate per iteration
+                        before the loop stops as "not converged" (default 2).
   LOOP_HARNESS_CMD     Optional. The CLI harness command to run each stage
                         through, with `{prompt}` substituted for the stage's
                         prompt file. Default: `goose run --no-session -i
@@ -64,6 +81,7 @@ EOF
 DRY_RUN=false
 MAX_ITERATIONS=3
 TEST_CMD_OVERRIDE=""
+GATES_SPEC="simplify,security,review"
 POSITIONAL=()
 
 while [ $# -gt 0 ]; do
@@ -82,6 +100,14 @@ while [ $# -gt 0 ]; do
         exit 1
       fi
       TEST_CMD_OVERRIDE="$2"
+      shift 2
+      ;;
+    --gates)
+      if [ $# -lt 2 ]; then
+        echo "run_loop.sh: --gates requires a value" >&2
+        exit 1
+      fi
+      GATES_SPEC="$2"
       shift 2
       ;;
     --dry-run)
@@ -163,6 +189,41 @@ OPENAI_API_KEY="${OPENAI_API_KEY:-sk-local}"
 GOOSE_MODEL="${GOOSE_MODEL:-dry-run-placeholder}"
 
 STAGE_TIMEOUT="${LOOP_STAGE_TIMEOUT:-1800}"
+DIFF_SPLIT_BYTES="${LOOP_DIFF_SPLIT_BYTES:-32768}"
+GATE_ROUNDS="${LOOP_GATE_ROUNDS:-2}"
+
+# --------------------------------------------------------------------
+# Gates: which fresh-context review passes run after each execute, and
+# which file each one writes. Order is fixed (simplify, then security,
+# then review) regardless of the order given on the command line.
+# --------------------------------------------------------------------
+GATES=()
+if [ "$GATES_SPEC" != "none" ]; then
+  for g in simplify security review; do
+    case ",$GATES_SPEC," in
+      *",$g,"*) GATES+=("$g") ;;
+    esac
+  done
+  # Reject anything that is not a known gate name.
+  IFS=',' read -r -a _spec_items <<< "$GATES_SPEC"
+  for g in "${_spec_items[@]}"; do
+    case "$g" in
+      simplify|security|review|"") ;;
+      *)
+        echo "run_loop.sh: --gates: unknown gate '$g' (known: simplify, security, review, none)" >&2
+        exit 1
+        ;;
+    esac
+  done
+fi
+
+gate_output_file() {
+  case "$1" in
+    simplify) echo SIMPLIFY.md ;;
+    security) echo SECURITY.md ;;
+    review)   echo REVIEW.md ;;
+  esac
+}
 
 # --------------------------------------------------------------------
 # Portable timeout: stock macOS ships no `timeout`. Use it if present,
@@ -383,27 +444,41 @@ log_has_retry_trigger() {
     || grep -qF "$RETRY_TRIGGER_LLAMACPP_FALLBACK" "$1" 2>/dev/null
 }
 
+# Retry prompts differ from the first attempt on purpose: at temperature
+# 0 the model is deterministic, so re-sending the identical prompt after
+# a malformed call or a missing output file would replay the same path.
+# One appended line changes the prefix and gives the model the reason.
+RETRY_NUDGE_FORMAT='Note: the previous attempt produced a malformed tool call. Keep every tool call small, under 300 tokens, one file per call.'
+RETRY_NUDGE_MISSING='Note: the previous attempt ended without writing %s. Write %s now, in one call, then stop.'
+
 # Runs one fresh-context goose stage, retrying once on a format
-# rejection (HTTP 500, or llama.cpp's fallback message) and aborting the
-# whole loop on a 404 ("Resource not found"). Returns 0 on success, 3
-# to signal "abort: endpoint misconfigured".
+# rejection (HTTP 500, or llama.cpp's fallback message) or on a missing
+# expected output file, and aborting the whole loop on a 404 ("Resource
+# not found"). Returns 0 on success, 3 to signal "abort: endpoint
+# misconfigured".
+#   $3 (optional): a file, relative to the worktree, the stage must have
+#   written; when absent after the first attempt the stage is retried
+#   once with a reminder appended to the prompt. Missing after the
+#   retry is the caller's problem (gates fail closed on it).
 run_model_stage() {
-  local name="$1" prompt_file="$2"
-  local n log_file goose_rc attempt built_prompt
+  local name="$1" prompt_file="$2" expected="${3:-}"
+  local n log_file goose_rc attempt built_prompt retry_prompt nudge
   STAGES_RUN+=("$name")
 
   built_prompt="$LOG_DIR/${name}_prompt.md"
   build_stage_prompt "$prompt_file" "$built_prompt"
+  retry_prompt="$LOG_DIR/${name}_prompt_retry.md"
 
   for attempt in 1 2; do
     n="$(next_step_n)"
     if [ "$attempt" -eq 1 ]; then
       log_file="$LOG_DIR/${name}_${n}.log"
+      invoke_goose "$built_prompt" "$log_file"
     else
       log_file="$LOG_DIR/${name}_${n}_retry.log"
+      { cat "$built_prompt"; printf '\n%s\n' "$nudge"; } > "$retry_prompt"
+      invoke_goose "$retry_prompt" "$log_file"
     fi
-
-    invoke_goose "$built_prompt" "$log_file"
     goose_rc=$?
 
     if grep -q 'Resource not found' "$log_file" 2>/dev/null; then
@@ -413,6 +488,7 @@ run_model_stage() {
     if log_has_retry_trigger "$log_file"; then
       if [ "$attempt" -lt 2 ]; then
         echo "run_loop.sh: stage '$name' hit a format rejection; retrying once" >&2
+        nudge="$RETRY_NUDGE_FORMAT"
         continue
       elif ! $DRY_RUN; then
         # The retry hit the same format rejection -- don't go silent.
@@ -428,6 +504,16 @@ run_model_stage() {
       # likely missing now, which plan_has_unchecked() below treats as
       # "not done" -- but the operator needs to see why.
       echo "run_loop.sh: WARNING stage '$name' exited $goose_rc with no recognized retry/abort pattern in $log_file -- treating as a failed stage, not a success" >&2
+    elif [ -n "$expected" ] && [ ! -f "$WORKTREE/$expected" ] && ! $DRY_RUN; then
+      # The model answered in prose, or stopped, without writing the
+      # file this stage exists to produce. A normal outcome for this
+      # model class, so nudge once rather than treating it as a crash.
+      if [ "$attempt" -lt 2 ]; then
+        echo "run_loop.sh: stage '$name' did not write $expected; retrying with a write reminder" >&2
+        printf -v nudge "$RETRY_NUDGE_MISSING" "$expected" "$expected"
+        continue
+      fi
+      echo "run_loop.sh: WARNING stage '$name' did not write $expected on the retry either -- treating as a failed stage, not a success" >&2
     fi
     break
   done
@@ -464,6 +550,188 @@ run_test_stage() {
   return "$rc"
 }
 
+# --------------------------------------------------------------------
+# Gate machinery
+# --------------------------------------------------------------------
+GATE_LOG=()          # one line per gate run, for LOOP_SUMMARY.md
+GATES_FAILED=()      # gates that wrote no output even after the retry
+NOT_CONVERGED=""     # the gate that still had findings after GATE_ROUNDS fixes
+DELETES_REVERTED=0   # fix-stage commits reverted because they deleted files
+GATE_KEPT=0          # findings kept by the last filter_findings call
+GATE_DROPPED=0       # findings dropped by the last filter_findings call
+
+# The driver's own bookkeeping files are excluded from every gate diff:
+# a reviewer reading PLAN.md checkboxes or the last TEST_OUTPUT.txt is
+# spending prefill on noise, and a per-file split must count only the
+# task's files. Git pathspec form, used after `--` in git diff.
+GATE_DIFF_EXCLUDES=(
+  ':(exclude).gitignore' ':(exclude)PLAN.md' ':(exclude)PLAN_INPUT.md'
+  ':(exclude)HANDOFF.md' ':(exclude)NEXT_STEP.md' ':(exclude)TEST_OUTPUT.txt'
+  ':(exclude)FINDINGS.md' ':(exclude)SIMPLIFY.md' ':(exclude)SECURITY.md'
+  ':(exclude)REVIEW.md' ':(exclude)NEEDS_HUMAN.md'
+)
+
+# gate_diff [path]: the iteration's diff for the gates, bookkeeping
+# files excluded, optionally narrowed to one path.
+gate_diff() {
+  if [ $# -gt 0 ]; then
+    git -C "$WORKTREE" diff "$ITER_BASE" HEAD -- "$1" 2>&1
+  else
+    git -C "$WORKTREE" diff "$ITER_BASE" HEAD -- . "${GATE_DIFF_EXCLUDES[@]}" 2>&1
+  fi
+}
+
+# A finding line starts with an optional list marker, then path:LINE.
+FINDING_RE='^[[:space:]]*(-|\*|[0-9]+\.)?[[:space:]]*`?([^[:space:]:`]+):([0-9]+)'
+
+# filter_findings <gate>: mechanically checks the gate's output file and
+# writes FINDINGS.md (what the fix stage reads). A line is kept only when
+# it names a file that exists in the worktree; everything else -- prose,
+# a hallucinated path, a "no findings" line from a per-file chunk -- goes
+# to .loop-run/REJECTED_FINDINGS.md with the gate name. This is the free
+# filter against invented defects; the model's judgment is never trusted
+# to have cited a real file. Returns 0 when at least one finding is kept.
+filter_findings() {
+  local gate="$1" src="$WORKTREE/$(gate_output_file "$1")"
+  local rejected="$WORKTREE/.loop-run/REJECTED_FINDINGS.md"
+  local line path
+  GATE_KEPT=0
+  GATE_DROPPED=0
+  : > "$WORKTREE/FINDINGS.md"
+  if [ ! -s "$src" ]; then
+    echo "no findings" > "$WORKTREE/FINDINGS.md"
+    return 1
+  fi
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      ''|'#'*) continue ;;
+    esac
+    if printf '%s' "$line" | grep -qi 'no findings'; then
+      continue
+    fi
+    if [[ "$line" =~ $FINDING_RE ]]; then
+      path="${BASH_REMATCH[2]}"
+      if [ -f "$WORKTREE/$path" ]; then
+        printf '%s\n' "$line" >> "$WORKTREE/FINDINGS.md"
+        GATE_KEPT=$((GATE_KEPT + 1))
+        continue
+      fi
+    fi
+    printf '%s: %s\n' "$gate" "$line" >> "$rejected"
+    GATE_DROPPED=$((GATE_DROPPED + 1))
+  done < "$src"
+  if [ "$GATE_KEPT" -eq 0 ]; then
+    echo "no findings" > "$WORKTREE/FINDINGS.md"
+    return 1
+  fi
+  return 0
+}
+
+# run_gate <gate>: runs one gate on the iteration's diff so far (from
+# ITER_BASE to HEAD, so a gate also sees the fixes earlier gates caused).
+# When the diff is over DIFF_SPLIT_BYTES and touches more than one file,
+# the gate runs once per file on that file's diff alone and the outputs
+# are concatenated. Returns 0 when findings remain after filtering, 1
+# when none remain, 3 when the gate wrote no output file at all.
+run_gate() {
+  local gate="$1" out prompt files nfiles diff_bytes acc f
+  out="$(gate_output_file "$gate")"
+  prompt="$PROMPTS_DIR/$gate.md"
+  gate_diff > "$WORKTREE/.loop-run/DIFF.txt" || true
+  diff_bytes="$(wc -c < "$WORKTREE/.loop-run/DIFF.txt" | tr -d ' ')"
+  files="$(git -C "$WORKTREE" diff --name-only "$ITER_BASE" HEAD -- . "${GATE_DIFF_EXCLUDES[@]}" 2>/dev/null)"
+  nfiles="$(printf '%s\n' "$files" | grep -c .)"
+  rm -f "$WORKTREE/$out"
+
+  if [ "$diff_bytes" -gt "$DIFF_SPLIT_BYTES" ] && [ "$nfiles" -gt 1 ]; then
+    echo "run_loop.sh: gate '$gate': diff is $diff_bytes bytes over $nfiles files (limit $DIFF_SPLIT_BYTES); running once per file" >&2
+    acc="$WORKTREE/.loop-run/${gate}_chunks.md"
+    : > "$acc"
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      gate_diff "$f" > "$WORKTREE/.loop-run/DIFF.txt" || true
+      rm -f "$WORKTREE/$out"
+      stage_or_abort "$gate" "$prompt" "$out"
+      if [ -f "$WORKTREE/$out" ]; then
+        { printf '## %s\n' "$f"; cat "$WORKTREE/$out"; echo; } >> "$acc"
+      fi
+    done <<< "$files"
+    if [ -s "$acc" ]; then
+      cp "$acc" "$WORKTREE/$out"
+    fi
+    gate_diff > "$WORKTREE/.loop-run/DIFF.txt" || true
+  else
+    stage_or_abort "$gate" "$prompt" "$out"
+  fi
+
+  if [ ! -f "$WORKTREE/$out" ] && ! $DRY_RUN; then
+    return 3
+  fi
+  if filter_findings "$gate"; then
+    return 0
+  fi
+  return 1
+}
+
+# guard_deletes: called right after a fix stage's checkpoint commit. The
+# model's judgment on deletes is the measured weak spot, so a fix commit
+# that removes a file is reverted whole and the files are listed in
+# NEEDS_HUMAN.md for a person to decide.
+guard_deletes() {
+  $DRY_RUN && return 0
+  local deleted
+  deleted="$(git -C "$WORKTREE" diff --diff-filter=D --name-only HEAD~1 HEAD 2>/dev/null)"
+  [ -n "$deleted" ] || return 0
+  echo "run_loop.sh: WARNING fix stage deleted file(s); reverting that commit and leaving them for a human: $(printf '%s ' $deleted)" >&2
+  if ! git -C "$WORKTREE" revert --no-edit HEAD >/dev/null 2>&1; then
+    echo "run_loop.sh: WARNING revert of the deleting fix commit failed; inspect $WORKTREE by hand" >&2
+  fi
+  {
+    echo "## fix stage (step $STEP_N) deleted files; the driver reverted that commit"
+    printf -- '- %s\n' $deleted
+  } >> "$WORKTREE/NEEDS_HUMAN.md"
+  DELETES_REVERTED=$((DELETES_REVERTED + 1))
+}
+
+# run_gates_for_iteration: the three gates in order, each with up to
+# GATE_ROUNDS fix rounds. Sets NOT_CONVERGED when a gate still reports
+# findings after its last allowed fix round; appends to GATES_FAILED
+# when a gate writes nothing. Updates LAST_TEST_RC after every fix.
+run_gates_for_iteration() {
+  local gate round grc
+  # Guard: "${GATES[@]}" on an empty array is an unbound-variable error
+  # under set -u in bash 3.2 (stock macOS), so --gates none returns here.
+  [ "${#GATES[@]}" -eq 0 ] && return 0
+  for gate in "${GATES[@]}"; do
+    round=0
+    while :; do
+      run_gate "$gate"
+      grc=$?
+      if [ "$grc" -eq 3 ]; then
+        echo "run_loop.sh: WARNING gate '$gate' produced no $(gate_output_file "$gate") -- the gate did not run; the loop cannot pass" >&2
+        GATES_FAILED+=("$gate")
+        GATE_LOG+=("iteration $ITER, gate $gate, round $round: no output (failed closed)")
+        break
+      fi
+      GATE_LOG+=("iteration $ITER, gate $gate, round $round: $GATE_KEPT finding(s) kept, $GATE_DROPPED rejected")
+      if [ "$grc" -ne 0 ]; then
+        break
+      fi
+      if [ "$round" -ge "$GATE_ROUNDS" ]; then
+        NOT_CONVERGED="$gate"
+        echo "run_loop.sh: gate '$gate' still reports $GATE_KEPT finding(s) after $GATE_ROUNDS fix round(s); stopping as not converged -- see FINDINGS.md" >&2
+        return 0
+      fi
+      round=$((round + 1))
+      stage_or_abort fix "$PROMPTS_DIR/fix.md"
+      guard_deletes
+      run_test_stage
+      LAST_TEST_RC=$?
+    done
+  done
+  return 0
+}
+
 abort_misconfigured() {
   echo "run_loop.sh: endpoint misconfigured (Resource not found in a goose log under $LOG_DIR)" >&2
   {
@@ -484,7 +752,8 @@ finalize() {
   local end_ts wall done_flag
   end_ts=$(date +%s)
   wall=$((end_ts - START_TS))
-  if ! plan_has_unchecked && [ "$final_test_rc" -eq 0 ]; then
+  if ! plan_has_unchecked && [ "$final_test_rc" -eq 0 ] \
+     && [ -z "$NOT_CONVERGED" ] && [ "${#GATES_FAILED[@]}" -eq 0 ]; then
     done_flag=pass
   else
     done_flag=fail
@@ -501,7 +770,18 @@ finalize() {
     echo "Iterations run: $ITER (max $MAX_ITERATIONS)"
     echo "Final test result: $([ "$final_test_rc" -eq 0 ] && echo PASS || echo FAIL)"
     echo "PLAN.md unchecked steps remaining: $(plan_has_unchecked && echo yes || echo no)"
+    echo "Gates: ${GATES[*]:-none}"
+    echo "Gates with no output (failed closed): ${GATES_FAILED[*]:-none}"
+    echo "Not converged: ${NOT_CONVERGED:-no}"
+    echo "Fix commits reverted for deleting files: $DELETES_REVERTED$([ "$DELETES_REVERTED" -gt 0 ] && echo ' (see NEEDS_HUMAN.md)')"
     echo "Wall time: ${wall}s"
+    echo
+    echo "## Gate log"
+    if [ "${#GATE_LOG[@]}" -gt 0 ]; then
+      printf -- '- %s\n' "${GATE_LOG[@]}"
+    else
+      echo "- (no gate ran)"
+    fi
     echo
     echo "## Commits"
     git -C "$WORKTREE" log --oneline "$BASE_COMMIT"..HEAD 2>/dev/null
@@ -521,11 +801,13 @@ START_TS=$(date +%s)
 ITER=0
 LAST_TEST_RC=1
 
-stage_or_abort plan "$PROMPTS_DIR/plan.md"
+stage_or_abort plan "$PROMPTS_DIR/plan.md" PLAN.md
 
 # --------------------------------------------------------------------
-# Loop: execute -> test -> review -> fix -> test, until PLAN.md has no
-# unchecked steps and tests pass, or max-iterations is reached.
+# Loop: execute -> test -> gates (each gate: review, then fix + test
+# while it reports findings, at most GATE_ROUNDS times), until PLAN.md
+# has no unchecked steps and tests pass, or max-iterations is reached,
+# or a gate does not converge.
 # --------------------------------------------------------------------
 while [ "$ITER" -lt "$MAX_ITERATIONS" ]; do
   ITER=$((ITER + 1))
@@ -537,24 +819,23 @@ while [ "$ITER" -lt "$MAX_ITERATIONS" ]; do
   run_test_stage
   LAST_TEST_RC=$?
 
-  # DIFF.txt (read by review.md) covers only the delta since the last
-  # review, so each pass prefills just the new work. FULL_DIFF.txt keeps
-  # the whole run's diff available under a different name for the
-  # summary. Both live under .loop-run/ (gitignored), not the worktree
-  # root -- committing DIFF.txt itself into the worktree would make its
-  # own past content part of the next iteration's diff.
-  LAST_REVIEWED="$(cat "$LAST_REVIEWED_FILE" 2>/dev/null || echo "$BASE_COMMIT")"
+  # Each gate reads .loop-run/DIFF.txt, the delta since the last
+  # iteration's gates finished (ITER_BASE), so a pass prefills only the
+  # new work plus any fixes earlier gates in this iteration caused.
+  # FULL_DIFF.txt keeps the whole run's diff for the summary. Both live
+  # under .loop-run/ (gitignored), not the worktree root -- committing
+  # DIFF.txt itself would make its own past content part of the next
+  # iteration's diff.
+  ITER_BASE="$(cat "$LAST_REVIEWED_FILE" 2>/dev/null || echo "$BASE_COMMIT")"
   git -C "$WORKTREE" diff "$BASE_COMMIT" HEAD > "$WORKTREE/.loop-run/FULL_DIFF.txt" 2>&1 || true
-  git -C "$WORKTREE" diff "$LAST_REVIEWED" HEAD > "$WORKTREE/.loop-run/DIFF.txt" 2>&1 || true
+
+  run_gates_for_iteration
+
   git -C "$WORKTREE" rev-parse HEAD > "$LAST_REVIEWED_FILE"
 
-  stage_or_abort review "$PROMPTS_DIR/review.md"
-
-  stage_or_abort fix "$PROMPTS_DIR/fix.md"
-
-  run_test_stage
-  LAST_TEST_RC=$?
-
+  if [ -n "$NOT_CONVERGED" ]; then
+    break
+  fi
   if ! plan_has_unchecked && [ "$LAST_TEST_RC" -eq 0 ]; then
     break
   fi

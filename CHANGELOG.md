@@ -5,6 +5,25 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+- **`local-llm-loop`: three review gates per iteration** (#38): `run_loop.sh`
+  now runs simplify, security, and code review as three fresh-context
+  Goose stages after each execute stage, in that fixed order, mapping
+  `apply-working-process`'s "Three gates before anything merges" onto a
+  local model with no subagents. Each gate writes its own findings file
+  (`SIMPLIFY.md`, `SECURITY.md`, `REVIEW.md`); the driver keeps only
+  findings that cite a real file (`FINDINGS.md`, read by `fix.md`) and
+  rejects the rest to `.loop-run/REJECTED_FINDINGS.md`. A gate with
+  findings gets a fix stage and a test stage, up to `LOOP_GATE_ROUNDS`
+  times (default 2) before the loop stops as "not converged". A fix
+  commit that deletes a file is reverted whole and listed in
+  `NEEDS_HUMAN.md`. A gate that writes no output is retried once, then
+  fails closed. A large multi-file diff (over `LOOP_DIFF_SPLIT_BYTES`,
+  default 32768 bytes) is split so each gate runs per file. `--gates
+  LIST` selects a subset; `--gates none` skips them; `--gates review`
+  reproduces the old single-review behavior. The local security gate is
+  a prefilter; `/security-review` in Claude Code on the loop branch is
+  still the real check before merge.
+
 ## [0.11.0] - 2026-09-14
 
 - **New skill: `local-llm-loop`** (#36): the measured working loop for a

@@ -60,6 +60,17 @@ rather than the bundled perl fallback:
 brew install coreutils   # optional — provides gtimeout
 ```
 
+## Gate diff splitting and fix-round cap
+
+`LOOP_DIFF_SPLIT_BYTES` (default 32768, about 8K tokens) sets the size
+above which an iteration's diff, if it touches more than one file, is
+split so each gate runs once per changed file on that file's diff
+alone — no single prompt carries the whole diff.
+
+`LOOP_GATE_ROUNDS` (default 2) caps the fix rounds allowed per gate per
+iteration; a gate still reporting findings after that many rounds stops
+the loop as "not converged".
+
 ## Installing Goose
 
 Official installer:
