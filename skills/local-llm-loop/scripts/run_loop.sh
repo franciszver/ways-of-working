@@ -608,6 +608,9 @@ filter_findings() {
   local line path
   GATE_KEPT=0
   GATE_DROPPED=0
+  # rm before the first write: the model can write anything in the
+  # worktree, including a symlink at this name; never follow one.
+  rm -f "$WORKTREE/FINDINGS.md" "$rejected"
   : > "$WORKTREE/FINDINGS.md"
   if [ ! -s "$src" ]; then
     echo "no findings" > "$WORKTREE/FINDINGS.md"
@@ -659,6 +662,7 @@ run_gate() {
   if [ "$diff_bytes" -gt "$DIFF_SPLIT_BYTES" ] && [ "$nfiles" -gt 1 ]; then
     echo "run_loop.sh: gate '$gate': diff is $diff_bytes bytes over $nfiles files (limit $DIFF_SPLIT_BYTES); running once per file" >&2
     acc="$WORKTREE/.loop-run/${gate}_chunks.md"
+    rm -f "$acc"
     : > "$acc"
     while IFS= read -r f; do
       [ -n "$f" ] || continue
@@ -698,9 +702,10 @@ guard_deletes() {
   if ! git -C "$WORKTREE" revert --no-edit HEAD >/dev/null 2>&1; then
     echo "run_loop.sh: WARNING revert of the deleting fix commit failed; inspect $WORKTREE by hand" >&2
   fi
+  if [ -L "$WORKTREE/NEEDS_HUMAN.md" ]; then rm -f "$WORKTREE/NEEDS_HUMAN.md"; fi
   {
     echo "## fix stage (step $STEP_N) deleted files; the driver reverted that commit"
-    printf -- '- %s\n' $deleted
+    printf '%s\n' "$deleted" | sed 's/^/- /'
   } >> "$WORKTREE/NEEDS_HUMAN.md"
   DELETES_REVERTED=$((DELETES_REVERTED + 1))
 }
