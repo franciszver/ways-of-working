@@ -59,7 +59,7 @@ The three gates map `apply-working-process`'s "Three gates before anything merge
 - A gate that writes no output file is retried once with a write reminder, then fails closed if still missing, and the loop stops. Tests that fail with no gate finding still get a fix stage pointed at `TEST_OUTPUT.txt`.
 - A fix stage that deletes or moves any file has those files restored in a checkpoint of their own, the rest of its work kept, and the files listed in `NEEDS_HUMAN.md`; a repo that already tracks a bookkeeping name such as `SECURITY.md` at its root is refused up front.
 - A diff over `LOOP_DIFF_SPLIT_BYTES` (default 32768 bytes) that touches more than one file runs each gate once per changed file, on that file's diff alone.
-- Each gate call is capped at `LOOP_MAX_TOKENS` output tokens (default 3072) and runs under `LOOP_GATE_TIMEOUT` (default 300 s, never above `LOOP_STAGE_TIMEOUT`). Plan, execute and fix stages write files and get `LOOP_STAGE_MAX_TOKENS` (default 8192); a write cut at the cap is retried once with a reminder to split it.
+- Each gate call is capped at `LOOP_MAX_TOKENS` output tokens (default 3072) and runs under `LOOP_GATE_TIMEOUT` (default 300 s, never above `LOOP_STAGE_TIMEOUT`). Plan, execute and fix stages write files and get `LOOP_STAGE_MAX_TOKENS` (default 8192). A call cut at the cap is retried once, telling a gate to stop printing file contents and a writing stage to split the write. The caps travel as `GOOSE_MAX_TOKENS`, so a different harness ignores them and only the timeouts bound it.
 
 ## The loop
 

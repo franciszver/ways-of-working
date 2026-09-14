@@ -147,6 +147,17 @@ assert_true "dry-run's mechanical test stage actually ran the fixture's real tes
 #   FIX_RENAMES       when set, the fix stage moves this file to moved_<name>
 #   REVIEW_SKIP_FILE  the review gate writes nothing when DIFF.txt mentions it
 #   EXECUTE_EXTRA_FILE  execute also writes this file (e.g. a non-ASCII name)
+#   TRUNCATE_FIRST_CALL  the very first call reports a tool call cut at
+#                     the output cap and exits 1
+#   REVIEW_TRUNCATES_ONCE  the review gate's first call prints goose's
+#                     "Response reached the model's output-token limit"
+#                     notice and writes nothing
+#   REVIEW_STALE_THEN_TRUNCATES  the review gate's first call writes a
+#                     finding AND reports truncation, so attempt 2 must
+#                     not inherit attempt 1's file
+#   REVIEW_QUOTES_TRIGGER  the review gate quotes the truncation notice
+#                     mid-reply (as a gate reviewing run_loop.sh would)
+#                     and then behaves normally
 #   SHIM_ENV_DUMP     file to append "<stage> GOOSE_MAX_TOKENS=<value>" to on every call
 #   REVIEW_SLEEP      seconds the review gate sleeps before answering
 #   EXECUTE_BREAKS_TESTS  execute adds a failing tests/test_broken.py; the
@@ -164,6 +175,13 @@ mkdir -p "$STATE_DIR"
 if [ -n "${FAIL_FIRST_CALL:-}" ] && [ ! -f "$STATE_DIR/called_once" ]; then
   touch "$STATE_DIR/called_once"
   echo "goose: request failed: HTTP 500 - does not match the expected peg-native format"
+  exit 1
+fi
+
+if [ -n "${TRUNCATE_FIRST_CALL:-}" ] && [ ! -f "$STATE_DIR/truncated_once" ]; then
+  touch "$STATE_DIR/truncated_once"
+  cat > /dev/null
+  echo "goose: it hit the output token limit while generating this tool call. Try increasing max_tokens for this provider or breaking the task into smaller steps."
   exit 1
 fi
 prompt=""
@@ -200,6 +218,24 @@ case "$stage" in
   security)  printf 'no findings\n' > SECURITY.md ;;
   review)
     if [ -n "${REVIEW_SLEEP:-}" ]; then sleep "$REVIEW_SLEEP"; fi   # a runaway gate
+    if [ -n "${REVIEW_QUOTES_TRIGGER:-}" ]; then
+      # A gate reviewing run_loop.sh quotes the notice text, then works
+      # normally. The driver must not read this as its own truncation.
+      echo "  557 RETRY_TRIGGER_TRUNCATED: Response reached the model's output-token limit"
+      echo "  looks fine to me"
+    fi
+    if [ -n "${REVIEW_STALE_THEN_TRUNCATES:-}" ] && [ ! -f "$STATE_DIR/review_stale_done" ]; then
+      touch "$STATE_DIR/review_stale_done"
+      printf -- '- new_a.txt:1: stale finding from the cut-off attempt\n' > REVIEW.md
+      echo "Warning: Response reached the model's output-token limit and may be incomplete."
+      exit 0
+    fi
+    if [ -n "${REVIEW_TRUNCATES_ONCE:-}" ] && [ ! -f "$STATE_DIR/review_trunc_done" ]; then
+      touch "$STATE_DIR/review_trunc_done"
+      echo "     1  import unittest"
+      echo "Warning: Response reached the model's output-token limit and may be incomplete."
+      exit 0
+    fi
     if [ -n "${REVIEW_SKIP_FIRST:-}" ] && [ ! -f "$STATE_DIR/review_skipped" ]; then
       touch "$STATE_DIR/review_skipped"
       echo "I looked at the diff and it seems fine." # prose, no file written
@@ -870,33 +906,62 @@ NBR19F=$(git -C "$DEST19F" branch --list 'loop/*' | wc -l | tr -d ' ')
 assert_eq "$NWT19F" "3" "three runs produced three distinct worktrees"
 assert_eq "$NBR19F" "3" "three runs produced three distinct loop/ branches"
 assert_true "no run failed on the collision" bash -c '! grep -q "worktree add failed" "$1" "$2" "$3"' _ "$SCRATCH/samesec1.out" "$SCRATCH/samesec2.out" "$SCRATCH/samesec3.out"
+assert_true "the collision retry left no stray stderr file in .loop/" bash -c '[ ! -e "$1/.loop/.add_err" ]' _ "$DEST19F"
 
 echo
 echo "----- (19g) a tool call cut at the output cap is retried once with a split reminder -----"
-DEST19G="$SCRATCH/truncated/taskrepo"
-bash "$RESET_TASK" --dest "$DEST19G" >/dev/null
-SHIMDIR19G="$SCRATCH/shim-truncated"
-mkdir -p "$SHIMDIR19G"
-write_gate_shim "$SHIMDIR19G/goose"
-cat > "$SHIMDIR19G/goose-wrap" <<'SHIM'
-#!/usr/bin/env bash
-# First call only: pretend goose cut a tool call at the output limit.
-if [ ! -f "$SHIM_STATE_DIR/truncated_once" ]; then
-  mkdir -p "$SHIM_STATE_DIR"; touch "$SHIM_STATE_DIR/truncated_once"
-  cat > /dev/null
-  echo "goose: it hit the output token limit while generating this tool call. Try increasing max_tokens for this provider or breaking the task into smaller steps."
-  exit 1
-fi
-exec "$(dirname "$0")/goose" "$@"
-SHIM
-chmod +x "$SHIMDIR19G/goose-wrap"
-LOOP_HARNESS_CMD="$SHIMDIR19G/goose-wrap -i {prompt}" SHIM_STATE_DIR="$SCRATCH/state-truncated" \
-  bash "$RUN_LOOP" "$DEST19G" "$TASK_PROMPT" --max-iterations 1 > "$SCRATCH/truncated.out" 2>&1
-RC19G=$?
-assert_eq "$RC19G" "0" "the run passes after the split-reminder retry"
+TRUNCATE_FIRST_CALL=1 run_gate_case truncated --max-iterations 1
+assert_eq "$(cat "$SCRATCH/truncated.rc")" "0" "the run passes after the split-reminder retry"
 assert_true "the driver named the cut and retried once" file_has "$SCRATCH/truncated.out" "cut at the output cap; retrying once with a split reminder"
-WT19G="$(find "$DEST19G/.loop" -mindepth 1 -maxdepth 1 -type d | head -n1)"
-assert_true "the retry prompt carries the split reminder" file_has "$WT19G/.loop-run/logs/plan_prompt_retry.md" "Split the work"
+WT19G="$(wt_of truncated)"
+assert_true "the retry prompt of a file-writing stage says to split the write" bash -c '
+  file_has "$1/.loop-run/logs/plan_prompt_retry.md" "Split the work"' _ "$WT19G"
+
+echo
+echo "----- (19h) a gate cut at the cap is told to stop printing file contents -----"
+REVIEW_TRUNCATES_ONCE=1 run_gate_case truncgate --max-iterations 1
+assert_eq "$(cat "$SCRATCH/truncgate.rc")" "0" "the run passes after the gate's nudged retry"
+WT19H="$(wt_of truncgate)"
+assert_true "the gate retry prompt names the file and forbids printing contents" bash -c '
+  file_has "$1/.loop-run/logs/review_prompt_retry.md" "Do not print file contents" \
+  && file_has "$1/.loop-run/logs/review_prompt_retry.md" "Write REVIEW.md at the root"' _ "$WT19H"
+assert_true "the driver logged the cut on the review stage" file_has "$SCRATCH/truncgate.out" "stage 'review' was cut at the output cap"
+
+echo
+echo "----- (19i) a gate quoting the truncation notice is not read as truncated -----"
+REVIEW_QUOTES_TRIGGER=1 run_gate_case quotetrigger --max-iterations 1
+assert_eq "$(cat "$SCRATCH/quotetrigger.rc")" "0" "the quoting run passes"
+assert_true "no retry was triggered by the quoted text" file_lacks "$SCRATCH/quotetrigger.out" "cut at the output cap"
+assert_eq "$(stages_of quotetrigger)" "plan execute simplify security review" "the review gate ran exactly once"
+
+echo
+echo "----- (19j) a cut-off attempt's findings file is not inherited by the retry -----"
+REVIEW_STALE_THEN_TRUNCATES=1 run_gate_case staleout --max-iterations 1
+WT19J="$(wt_of staleout)"
+assert_true "the stale finding never reached FINDINGS.md" bash -c '
+  ! grep -rq "stale finding" "$1/FINDINGS.md" 2>/dev/null' _ "$WT19J"
+assert_true "REVIEW.md holds the retry's answer, not the cut-off attempt's" bash -c '
+  ! file_has "$1/REVIEW.md" "stale finding"' _ "$WT19J"
+
+echo
+echo "----- (19k) a timed-out stage leaves no orphaned child processes -----"
+REVIEW_SLEEP=37 LOOP_STAGE_TIMEOUT=60 LOOP_GATE_TIMEOUT=1 run_gate_case orphan --max-iterations 1
+ORPHANS19K=$(pgrep -f "sleep 37" | wc -l | tr -d ' ')
+assert_eq "$ORPHANS19K" "0" "no 'sleep 37' survived the gate timeout"
+pkill -f "sleep 37" 2>/dev/null || true
+
+echo
+echo "----- (19l) the dry-run print lists every variable the real call exports -----"
+DEST19L="$SCRATCH/envparity/taskrepo"
+bash "$RESET_TASK" --dest "$DEST19L" >/dev/null
+bash "$RUN_LOOP" "$DEST19L" "$TASK_PROMPT" --dry-run --max-iterations 1 > "$SCRATCH/envparity.out" 2>&1
+assert_true "the dry-run print and the export list come from one array" bash -c '
+  grep -q "local -a stage_env=(" "$1" && [ "$(grep -c "export \"\$kv\"" "$1")" -eq 1 ]' _ "$RUN_LOOP"
+assert_true "the print shows every exported name, with the key redacted" bash -c '
+  for v in XDG_CONFIG_HOME OPENAI_HOST GOOSE_PROVIDER GOOSE_MODEL GOOSE_MAX_TOKENS GOOSE_DISABLE_KEYRING GOOSE_TELEMETRY_ENABLED; do
+    grep -q "$v=" "$1" || exit 1
+  done
+  grep -q "OPENAI_API_KEY=\*\*\*" "$1"' _ "$SCRATCH/envparity.out"
 
 # --------------------------------------------------------------------
 # 20. A target repo that tracks a bookkeeping name at its root is

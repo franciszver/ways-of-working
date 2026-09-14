@@ -78,11 +78,15 @@ benchmark's recommended client cap for tool-calling tasks
 server instead of waiting for the stage timeout: `GOOSE_MAX_TOKENS=48`
 was verified live to truncate a 400-line answer to 7 lines.
 
-`LOOP_STAGE_MAX_TOKENS` (default 8192) is the same cap for the plan,
-execute and fix stages, which write files. The benchmark measured 3072
-truncating whole-file writes, so those stages get the larger budget. A
-tool call cut at either cap is retried once with a reminder to split
-the write.
+`LOOP_STAGE_MAX_TOKENS` (default 8192) is the cap for the plan, execute
+and fix stages, which write files. The benchmark measured 3072
+truncating whole-file writes, so those stages get the larger cap. A call
+cut at either cap is retried once: a gate is told to stop printing file
+contents, a writing stage to split the write.
+
+Both caps travel to the harness as `GOOSE_MAX_TOKENS`. A harness other
+than Goose, set through `LOOP_HARNESS_CMD`, ignores that variable, so
+only the stage timeouts bound it.
 
 All four timeout and cap knobs (`LOOP_STAGE_TIMEOUT`, `LOOP_GATE_TIMEOUT`,
 `LOOP_MAX_TOKENS`, `LOOP_STAGE_MAX_TOKENS`) must be integers of at least
