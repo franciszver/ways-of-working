@@ -5,6 +5,42 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-14
+
+- **`local-llm-loop`: output-token caps per stage** (#40): `run_loop.sh`
+  sends an output cap to the harness as `GOOSE_MAX_TOKENS` on every
+  call, so a runaway generation stops at the server instead of running
+  to the stage timeout. `LOOP_MAX_TOKENS` (default 3072, the benchmark's
+  recommended client cap for tool-calling tasks) covers the three gate
+  stages; `LOOP_STAGE_MAX_TOKENS` (default 8192) covers plan, execute
+  and fix, which write files. Both travel as `GOOSE_MAX_TOKENS`, so a
+  non-Goose `LOOP_HARNESS_CMD` ignores them.
+
+- **A call cut at the cap is retried once.** A gate is told to stop
+  printing file contents and write its findings file first; a writing
+  stage is told to split the write. Each attempt starts with the
+  stage's output file removed, so a cut-off attempt's file is never
+  read as the retry's answer.
+
+- **Gate stages get their own timeout.** `LOOP_GATE_TIMEOUT` (default
+  300 seconds, never above `LOOP_STAGE_TIMEOUT`, and announced when
+  clamped) bounds a gate, which writes at most ten lines. On the perl
+  timeout fallback the whole process group is signalled, so a timed-out
+  stage leaves no orphaned children.
+
+- **Knob validation.** `LOOP_STAGE_TIMEOUT`, `LOOP_GATE_TIMEOUT` and
+  both caps must be integers of at least 1. A `30m`-style value that
+  GNU `timeout` used to accept is now refused, and 0 no longer disables
+  a timeout.
+
+- **Back-to-back runs no longer collide.** Two runs starting in the
+  same second get distinct worktree and branch names
+  (`.loop/<timestamp>-2`, `loop/<timestamp>-2`), resolved by retrying
+  `git worktree add` rather than by a pre-check.
+
+- **`gate-rules.md`** tells the model to read at most 40 lines per call
+  around a citation and never to print file contents.
+
 ## [0.12.0] - 2026-09-14
 
 - **`local-llm-loop`: three review gates per iteration** (#38): `run_loop.sh`
