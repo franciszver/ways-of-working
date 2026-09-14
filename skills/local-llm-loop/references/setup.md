@@ -60,7 +60,7 @@ rather than the bundled perl fallback:
 brew install coreutils   # optional — provides gtimeout
 ```
 
-## Gate diff splitting and fix-round cap
+## Gate diff splitting, fix-round cap, and gate bounds
 
 `LOOP_DIFF_SPLIT_BYTES` (default 32768, about 8K tokens) sets the size
 above which an iteration's diff, if it touches more than one file, is
@@ -70,6 +70,18 @@ alone — no single prompt carries the whole diff.
 `LOOP_GATE_ROUNDS` (default 2) caps the fix rounds allowed per gate per
 iteration; a gate still reporting findings after that many rounds stops
 the loop as "not converged".
+
+`LOOP_MAX_TOKENS` (default 3072) is the output-token cap sent to the
+harness as `GOOSE_MAX_TOKENS` on every call. 3072 is the benchmark's
+recommended client cap for tool-calling tasks (`local-coding-env`
+REPORT.md). It bounds a runaway generation at the server instead of
+waiting for the stage timeout: `GOOSE_MAX_TOKENS=48` was verified live
+to truncate a 400-line answer to 7 lines.
+
+`LOOP_GATE_TIMEOUT` (default 300 seconds) is the per-stage timeout for
+the three gate stages, and is never set above `LOOP_STAGE_TIMEOUT`. A
+gate writes at most ten lines, so a gate still running at this limit is
+a runaway generation, not slow work.
 
 ## Installing Goose
 

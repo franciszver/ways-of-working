@@ -808,6 +808,59 @@ assert_eq "$?" "1" "--gates , exits 1"
 assert_true "no worktree was created for the refused runs" [ ! -d "$DEST19C/.loop" ]
 
 # --------------------------------------------------------------------
+# 19d. Generation cap and gate timeout (#40): every harness call gets
+#      GOOSE_MAX_TOKENS from LOOP_MAX_TOKENS (default 3072); a gate stage
+#      is bounded by LOOP_GATE_TIMEOUT, shorter than LOOP_STAGE_TIMEOUT.
+# --------------------------------------------------------------------
+echo
+echo "===== (19d) GOOSE_MAX_TOKENS reaches the harness; gates get their own timeout ====="
+DEST19D="$SCRATCH/maxtok/taskrepo"
+bash "$RESET_TASK" --dest "$DEST19D" >/dev/null
+SHIMDIR19D="$SCRATCH/shim-maxtok"
+mkdir -p "$SHIMDIR19D"
+ENV_DUMP19D="$SCRATCH/maxtok_env.txt"
+cat > "$SHIMDIR19D/goose" <<'SHIM'
+#!/usr/bin/env bash
+cat > /dev/null
+printf 'GOOSE_MAX_TOKENS=%s\n' "${GOOSE_MAX_TOKENS:-unset}" >> "$ENV_DUMP19D"
+prompt=""; prev=""
+for a in "$@"; do [ "$prev" = "-i" ] && prompt="$a"; prev="$a"; done
+case "$(basename "$prompt" | sed 's/_prompt.*//')" in
+  plan) printf '1. [ ] do the thing\n' > PLAN.md; printf '# Handoff\n' > HANDOFF.md ;;
+  execute) echo x > new_a.txt; printf '1. [x] do the thing\n' > PLAN.md ;;
+  simplify) printf 'no findings\n' > SIMPLIFY.md ;;
+  security) printf 'no findings\n' > SECURITY.md ;;
+  review) sleep 30 ;;   # a runaway gate: must be cut by LOOP_GATE_TIMEOUT, not LOOP_STAGE_TIMEOUT
+esac
+exit 0
+SHIM
+chmod +x "$SHIMDIR19D/goose"
+export ENV_DUMP19D
+START19D=$(date +%s)
+PATH="$SHIMDIR19D:$PATH" LOOP_STAGE_TIMEOUT=60 LOOP_GATE_TIMEOUT=1 \
+  tmo 40 bash "$RUN_LOOP" "$DEST19D" "$TASK_PROMPT" --max-iterations 1 > "$SCRATCH/maxtok.out" 2>&1
+RC19D=$?
+END19D=$(date +%s)
+cat "$SCRATCH/maxtok.out"
+ELAPSED19D=$((END19D - START19D))
+assert_true "the default cap reached every harness call (GOOSE_MAX_TOKENS=3072)" bash -c '
+  [ "$(grep -c "GOOSE_MAX_TOKENS=3072" "$1")" -ge 3 ] && ! grep -q "GOOSE_MAX_TOKENS=unset" "$1"' _ "$ENV_DUMP19D"
+assert_true "the runaway review gate was cut at LOOP_GATE_TIMEOUT, not left to LOOP_STAGE_TIMEOUT ($ELAPSED19D s elapsed)" [ "$ELAPSED19D" -lt 20 ]
+assert_true "the gate timeout is reported as exit 124 on the review stage" file_has "$SCRATCH/maxtok.out" "stage 'review' exited 124"
+
+DEST19E="$SCRATCH/maxtok2/taskrepo"
+bash "$RESET_TASK" --dest "$DEST19E" >/dev/null
+: > "$ENV_DUMP19D"
+PATH="$SHIMDIR19D:$PATH" LOOP_MAX_TOKENS=512 LOOP_GATE_TIMEOUT=1 \
+  tmo 40 bash "$RUN_LOOP" "$DEST19E" "$TASK_PROMPT" --max-iterations 1 --gates none > "$SCRATCH/maxtok2.out" 2>&1
+assert_true "LOOP_MAX_TOKENS overrides the cap (GOOSE_MAX_TOKENS=512)" bash -c '
+  grep -q "GOOSE_MAX_TOKENS=512" "$1" && ! grep -q "GOOSE_MAX_TOKENS=3072" "$1"' _ "$ENV_DUMP19D"
+bash "$RUN_LOOP" "$DEST19E" "$TASK_PROMPT" --dry-run --max-iterations 1 > "$SCRATCH/maxtok_dry.out" 2>&1
+assert_true "the dry-run print shows the cap so an operator can see it" file_has "$SCRATCH/maxtok_dry.out" "GOOSE_MAX_TOKENS=3072"
+LOOP_MAX_TOKENS=lots bash "$RUN_LOOP" "$DEST19E" "$TASK_PROMPT" > "$SCRATCH/maxtok_bad.out" 2>&1
+assert_eq "$?" "1" "LOOP_MAX_TOKENS=lots exits 1"
+
+# --------------------------------------------------------------------
 # 20. A target repo that tracks a bookkeeping name at its root is
 #     refused before any worktree is created.
 # --------------------------------------------------------------------

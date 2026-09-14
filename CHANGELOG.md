@@ -5,6 +5,22 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-14
+
+- **`local-llm-loop`: bound gate output and gate timeout separately** (#40):
+  `run_loop.sh` now sends `LOOP_MAX_TOKENS` (default 3072, the
+  benchmark's recommended client cap for tool-calling tasks) to the
+  harness as `GOOSE_MAX_TOKENS` on every call, so a runaway generation
+  stops at the server instead of only at the stage timeout. The three
+  gate stages get their own `LOOP_GATE_TIMEOUT` (default 300 seconds,
+  never above `LOOP_STAGE_TIMEOUT`), since a gate writes at most ten
+  lines and a gate still running at 300s is a runaway, not slow work.
+  `gate-rules.md` now tells the model to read only the lines around a
+  citation, not whole files. Back-to-back runs in the same second get a
+  unique worktree and branch name (`.loop/<timestamp>-2` and
+  `loop/<timestamp>-2`). Fixes the review gate running away to 24K+
+  decoded tokens with only the stage timeout as a bound.
+
 ## [0.12.0] - 2026-09-14
 
 - **`local-llm-loop`: three review gates per iteration** (#38): `run_loop.sh`

@@ -1,5 +1,8 @@
 ## Findings format (all gates)
 
+Read only the lines around each place you want to cite, not whole
+files. The diff is the scope; a large read costs more than it tells.
+
 Write one finding per line, at most 10 lines, each in this exact shape
 (path relative to this directory, then the line number, then one
 sentence):
