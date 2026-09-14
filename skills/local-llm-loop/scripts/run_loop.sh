@@ -260,6 +260,17 @@ gate_output_file() {
   esac
 }
 
+# The one place that decides whether a stage name is a gate; every
+# gate-specific behaviour (extra prompt rules, shorter timeout) asks here.
+is_gate() {
+  [ -n "$(gate_output_file "$1")" ]
+}
+
+# Per-stage timeout: gates get the shorter budget.
+stage_timeout_for() {
+  if is_gate "$1"; then echo "$GATE_TIMEOUT"; else echo "$STAGE_TIMEOUT"; fi
+}
+
 # --------------------------------------------------------------------
 # Portable timeout: stock macOS ships no `timeout`. Use it if present,
 # else `gtimeout` (Homebrew coreutils: `brew install coreutils`, only
@@ -463,7 +474,7 @@ commit_or_warn() {
 # findings-file format that filter_findings' FINDING_RE parses.
 build_stage_prompt() {
   local base_prompt="$1" out="$2" name="$3"
-  if [ -n "$(gate_output_file "$name")" ]; then
+  if is_gate "$name"; then
     cat "$base_prompt" "$GATE_RULES_FILE" "$COMMON_RULES_FILE" > "$out"
   else
     cat "$base_prompt" "$COMMON_RULES_FILE" > "$out"
@@ -540,12 +551,7 @@ run_model_stage() {
   local name="$1" prompt_file="$2" expected="${3:-}"
   local n log_file goose_rc attempt built_prompt retry_prompt nudge stage_timeout
   STAGES_RUN+=("$name")
-  # A gate asks for ten lines; give it the shorter budget.
-  if [ -n "$(gate_output_file "$name")" ]; then
-    stage_timeout="$GATE_TIMEOUT"
-  else
-    stage_timeout="$STAGE_TIMEOUT"
-  fi
+  stage_timeout="$(stage_timeout_for "$name")"
 
   built_prompt="$LOG_DIR/${name}_prompt.md"
   build_stage_prompt "$prompt_file" "$built_prompt" "$name"
