@@ -164,6 +164,46 @@ GOOSE_MODEL="${GOOSE_MODEL:-dry-run-placeholder}"
 
 STAGE_TIMEOUT="${LOOP_STAGE_TIMEOUT:-1800}"
 
+# --------------------------------------------------------------------
+# Portable timeout: stock macOS ships no `timeout`. Use it if present,
+# else `gtimeout` (Homebrew coreutils: `brew install coreutils`, only
+# needed if you want the GNU tool specifically), else fall back to
+# perl's alarm(), which ships with every macOS install and needs no
+# extra package. All three paths are normalized to exit 124 on a
+# timeout, the same code GNU `timeout` returns, so callers (the retry/
+# abort logic below) see one contract regardless of which path ran.
+# --------------------------------------------------------------------
+if command -v timeout >/dev/null 2>&1; then
+  TIMEOUT_BIN="timeout"
+elif command -v gtimeout >/dev/null 2>&1; then
+  TIMEOUT_BIN="gtimeout"
+elif command -v perl >/dev/null 2>&1; then
+  TIMEOUT_BIN="perl"
+else
+  echo "run_loop.sh: no 'timeout', 'gtimeout', or 'perl' found on PATH -- cannot enforce per-stage timeouts. Install coreutils (brew install coreutils) or perl." >&2
+  exit 1
+fi
+
+# run_with_timeout <seconds> <cmd...> -- runs <cmd...> under whichever
+# timeout mechanism is available, mapping perl's alarm-kill exit (142)
+# to 124 so every caller sees the same "timed out" contract as GNU
+# `timeout`.
+run_with_timeout() {
+  local secs="$1"
+  shift
+  case "$TIMEOUT_BIN" in
+    timeout|gtimeout)
+      "$TIMEOUT_BIN" "$secs" "$@"
+      ;;
+    perl)
+      perl -e 'alarm shift; exec @ARGV' -- "$secs" "$@"
+      local rc=$?
+      [ "$rc" -eq 142 ] && rc=124
+      return "$rc"
+      ;;
+  esac
+}
+
 # Harness seam: the CLI command each stage is run through. `{prompt}` is
 # substituted for the stage's prompt file. Goose is the shipped default;
 # setting LOOP_HARNESS_CMD points the loop at any other CLI harness that
@@ -298,30 +338,31 @@ build_stage_prompt() {
 
 invoke_goose() {
   local prompt_file="$1" log_file="$2"
-  local word cmd=()
-  # LOOP_HARNESS_CMD is whitespace-split with `{prompt}` substituted for
-  # the actual prompt file; built once into an array so the dry-run
-  # print and the real call can never drift from each other.
-  for word in $LOOP_HARNESS_CMD; do
-    if [ "$word" = "{prompt}" ]; then
-      cmd+=("$prompt_file")
-    else
-      cmd+=("$word")
-    fi
-  done
+  local cmd=() quoted_prompt template
+  # LOOP_HARNESS_CMD is parsed with normal shell word/quoting rules, not
+  # naive whitespace splitting, so a quoted multi-word argument in the
+  # template (e.g. --flag "quoted value") survives intact. `{prompt}` is
+  # replaced first by a %q-quoted token (the prompt path is
+  # driver-controlled, built under $LOG_DIR, so quoting it before eval
+  # is just correctness, not a trust boundary), then the whole template
+  # is eval'd into an array -- built once so the dry-run print and the
+  # real call can never drift from each other.
+  printf -v quoted_prompt '%q' "$prompt_file"
+  template="${LOOP_HARNESS_CMD//\{prompt\}/$quoted_prompt}"
+  eval "cmd=( $template )"
 
   if $DRY_RUN; then
-    echo "[dry-run] would run: (cd $WORKTREE && env XDG_CONFIG_HOME=$GOOSE_CONFIG_DIR OPENAI_HOST=$OPENAI_HOST OPENAI_API_KEY=*** GOOSE_PROVIDER=openai GOOSE_MODEL=$GOOSE_MODEL GOOSE_DISABLE_KEYRING=1 GOOSE_TELEMETRY_ENABLED=false timeout $STAGE_TIMEOUT $(printf '%q ' "${cmd[@]}")) > $log_file 2>&1"
+    echo "[dry-run] would run: (cd $WORKTREE && env XDG_CONFIG_HOME=$GOOSE_CONFIG_DIR OPENAI_HOST=$OPENAI_HOST OPENAI_API_KEY=*** GOOSE_PROVIDER=openai GOOSE_MODEL=$GOOSE_MODEL GOOSE_DISABLE_KEYRING=1 GOOSE_TELEMETRY_ENABLED=false $TIMEOUT_BIN $STAGE_TIMEOUT $(printf '%q ' "${cmd[@]}")) > $log_file 2>&1"
     : > "$log_file"
     return 0
   fi
   (
     cd "$WORKTREE" || exit 99
-    env XDG_CONFIG_HOME="$GOOSE_CONFIG_DIR" \
-        OPENAI_HOST="$OPENAI_HOST" OPENAI_API_KEY="$OPENAI_API_KEY" \
-        GOOSE_PROVIDER=openai GOOSE_MODEL="$GOOSE_MODEL" GOOSE_DISABLE_KEYRING=1 \
-        GOOSE_TELEMETRY_ENABLED=false \
-        timeout "$STAGE_TIMEOUT" "${cmd[@]}"
+    export XDG_CONFIG_HOME="$GOOSE_CONFIG_DIR"
+    export OPENAI_HOST="$OPENAI_HOST" OPENAI_API_KEY="$OPENAI_API_KEY"
+    export GOOSE_PROVIDER=openai GOOSE_MODEL="$GOOSE_MODEL" GOOSE_DISABLE_KEYRING=1
+    export GOOSE_TELEMETRY_ENABLED=false
+    run_with_timeout "$STAGE_TIMEOUT" "${cmd[@]}"
   ) > "$log_file" 2>&1
   return $?
 }

@@ -43,7 +43,20 @@ case "$DEST" in
     /*) DEST_ABS="$DEST" ;;
     *) DEST_ABS="$(pwd)/$DEST" ;;
 esac
-DEST_ABS="$(realpath -m -- "$DEST_ABS")"
+# Portable equivalent of GNU `realpath -m` (BSD realpath rejects -m):
+# resolve the parent directory and reattach the final path component
+# whether or not it exists yet -- the dest itself is removed and
+# recreated below, so it usually doesn't. mkdir -p here only ensures
+# the parent exists to resolve against; it is not the destructive step
+# (that's the rm -rf below, still gated by the taskrepo-segment check).
+DEST_PARENT="$(dirname -- "$DEST_ABS")"
+DEST_BASE="$(basename -- "$DEST_ABS")"
+mkdir -p "$DEST_PARENT"
+DEST_PARENT_RESOLVED="$(cd "$DEST_PARENT" 2>/dev/null && pwd)" || {
+    echo "reset_task.sh: parent directory does not exist: $DEST_PARENT" >&2
+    exit 1
+}
+DEST_ABS="$DEST_PARENT_RESOLVED/$DEST_BASE"
 case "$DEST_ABS" in
     */taskrepo|*/taskrepo/*) ;;
     *)

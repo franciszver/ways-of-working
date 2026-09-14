@@ -45,6 +45,40 @@ file_has() { grep -q -- "$2" "$1" 2>/dev/null; } # $1 = file, $2 = pattern
 file_lacks() { ! grep -q -- "$2" "$1" 2>/dev/null; } # $1 = file, $2 = pattern
 export -f file_has file_lacks # visible inside the `bash -c` probes below
 
+# Builds a PATH directory that mirrors every command reachable on the
+# current $PATH except the given names, by symlinking each first-found
+# executable into $1 (skipping names already linked, to preserve PATH
+# lookup precedence). Used to prove the portable-timeout and
+# portable-realpath-resolution fallbacks actually run when the GNU-only
+# tool they'd normally use isn't there — not just that the fallback
+# code path exists.
+build_path_without() {
+  local dest="$1"
+  shift
+  local skip=("$@")
+  mkdir -p "$dest"
+  local dir f base skipped
+  local saved_ifs="$IFS"
+  IFS=':'
+  for dir in $PATH; do
+    IFS="$saved_ifs"
+    [ -d "$dir" ] || continue
+    for f in "$dir"/*; do
+      [ -e "$f" ] || [ -L "$f" ] || continue
+      base="$(basename "$f")"
+      [ -e "$dest/$base" ] && continue
+      skipped=false
+      for s in "${skip[@]}"; do
+        [ "$base" = "$s" ] && skipped=true && break
+      done
+      $skipped && continue
+      ln -s "$f" "$dest/$base" 2>/dev/null || true
+    done
+    IFS=':'
+  done
+  IFS="$saved_ifs"
+}
+
 # --------------------------------------------------------------------
 # 1. run_loop.sh exists and is syntactically valid.
 # --------------------------------------------------------------------
@@ -371,6 +405,152 @@ assert_true "second review's diff excludes file1.txt (delta only, not the whole 
 assert_true "FULL_DIFF.txt covers both file1.txt and file2.txt" bash -c '
   [ -n "$1" ] && [ -f "$1/.loop-run/FULL_DIFF.txt" ] && file_has "$1/.loop-run/FULL_DIFF.txt" file1.txt && file_has "$1/.loop-run/FULL_DIFF.txt" file2.txt
 ' _ "$WT9"
+
+# --------------------------------------------------------------------
+# 10. Portable timeout: with `timeout` and `gtimeout` both hidden from
+#     PATH, run_loop.sh must fall back to its perl-alarm path.
+#     (a) A normal shim run still completes end to end on the fallback.
+#     (b) A deliberately slow shim gets killed at LOOP_STAGE_TIMEOUT and
+#         the perl-alarm exit (142) is mapped to 124, same as `timeout`.
+# --------------------------------------------------------------------
+echo
+echo "===== (10) perl-alarm fallback when timeout/gtimeout are both absent ====="
+REAL_TIMEOUT="$(command -v timeout)" # captured before PATH is narrowed, for the outer test-harness bound below
+NOTIMEOUT_PATH="$SCRATCH/path-no-timeout"
+build_path_without "$NOTIMEOUT_PATH" timeout gtimeout
+PATH="$NOTIMEOUT_PATH" bash -c 'command -v timeout >/dev/null 2>&1'
+assert_eq "$?" "1" "PATH() lookup: no-timeout PATH truly hides timeout"
+PATH="$NOTIMEOUT_PATH" bash -c 'command -v gtimeout >/dev/null 2>&1'
+assert_eq "$?" "1" "PATH() lookup: no-timeout PATH truly hides gtimeout"
+PATH="$NOTIMEOUT_PATH" bash -c 'command -v perl >/dev/null 2>&1'
+assert_eq "$?" "0" "PATH() lookup: no-timeout PATH still has perl"
+
+echo
+echo "----- (10a) happy path runs to completion on the perl fallback -----"
+DEST10A="$SCRATCH/notimeout-ok/taskrepo"
+bash "$RESET_TASK" --dest "$DEST10A" >/dev/null
+SHIMDIR10A="$SCRATCH/shim-notimeout-ok"
+mkdir -p "$SHIMDIR10A"
+write_shim "$SHIMDIR10A/goose"
+
+PATH="$SHIMDIR10A:$NOTIMEOUT_PATH" bash "$RUN_LOOP" "$DEST10A" "$TASK_PROMPT" --max-iterations 1 \
+  > "$SCRATCH/notimeout_ok.out" 2>&1
+RC10A=$?
+cat "$SCRATCH/notimeout_ok.out"
+
+WT10A="$(find "$DEST10A/.loop" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n1)"
+assert_eq "$RC10A" "0" "perl-fallback run (no timeout/gtimeout on PATH) exits 0"
+assert_true "perl-fallback run produced LOOP_DONE" bash -c '[ -n "$1" ] && [ -f "$1/LOOP_DONE" ]' _ "$WT10A"
+
+echo
+echo "----- (10b) a slow stage is killed at the limit, exit code mapped to 124 -----"
+DEST10B="$SCRATCH/notimeout-slow/taskrepo"
+bash "$RESET_TASK" --dest "$DEST10B" >/dev/null
+SHIMDIR10B="$SCRATCH/shim-notimeout-slow"
+mkdir -p "$SHIMDIR10B"
+cat > "$SHIMDIR10B/goose" <<'SHIM'
+#!/usr/bin/env bash
+sleep 30
+SHIM
+chmod +x "$SHIMDIR10B/goose"
+
+START10B=$(date +%s)
+PATH="$SHIMDIR10B:$NOTIMEOUT_PATH" LOOP_STAGE_TIMEOUT=1 \
+  "$REAL_TIMEOUT" 20 bash "$RUN_LOOP" "$DEST10B" "$TASK_PROMPT" --max-iterations 1 \
+  > "$SCRATCH/notimeout_slow.out" 2>&1
+END10B=$(date +%s)
+cat "$SCRATCH/notimeout_slow.out"
+
+ELAPSED10B=$((END10B - START10B))
+assert_true "the slow stage was killed near the 1s limit, not left to run 30s ($ELAPSED10B s elapsed)" [ "$ELAPSED10B" -lt 15 ]
+
+grep -q "WARNING stage 'plan' exited 124" "$SCRATCH/notimeout_slow.out"
+assert_eq "$?" "0" "the perl-alarm kill (142) was mapped to exit code 124, matching timeout's contract"
+
+# --------------------------------------------------------------------
+# 11. reset_task.sh must resolve its destination without GNU `realpath
+#     -m` (BSD realpath rejects -m, and the flag can't be relied on to
+#     exist at all) — run it with realpath removed from PATH entirely.
+# --------------------------------------------------------------------
+echo
+echo "===== (11) reset_task.sh resolves its destination with realpath absent from PATH ====="
+NOREALPATH_PATH="$SCRATCH/path-no-realpath"
+build_path_without "$NOREALPATH_PATH" realpath
+PATH="$NOREALPATH_PATH" bash -c 'command -v realpath >/dev/null 2>&1'
+assert_eq "$?" "1" "PATH() lookup: no-realpath PATH truly hides realpath"
+
+DEST11="$SCRATCH/norealpath/taskrepo"
+PATH="$NOREALPATH_PATH" bash "$RESET_TASK" --dest "$DEST11" > "$SCRATCH/norealpath.out" 2>&1
+RC11=$?
+cat "$SCRATCH/norealpath.out"
+assert_eq "$RC11" "0" "reset_task.sh succeeds with realpath absent from PATH"
+assert_true "reset_task.sh built the work copy at the requested dest" [ -d "$DEST11" ]
+assert_true "reset_task.sh committed a clean-state baseline" bash -c '
+  git -C "$1" log --oneline 2>/dev/null | grep -q "clean state"
+' _ "$DEST11"
+
+# Same guard, still enforced without realpath: a --dest with no
+# "taskrepo" path segment must still be refused, not silently resolved.
+DEST11BAD="$SCRATCH/norealpath-bad/notarepo"
+PATH="$NOREALPATH_PATH" bash "$RESET_TASK" --dest "$DEST11BAD" > "$SCRATCH/norealpath_bad.out" 2>&1
+RC11BAD=$?
+cat "$SCRATCH/norealpath_bad.out"
+assert_true "reset_task.sh still refuses a --dest with no 'taskrepo' segment (realpath absent)" [ "$RC11BAD" -ne 0 ]
+assert_true "the refused dest was never created" [ ! -d "$DEST11BAD" ]
+
+# --------------------------------------------------------------------
+# 12. LOOP_HARNESS_CMD template quoting: a quoted multi-word argument in
+#     the template must reach the harness as one argv entry, not be
+#     mangled by whitespace splitting.
+# --------------------------------------------------------------------
+echo
+echo "===== (12) LOOP_HARNESS_CMD honors shell quoting in the template ====="
+DEST12="$SCRATCH/quoting/taskrepo"
+bash "$RESET_TASK" --dest "$DEST12" >/dev/null
+SHIMDIR12="$SCRATCH/shim-quoting"
+mkdir -p "$SHIMDIR12"
+ARGV_DUMP="$SCRATCH/argv_dump.txt"
+cat > "$SHIMDIR12/shim.sh" <<'SHIM'
+#!/usr/bin/env bash
+: > "$ARGV_DUMP"
+for a in "$@"; do
+  printf '%s\n' "$a" >> "$ARGV_DUMP"
+done
+prompt=""
+for a in "$@"; do prompt="$a"; done
+case "$prompt" in
+  */plan_prompt.md)
+    printf '1. [ ] do the thing\n' > PLAN.md
+    printf '# Handoff: test\nUpdated: now - State: in progress\n' > HANDOFF.md
+    ;;
+  */execute_prompt.md)
+    printf '1. [x] do the thing\n' > PLAN.md
+    printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
+    ;;
+  */review_prompt.md)
+    printf 'no findings\n' > REVIEW.md
+    ;;
+  */fix_prompt.md)
+    printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
+    ;;
+esac
+exit 0
+SHIM
+chmod +x "$SHIMDIR12/shim.sh"
+
+export ARGV_DUMP
+LOOP_HARNESS_CMD="$SHIMDIR12/shim.sh --flag \"quoted value\" {prompt}" \
+  bash "$RUN_LOOP" "$DEST12" "$TASK_PROMPT" --max-iterations 1 \
+  > "$SCRATCH/quoting.out" 2>&1
+RC12=$?
+cat "$SCRATCH/quoting.out"
+
+ARGC12=$(wc -l < "$ARGV_DUMP" | tr -d ' ')
+assert_eq "$ARGC12" "3" "the harness saw exactly three argv entries"
+assert_true "argv[1] is --flag" bash -c 'sed -n "1p" "$1" | grep -qx -- "--flag"' _ "$ARGV_DUMP"
+assert_true "argv[2] is the quoted value as one entry, unsplit" bash -c 'sed -n "2p" "$1" | grep -qx -- "quoted value"' _ "$ARGV_DUMP"
+assert_true "argv[3] is the substituted prompt file path" bash -c 'sed -n "3p" "$1" | grep -q -- "_prompt.md$"' _ "$ARGV_DUMP"
+assert_eq "$RC12" "0" "LOOP_HARNESS_CMD quoting run exits 0"
 
 # --------------------------------------------------------------------
 echo

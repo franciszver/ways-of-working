@@ -42,7 +42,23 @@ Goose is the shipped default and this loop is validated against it; the
 `GOOSE_*` environment variables below are still exported to whatever
 command `LOOP_HARNESS_CMD` names. Set `LOOP_HARNESS_CMD` to point the
 loop at a different CLI harness that accepts a prompt file the same way
-— for example another agent CLI with its own `--file`-style flag.
+— for example another agent CLI with its own `--file`-style flag. The
+template is parsed with normal shell word/quoting rules (not naive
+whitespace splitting), so a quoted multi-word argument in the template
+survives intact.
+
+## Per-stage timeout
+
+Each stage runs under `LOOP_STAGE_TIMEOUT` seconds (default 1800),
+enforced by `timeout` if present, else `gtimeout`, else a `perl -e
+'alarm ...'` fallback that ships with every macOS install and needs no
+extra package. Stock macOS ships none of GNU `timeout`; installing
+GNU coreutils is optional, only useful if you want `gtimeout` itself
+rather than the bundled perl fallback:
+
+```bash
+brew install coreutils   # optional — provides gtimeout
+```
 
 ## Installing Goose
 
