@@ -26,10 +26,11 @@ export GOOSE_MODEL="${GOOSE_MODEL:-test-model}"
 
 # Outer test-harness timeout bound. Stock macOS ships no `timeout`, so
 # use the same fallback chain run_loop.sh itself uses.
-if command -v timeout >/dev/null 2>&1; then
-  tmo() { timeout "$@"; }
-elif command -v gtimeout >/dev/null 2>&1; then
-  tmo() { gtimeout "$@"; }
+# Resolved to an absolute path now, so a test that narrows PATH later
+# (case 10 hides timeout/gtimeout on purpose) still gets its outer bound.
+TMO_BIN="$(command -v timeout || command -v gtimeout || true)"
+if [ -n "$TMO_BIN" ]; then
+  tmo() { "$TMO_BIN" "$@"; }
 else
   tmo() { perl -e 'alarm shift; exec @ARGV' -- "$@"; }
 fi
@@ -702,7 +703,7 @@ echo
 echo "===== (16) a gate that never converges stops after two fix rounds ====="
 GATE_REVIEW_OUT='- new_a.txt:1: still wrong' run_gate_case gates-cap --max-iterations 3
 assert_eq "$(cat "$SCRATCH/gates-cap.rc")" "1" "non-converging run exits 1"
-assert_eq "$(stages_of gates-cap)" "plan execute simplify security review fix review fix review" "exactly two fix rounds, then a third review, then stop"
+assert_eq "$(stages_of gates-cap)" "plan execute simplify security review fix simplify security review fix simplify security review" "every fix is re-gated by all three gates; two fix rounds, then stop"
 WT16="$(wt_of gates-cap)"
 assert_true "LOOP_SUMMARY.md names the gate that did not converge" file_has "$WT16/LOOP_SUMMARY.md" "Not converged: review"
 assert_true "the driver said why it stopped" file_has "$SCRATCH/gates-cap.out" "stopping as not converged"
@@ -773,6 +774,40 @@ assert_eq "$?" "1" "an unknown gate name exits 1"
 assert_true "the unknown gate name is reported" file_has "$SCRATCH/gates-bad.out" "unknown gate 'bogus'"
 
 # --------------------------------------------------------------------
+# 19b. Findings filter edge cases: a "b/" diff-header prefix is kept
+#      (stripped); a path that escapes the worktree or points into
+#      .loop-run/ is rejected even though the file exists.
+# --------------------------------------------------------------------
+echo
+echo "===== (19b) b/ prefix kept; traversal and driver-internal paths rejected ====="
+GATE_REVIEW_OUT='- b/new_a.txt:1: diff-header spelling\n- ../../README.md:1: escapes the worktree\n- .loop-run/logs/plan_1.log:1: driver internal' \
+  run_gate_case gates-paths --max-iterations 1
+STATE19B="$SCRATCH/state-gates-paths"
+FIRST19B="$(ls "$STATE19B"/findings_seen_*.md 2>/dev/null | head -n1)"
+assert_true "b/new_a.txt was kept as new_a.txt" bash -c '[ -n "$1" ] && file_has "$1" "b/new_a.txt:1"' _ "$FIRST19B"
+assert_true "the traversal path was kept out of FINDINGS.md" bash -c '[ -n "$1" ] && file_lacks "$1" "README.md"' _ "$FIRST19B"
+assert_true "the .loop-run path was kept out of FINDINGS.md" bash -c '[ -n "$1" ] && file_lacks "$1" "plan_1.log"' _ "$FIRST19B"
+WT19B="$(wt_of gates-paths)"
+assert_true "both rejected lines are on record" bash -c 'file_has "$1" "README.md" && file_has "$1" "plan_1.log"' _ "$WT19B/.loop-run/REJECTED_FINDINGS.md"
+assert_true "stage numbers increment (no two logs share a number)" bash -c '
+  ls "$1/.loop-run/logs" | grep -c "_1.log$" | grep -qx 1' _ "$WT19B"
+assert_true "LOOP_SUMMARY.md counts more than one stage" bash -c 'grep -q "^Stages run: [2-9]" "$1/LOOP_SUMMARY.md" || grep -q "^Stages run: [1-9][0-9]" "$1/LOOP_SUMMARY.md"' _ "$WT19B"
+
+echo
+echo "----- (19c) bad env knobs and empty --gates are refused -----"
+DEST19C="$SCRATCH/badknobs/taskrepo"
+bash "$RESET_TASK" --dest "$DEST19C" >/dev/null
+LOOP_GATE_ROUNDS=two bash "$RUN_LOOP" "$DEST19C" "$TASK_PROMPT" > "$SCRATCH/badknobs.out" 2>&1
+assert_eq "$?" "1" "LOOP_GATE_ROUNDS=two exits 1"
+assert_true "the bad knob is named" file_has "$SCRATCH/badknobs.out" "LOOP_GATE_ROUNDS must be a non-negative integer"
+bash "$RUN_LOOP" "$DEST19C" "$TASK_PROMPT" --gates "" > "$SCRATCH/emptygates.out" 2>&1
+assert_eq "$?" "1" "--gates '' exits 1"
+assert_true "--gates '' is reported, not an unbound-variable crash" file_has "$SCRATCH/emptygates.out" "empty list"
+bash "$RUN_LOOP" "$DEST19C" "$TASK_PROMPT" --gates , > "$SCRATCH/commagates.out" 2>&1
+assert_eq "$?" "1" "--gates , exits 1"
+assert_true "no worktree was created for the refused runs" [ ! -d "$DEST19C/.loop" ]
+
+# --------------------------------------------------------------------
 # 20. A target repo that tracks a bookkeeping name at its root is
 #     refused before any worktree is created.
 # --------------------------------------------------------------------
@@ -794,7 +829,7 @@ echo
 echo "===== (21) failing tests with no gate finding get a fix stage ====="
 EXECUTE_BREAKS_TESTS=1 run_gate_case gates-testfix --max-iterations 1
 assert_eq "$(cat "$SCRATCH/gates-testfix.rc")" "0" "the run passes after the test-driven fix"
-assert_eq "$(stages_of gates-testfix)" "plan execute simplify security review fix" "a fix stage ran after clean gates because tests failed"
+assert_eq "$(stages_of gates-testfix)" "plan execute simplify security review fix simplify security review" "a fix stage ran after clean gates because tests failed, and the gates re-ran on that fix"
 assert_true "the driver said why the fix ran" file_has "$SCRATCH/gates-testfix.out" "tests fail with no gate finding"
 STATE21="$SCRATCH/state-gates-testfix"
 assert_true "the fix stage was pointed at TEST_OUTPUT.txt" bash -c 'file_has "$(ls "$1"/findings_seen_*.md | head -n1)" "TEST_OUTPUT.txt:1"' _ "$STATE21"

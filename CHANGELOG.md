@@ -15,8 +15,9 @@ All notable changes to this repo are recorded here. Format loosely follows
   (`SIMPLIFY.md`, `SECURITY.md`, `REVIEW.md`); the driver keeps only
   findings that cite a real file (`FINDINGS.md`, read by `fix.md`) and
   rejects the rest to `.loop-run/REJECTED_FINDINGS.md`. A gate with
-  findings gets a fix stage and a test stage, up to `LOOP_GATE_ROUNDS`
-  times (default 2) before the loop stops as "not converged". A fix
+  findings gets a fix stage and a test stage, and every fix restarts the
+  pass over all three gates, up to `LOOP_GATE_ROUNDS` fix rounds
+  (default 2) before the loop stops as "not converged". A fix
   stage that deletes or moves a file has those files restored and listed
   in `NEEDS_HUMAN.md`, the rest of its work kept. A gate that writes no output is retried once, then
   fails closed. A large multi-file diff (over `LOOP_DIFF_SPLIT_BYTES`,

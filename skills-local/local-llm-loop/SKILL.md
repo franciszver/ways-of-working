@@ -3,7 +3,7 @@ name: local-llm-loop
 description: "Runs the working loop for a coding agent backed by a local, small-active-parameter model (~3B active MoE) on consumer hardware — short steps, a mechanical check after every write, tolerant of format-rejection retries and prose-instead-of-a-call. Use when Claude Code or any agent runs against a local server (ANTHROPIC_BASE_URL, llama.cpp, Ollama, LM Studio), or when tuning that server's inference flags."
 ---
 
-<!-- local: derived-from: skills/local-llm-loop/SKILL.md@81e2488acc29 -->
+<!-- local: derived-from: skills/local-llm-loop/SKILL.md@e2e6ad30cb77 -->
 
 # Local LLM Loop
 
