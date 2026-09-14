@@ -64,6 +64,15 @@ Environment (see env.example):
                         (default 32768, about 8K tokens).
   LOOP_GATE_ROUNDS     Optional. Fix rounds allowed per gate per iteration
                         before the loop stops as "not converged" (default 2).
+  LOOP_GATE_TIMEOUT    Optional. Per-stage timeout for the gate stages in
+                        seconds (default 300). A gate writes at most ten
+                        lines, so a gate still running at this limit is a
+                        runaway generation, not slow work.
+  LOOP_MAX_TOKENS      Optional. Output-token cap sent to the harness as
+                        GOOSE_MAX_TOKENS on every call (default 3072, the
+                        benchmark's recommended client cap for tool-calling
+                        tasks). Bounds a runaway at the server instead of
+                        waiting for the stage timeout.
   LOOP_HARNESS_CMD     Optional. The CLI harness command to run each stage
                         through, with `{prompt}` substituted for the stage's
                         prompt file. Default: `goose run --no-session -i
@@ -192,7 +201,11 @@ GOOSE_MODEL="${GOOSE_MODEL:-dry-run-placeholder}"
 STAGE_TIMEOUT="${LOOP_STAGE_TIMEOUT:-1800}"
 DIFF_SPLIT_BYTES="${LOOP_DIFF_SPLIT_BYTES:-32768}"
 GATE_ROUNDS="${LOOP_GATE_ROUNDS:-2}"
-for pair in "LOOP_DIFF_SPLIT_BYTES=$DIFF_SPLIT_BYTES" "LOOP_GATE_ROUNDS=$GATE_ROUNDS"; do
+GATE_TIMEOUT="${LOOP_GATE_TIMEOUT:-300}"
+MAX_TOKENS="${LOOP_MAX_TOKENS:-3072}"
+for pair in "LOOP_DIFF_SPLIT_BYTES=$DIFF_SPLIT_BYTES" "LOOP_GATE_ROUNDS=$GATE_ROUNDS" \
+            "LOOP_GATE_TIMEOUT=$GATE_TIMEOUT" "LOOP_MAX_TOKENS=$MAX_TOKENS" \
+            "LOOP_STAGE_TIMEOUT=$STAGE_TIMEOUT"; do
   case "${pair#*=}" in
     ''|*[!0-9]*)
       echo "run_loop.sh: ${pair%%=*} must be a non-negative integer, got '${pair#*=}'" >&2
@@ -200,6 +213,10 @@ for pair in "LOOP_DIFF_SPLIT_BYTES=$DIFF_SPLIT_BYTES" "LOOP_GATE_ROUNDS=$GATE_RO
       ;;
   esac
 done
+# A gate never gets a longer budget than an ordinary stage.
+if [ "$GATE_TIMEOUT" -gt "$STAGE_TIMEOUT" ]; then
+  GATE_TIMEOUT="$STAGE_TIMEOUT"
+fi
 
 # --------------------------------------------------------------------
 # Gates: which fresh-context review passes run after each execute, and
@@ -310,9 +327,19 @@ for f in PLAN.md PLAN_INPUT.md HANDOFF.md NEXT_STEP.md TEST_OUTPUT.txt \
 done
 
 TS="$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$REPO_PATH/.loop"
+# Two runs in the same second (a dry run right after a real one) must
+# not collide on the worktree name or the branch.
+_suffix=""
+_k=1
+while [ -e "$REPO_PATH/.loop/$TS$_suffix" ] \
+   || git -C "$REPO_PATH" show-ref --verify --quiet "refs/heads/loop/$TS$_suffix"; do
+  _k=$((_k + 1))
+  _suffix="-$_k"
+done
+TS="$TS$_suffix"
 BRANCH="loop/$TS"
 WORKTREE="$REPO_PATH/.loop/$TS"
-mkdir -p "$REPO_PATH/.loop"
 
 echo "run_loop.sh: creating worktree $WORKTREE on branch $BRANCH"
 if ! git -C "$REPO_PATH" worktree add -b "$BRANCH" "$WORKTREE" >/dev/null; then
@@ -444,7 +471,7 @@ build_stage_prompt() {
 }
 
 invoke_goose() {
-  local prompt_file="$1" log_file="$2"
+  local prompt_file="$1" log_file="$2" stage_timeout="${3:-$STAGE_TIMEOUT}"
   local cmd=() quoted_prompt template
   # LOOP_HARNESS_CMD is parsed with normal shell word/quoting rules, not
   # naive whitespace splitting, so a quoted multi-word argument in the
@@ -459,7 +486,7 @@ invoke_goose() {
   eval "cmd=( $template )"
 
   if $DRY_RUN; then
-    echo "[dry-run] would run: (cd $WORKTREE && env XDG_CONFIG_HOME=$GOOSE_CONFIG_DIR OPENAI_HOST=$OPENAI_HOST OPENAI_API_KEY=*** GOOSE_PROVIDER=openai GOOSE_MODEL=$GOOSE_MODEL GOOSE_DISABLE_KEYRING=1 GOOSE_TELEMETRY_ENABLED=false $TIMEOUT_BIN $STAGE_TIMEOUT $(printf '%q ' "${cmd[@]}")) > $log_file 2>&1"
+    echo "[dry-run] would run: (cd $WORKTREE && env XDG_CONFIG_HOME=$GOOSE_CONFIG_DIR OPENAI_HOST=$OPENAI_HOST OPENAI_API_KEY=*** GOOSE_PROVIDER=openai GOOSE_MODEL=$GOOSE_MODEL GOOSE_MAX_TOKENS=$MAX_TOKENS GOOSE_DISABLE_KEYRING=1 GOOSE_TELEMETRY_ENABLED=false $TIMEOUT_BIN $stage_timeout $(printf '%q ' "${cmd[@]}")) > $log_file 2>&1"
     : > "$log_file"
     return 0
   fi
@@ -469,7 +496,10 @@ invoke_goose() {
     export OPENAI_HOST="$OPENAI_HOST" OPENAI_API_KEY="$OPENAI_API_KEY"
     export GOOSE_PROVIDER=openai GOOSE_MODEL="$GOOSE_MODEL" GOOSE_DISABLE_KEYRING=1
     export GOOSE_TELEMETRY_ENABLED=false
-    run_with_timeout "$STAGE_TIMEOUT" "${cmd[@]}" < /dev/null
+    # Output cap on every call: a runaway generation stops at the
+    # server after MAX_TOKENS instead of running to the stage timeout.
+    export GOOSE_MAX_TOKENS="$MAX_TOKENS"
+    run_with_timeout "$stage_timeout" "${cmd[@]}" < /dev/null
   ) > "$log_file" 2>&1
   return $?
 }
@@ -508,8 +538,14 @@ RETRY_NUDGE_MISSING='Note: the previous attempt ended without writing %s. Write 
 #   retry is the caller's problem (gates fail closed on it).
 run_model_stage() {
   local name="$1" prompt_file="$2" expected="${3:-}"
-  local n log_file goose_rc attempt built_prompt retry_prompt nudge
+  local n log_file goose_rc attempt built_prompt retry_prompt nudge stage_timeout
   STAGES_RUN+=("$name")
+  # A gate asks for ten lines; give it the shorter budget.
+  if [ -n "$(gate_output_file "$name")" ]; then
+    stage_timeout="$GATE_TIMEOUT"
+  else
+    stage_timeout="$STAGE_TIMEOUT"
+  fi
 
   built_prompt="$LOG_DIR/${name}_prompt.md"
   build_stage_prompt "$prompt_file" "$built_prompt" "$name"
@@ -519,11 +555,11 @@ run_model_stage() {
     next_step_n; n="$STEP_N"
     if [ "$attempt" -eq 1 ]; then
       log_file="$LOG_DIR/${name}_${n}.log"
-      invoke_goose "$built_prompt" "$log_file"
+      invoke_goose "$built_prompt" "$log_file" "$stage_timeout"
     else
       log_file="$LOG_DIR/${name}_${n}_retry.log"
       { cat "$built_prompt"; printf '\n%s\n' "$nudge"; } > "$retry_prompt"
-      invoke_goose "$retry_prompt" "$log_file"
+      invoke_goose "$retry_prompt" "$log_file" "$stage_timeout"
     fi
     goose_rc=$?
 
