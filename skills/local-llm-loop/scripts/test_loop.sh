@@ -22,6 +22,16 @@ export OPENAI_HOST="${OPENAI_HOST:-http://127.0.0.1:8080}"
 export OPENAI_API_KEY="${OPENAI_API_KEY:-sk-local}"
 export GOOSE_MODEL="${GOOSE_MODEL:-test-model}"
 
+# Outer test-harness timeout bound. Stock macOS ships no `timeout`, so
+# use the same fallback chain run_loop.sh itself uses.
+if command -v timeout >/dev/null 2>&1; then
+  tmo() { timeout "$@"; }
+elif command -v gtimeout >/dev/null 2>&1; then
+  tmo() { gtimeout "$@"; }
+else
+  tmo() { perl -e 'alarm shift; exec @ARGV' -- "$@"; }
+fi
+
 # --------------------------------------------------------------------
 # Assert vocabulary — same shape as scripts/test-install.sh, so both
 # test scripts read the same way.
@@ -151,18 +161,24 @@ for a in "$@"; do
 done
 
 case "$prompt" in
-  */plan_prompt.md)
+  */plan_prompt*.md)
     printf '1. [ ] do the thing\n' > PLAN.md
     printf '# Handoff: test\nUpdated: now - State: in progress\n' > HANDOFF.md
     ;;
-  */execute_prompt.md)
+  */execute_prompt*.md)
     printf '1. [x] do the thing\n' > PLAN.md
     printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
     ;;
-  */review_prompt.md)
+  */simplify_prompt*.md)
+    printf 'no findings\n' > SIMPLIFY.md
+    ;;
+  */security_prompt*.md)
+    printf 'no findings\n' > SECURITY.md
+    ;;
+  */review_prompt*.md)
     printf 'no findings\n' > REVIEW.md
     ;;
-  */fix_prompt.md)
+  */fix_prompt*.md)
     printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
     ;;
   *)
@@ -243,7 +259,7 @@ echo
 echo "===== (5) --max-iterations with no value errors, does not hang ====="
 DEST5="$SCRATCH/badargs/taskrepo"
 bash "$RESET_TASK" --dest "$DEST5" >/dev/null
-timeout 10 bash "$RUN_LOOP" "$DEST5" "$TASK_PROMPT" --max-iterations \
+tmo 10 bash "$RUN_LOOP" "$DEST5" "$TASK_PROMPT" --max-iterations \
   > "$SCRATCH/badargs.out" 2>&1
 RC5=$?
 cat "$SCRATCH/badargs.out"
@@ -346,11 +362,11 @@ for a in "$@"; do
 done
 
 case "$prompt" in
-  */plan_prompt.md)
+  */plan_prompt*.md)
     printf '1. [ ] step one\n2. [ ] step two\n' > PLAN.md
     printf '# Handoff: test\nUpdated: now - State: in progress\n' > HANDOFF.md
     ;;
-  */execute_prompt.md)
+  */execute_prompt*.md)
     n=0
     [ -f "$COUNTER_FILE" ] && n="$(cat "$COUNTER_FILE")"
     n=$((n + 1))
@@ -364,7 +380,13 @@ case "$prompt" in
     fi
     printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
     ;;
-  */review_prompt.md)
+  */simplify_prompt*.md)
+    printf 'no findings\n' > SIMPLIFY.md
+    ;;
+  */security_prompt*.md)
+    printf 'no findings\n' > SECURITY.md
+    ;;
+  */review_prompt*.md)
     # Snapshot what this review actually saw, tagged by the execute
     # counter, so the test can compare iteration 1's delta against
     # iteration 2's once the run has moved on and overwritten the live
@@ -374,7 +396,7 @@ case "$prompt" in
     cp .loop-run/DIFF.txt "$STATE_DIR/diff_seen_${n}.txt" 2>/dev/null || true
     printf 'no findings\n' > REVIEW.md
     ;;
-  */fix_prompt.md)
+  */fix_prompt*.md)
     printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
     ;;
   *)
@@ -415,7 +437,6 @@ assert_true "FULL_DIFF.txt covers both file1.txt and file2.txt" bash -c '
 # --------------------------------------------------------------------
 echo
 echo "===== (10) perl-alarm fallback when timeout/gtimeout are both absent ====="
-REAL_TIMEOUT="$(command -v timeout)" # captured before PATH is narrowed, for the outer test-harness bound below
 NOTIMEOUT_PATH="$SCRATCH/path-no-timeout"
 build_path_without "$NOTIMEOUT_PATH" timeout gtimeout
 PATH="$NOTIMEOUT_PATH" bash -c 'command -v timeout >/dev/null 2>&1'
@@ -456,7 +477,7 @@ chmod +x "$SHIMDIR10B/goose"
 
 START10B=$(date +%s)
 PATH="$SHIMDIR10B:$NOTIMEOUT_PATH" LOOP_STAGE_TIMEOUT=1 \
-  "$REAL_TIMEOUT" 20 bash "$RUN_LOOP" "$DEST10B" "$TASK_PROMPT" --max-iterations 1 \
+  tmo 20 bash "$RUN_LOOP" "$DEST10B" "$TASK_PROMPT" --max-iterations 1 \
   > "$SCRATCH/notimeout_slow.out" 2>&1
 END10B=$(date +%s)
 cat "$SCRATCH/notimeout_slow.out"
@@ -519,18 +540,24 @@ done
 prompt=""
 for a in "$@"; do prompt="$a"; done
 case "$prompt" in
-  */plan_prompt.md)
+  */plan_prompt*.md)
     printf '1. [ ] do the thing\n' > PLAN.md
     printf '# Handoff: test\nUpdated: now - State: in progress\n' > HANDOFF.md
     ;;
-  */execute_prompt.md)
+  */execute_prompt*.md)
     printf '1. [x] do the thing\n' > PLAN.md
     printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
     ;;
-  */review_prompt.md)
+  */simplify_prompt*.md)
+    printf 'no findings\n' > SIMPLIFY.md
+    ;;
+  */security_prompt*.md)
+    printf 'no findings\n' > SECURITY.md
+    ;;
+  */review_prompt*.md)
     printf 'no findings\n' > REVIEW.md
     ;;
-  */fix_prompt.md)
+  */fix_prompt*.md)
     printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
     ;;
 esac
@@ -551,6 +578,196 @@ assert_true "argv[1] is --flag" bash -c 'sed -n "1p" "$1" | grep -qx -- "--flag"
 assert_true "argv[2] is the quoted value as one entry, unsplit" bash -c 'sed -n "2p" "$1" | grep -qx -- "quoted value"' _ "$ARGV_DUMP"
 assert_true "argv[3] is the substituted prompt file path" bash -c 'sed -n "3p" "$1" | grep -q -- "_prompt.md$"' _ "$ARGV_DUMP"
 assert_eq "$RC12" "0" "LOOP_HARNESS_CMD quoting run exits 0"
+
+# --------------------------------------------------------------------
+# Shared gate-test shim: every gate answers from an env var so one shim
+# body covers the ordering, filter, delete-guard, missing-output and
+# convergence cases. Records every stage it is called for, in order, in
+# $SHIM_STATE_DIR/stages.
+#   GATE_REVIEW_OUT   text the review gate writes to REVIEW.md
+#                     ("" = write nothing at all, i.e. prose instead of a call)
+#   REVIEW_SKIP_FIRST when set, the review gate writes nothing on its
+#                     first call only, then behaves normally
+#   FIX_DELETES       when set, the fix stage deletes this file
+# --------------------------------------------------------------------
+write_gate_shim() {
+  local path="$1"
+  cat > "$path" <<'SHIM'
+#!/usr/bin/env bash
+set -u
+STATE_DIR="${SHIM_STATE_DIR:?}"
+mkdir -p "$STATE_DIR"
+prompt=""
+prev=""
+for a in "$@"; do
+  if [ "$prev" = "-i" ]; then prompt="$a"; fi
+  prev="$a"
+done
+stage="$(basename "$prompt" | sed 's/_prompt.*//')"
+echo "$stage" >> "$STATE_DIR/stages"
+cp .loop-run/DIFF.txt "$STATE_DIR/diff_seen_$(wc -l < "$STATE_DIR/stages" | tr -d ' ')_$stage.txt" 2>/dev/null || true
+case "$stage" in
+  plan)
+    printf '1. [ ] do the thing\n' > PLAN.md
+    printf '# Handoff: test\nUpdated: now - State: in progress\n' > HANDOFF.md
+    ;;
+  execute)
+    echo "new code" > new_a.txt
+    echo "new code" > new_b.txt
+    printf '1. [x] do the thing\n' > PLAN.md
+    printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
+    ;;
+  simplify)  printf 'no findings\n' > SIMPLIFY.md ;;
+  security)  printf 'no findings\n' > SECURITY.md ;;
+  review)
+    if [ -n "${REVIEW_SKIP_FIRST:-}" ] && [ ! -f "$STATE_DIR/review_skipped" ]; then
+      touch "$STATE_DIR/review_skipped"
+      echo "I looked at the diff and it seems fine." # prose, no file written
+    elif [ -n "${GATE_REVIEW_OUT:-}" ]; then
+      printf '%b\n' "$GATE_REVIEW_OUT" > REVIEW.md
+    fi
+    ;;
+  fix)
+    cp FINDINGS.md "$STATE_DIR/findings_seen_$(wc -l < "$STATE_DIR/stages" | tr -d ' ').md"
+    if [ -n "${FIX_DELETES:-}" ]; then rm -f "$FIX_DELETES"; fi
+    printf '# Handoff: test\nUpdated: now - State: fixed\n' > HANDOFF.md
+    ;;
+  *) echo "gate shim: unrecognized stage '$stage' from $prompt" >&2; exit 1 ;;
+esac
+exit 0
+SHIM
+  chmod +x "$path"
+}
+
+run_gate_case() { # $1 = case name; remaining args passed to run_loop.sh
+  local name="$1"; shift
+  local dest="$SCRATCH/$name/taskrepo" shimdir="$SCRATCH/shim-$name"
+  bash "$RESET_TASK" --dest "$dest" >/dev/null
+  mkdir -p "$shimdir"
+  write_gate_shim "$shimdir/goose"
+  PATH="$shimdir:$PATH" SHIM_STATE_DIR="$SCRATCH/state-$name" \
+    bash "$RUN_LOOP" "$dest" "$TASK_PROMPT" "$@" > "$SCRATCH/$name.out" 2>&1
+  echo "$?" > "$SCRATCH/$name.rc"
+  cat "$SCRATCH/$name.out"
+}
+wt_of() { find "$SCRATCH/$1/taskrepo/.loop" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n1; }
+stages_of() { tr '\n' ' ' < "$SCRATCH/state-$1/stages" | sed 's/ $//'; }
+
+# --------------------------------------------------------------------
+# 13. Gate order: simplify, security, review after execute+test; a gate
+#     with "no findings" runs no fix stage; the stages the harness saw
+#     are exactly plan, execute, simplify, security, review.
+# --------------------------------------------------------------------
+echo
+echo "===== (13) gates run in order and skip fix on no findings ====="
+GATE_REVIEW_OUT='no findings\nnothing in the diff is wrong' run_gate_case gates-order --max-iterations 1
+assert_eq "$(cat "$SCRATCH/gates-order.rc")" "0" "all-clean gate run exits 0"
+assert_eq "$(stages_of gates-order)" "plan execute simplify security review" "stage order is plan, execute, simplify, security, review with no fix"
+WT13="$(wt_of gates-order)"
+assert_true "LOOP_SUMMARY.md lists the three gates" file_has "$WT13/LOOP_SUMMARY.md" "Gates: simplify security review"
+assert_true "LOOP_SUMMARY.md gate log shows 0 findings kept for review" file_has "$WT13/LOOP_SUMMARY.md" "gate review, round 0: 0 finding(s) kept"
+
+# --------------------------------------------------------------------
+# 14. Findings filter: a real path:line finding reaches FINDINGS.md and
+#     triggers a fix + test; a finding citing a file that does not exist
+#     is rejected into .loop-run/REJECTED_FINDINGS.md and never fixed.
+#     The second review round (on the fix) says no findings, so the
+#     gate converges and the run passes.
+# --------------------------------------------------------------------
+echo
+echo "===== (14) findings filter keeps real paths, rejects invented ones ====="
+GATE_REVIEW_OUT='- new_a.txt:1: says "new code" but should say hello\n- ghost/nowhere.py:7: this file was hallucinated' \
+  run_gate_case gates-filter --max-iterations 1
+# The shim writes the same REVIEW.md every time, so the gate would never
+# converge; expect exit 1 with "not converged" -- covered in (16). Here
+# check the filter itself on the first round's FINDINGS.md.
+STATE14="$SCRATCH/state-gates-filter"
+FIRST_FIX_FINDINGS="$(ls "$STATE14"/findings_seen_*.md | head -n1)"
+assert_true "a finding citing an existing file reached FINDINGS.md" file_has "$FIRST_FIX_FINDINGS" "new_a.txt:1"
+assert_true "a finding citing a missing file was kept out of FINDINGS.md" file_lacks "$FIRST_FIX_FINDINGS" "nowhere.py"
+WT14="$(wt_of gates-filter)"
+assert_true "the rejected finding was logged with its gate name" file_has "$WT14/.loop-run/REJECTED_FINDINGS.md" "review: - ghost/nowhere.py:7"
+assert_true "a fix stage ran after the review gate found something" bash -c 'grep -q "^fix$" "$1"' _ "$STATE14/stages"
+assert_true "a test stage ran after the fix (TEST_OUTPUT.txt committed after fix)" bash -c '
+  git -C "$1" log --oneline | grep -q "loop: test" && git -C "$1" log --oneline | grep -q "loop: fix"
+' _ "$WT14"
+
+# --------------------------------------------------------------------
+# 15. Delete guard: a fix stage that deletes a file has its commit
+#     reverted, the file is back, and NEEDS_HUMAN.md names it.
+# --------------------------------------------------------------------
+echo
+echo "===== (15) a fix stage that deletes a file is reverted ====="
+GATE_REVIEW_OUT='- new_b.txt:1: remove this file' FIX_DELETES=new_b.txt \
+  run_gate_case gates-delete --max-iterations 1
+WT15="$(wt_of gates-delete)"
+assert_true "the deleted file is back after the revert" [ -f "$WT15/new_b.txt" ]
+assert_true "the driver logged the revert" file_has "$SCRATCH/gates-delete.out" "reverting that commit"
+assert_true "NEEDS_HUMAN.md names the deleted file" file_has "$WT15/NEEDS_HUMAN.md" "new_b.txt"
+assert_true "LOOP_SUMMARY.md counts the reverted fix" file_has "$WT15/LOOP_SUMMARY.md" "Fix commits reverted for deleting files: [1-9]"
+
+# --------------------------------------------------------------------
+# 16. Two-round cap: a gate that reports the same finding after two fix
+#     rounds stops the loop as "not converged", exit 1, even with more
+#     iterations allowed.
+# --------------------------------------------------------------------
+echo
+echo "===== (16) a gate that never converges stops after two fix rounds ====="
+GATE_REVIEW_OUT='- new_a.txt:1: still wrong' run_gate_case gates-cap --max-iterations 3
+assert_eq "$(cat "$SCRATCH/gates-cap.rc")" "1" "non-converging run exits 1"
+assert_eq "$(stages_of gates-cap)" "plan execute simplify security review fix review fix review" "exactly two fix rounds, then a third review, then stop"
+WT16="$(wt_of gates-cap)"
+assert_true "LOOP_SUMMARY.md names the gate that did not converge" file_has "$WT16/LOOP_SUMMARY.md" "Not converged: review"
+assert_true "the driver said why it stopped" file_has "$SCRATCH/gates-cap.out" "stopping as not converged"
+
+# --------------------------------------------------------------------
+# 17. Missing output: a gate that answers in prose without writing its
+#     file is retried once with a write reminder appended; the retry
+#     prompt is a different file from the first. A gate that writes
+#     nothing twice fails closed: the run cannot pass.
+# --------------------------------------------------------------------
+echo
+echo "===== (17) a gate that writes nothing is nudged once, then fails closed ====="
+GATE_REVIEW_OUT='no findings\nclean' REVIEW_SKIP_FIRST=1 run_gate_case gates-nudge --max-iterations 1
+assert_eq "$(cat "$SCRATCH/gates-nudge.rc")" "0" "prose-then-file review passes after the nudged retry"
+assert_true "the driver logged the write reminder retry" file_has "$SCRATCH/gates-nudge.out" "did not write REVIEW.md; retrying with a write reminder"
+WT17="$(wt_of gates-nudge)"
+assert_true "the retry prompt carries the reminder line" file_has "$WT17/.loop-run/logs/review_prompt_retry.md" "previous attempt ended without writing REVIEW.md"
+assert_eq "$(stages_of gates-nudge)" "plan execute simplify security review review" "review ran twice: the prose attempt and the nudged retry"
+
+GATE_REVIEW_OUT='' run_gate_case gates-noout --max-iterations 1
+assert_eq "$(cat "$SCRATCH/gates-noout.rc")" "1" "a gate that never writes its file makes the run fail"
+WT17B="$(wt_of gates-noout)"
+assert_true "LOOP_SUMMARY.md lists the gate that failed closed" file_has "$WT17B/LOOP_SUMMARY.md" "Gates with no output (failed closed): review"
+
+# --------------------------------------------------------------------
+# 18. Per-file split: with LOOP_DIFF_SPLIT_BYTES=1 and two changed
+#     files, each gate runs once per file and each run's DIFF.txt holds
+#     only that file.
+# --------------------------------------------------------------------
+echo
+echo "===== (18) a large diff runs each gate once per changed file ====="
+GATE_REVIEW_OUT='no findings\nclean' LOOP_DIFF_SPLIT_BYTES=1 run_gate_case gates-split --max-iterations 1 --gates review
+assert_eq "$(cat "$SCRATCH/gates-split.rc")" "0" "split run exits 0"
+assert_eq "$(stages_of gates-split)" "plan execute review review" "review ran once per changed file"
+STATE18="$SCRATCH/state-gates-split"
+assert_true "first per-file review saw only new_a.txt" bash -c 'file_has "$1/diff_seen_3_review.txt" new_a.txt && file_lacks "$1/diff_seen_3_review.txt" new_b.txt' _ "$STATE18"
+assert_true "second per-file review saw only new_b.txt" bash -c 'file_has "$1/diff_seen_4_review.txt" new_b.txt && file_lacks "$1/diff_seen_4_review.txt" new_a.txt' _ "$STATE18"
+assert_true "the driver announced the split" file_has "$SCRATCH/gates-split.out" "running once per file"
+
+# --------------------------------------------------------------------
+# 19. --gates validation and --gates none.
+# --------------------------------------------------------------------
+echo
+echo "===== (19) --gates rejects unknown names; none skips every gate ====="
+GATE_REVIEW_OUT='no findings\nclean' run_gate_case gates-none --max-iterations 1 --gates none
+assert_eq "$(cat "$SCRATCH/gates-none.rc")" "0" "--gates none run exits 0"
+assert_eq "$(stages_of gates-none)" "plan execute" "--gates none runs no gate and no fix"
+DEST19="$SCRATCH/gates-bad/taskrepo"
+bash "$RESET_TASK" --dest "$DEST19" >/dev/null
+bash "$RUN_LOOP" "$DEST19" "$TASK_PROMPT" --gates simplify,bogus > "$SCRATCH/gates-bad.out" 2>&1
+assert_eq "$?" "1" "an unknown gate name exits 1"
+assert_true "the unknown gate name is reported" file_has "$SCRATCH/gates-bad.out" "unknown gate 'bogus'"
 
 # --------------------------------------------------------------------
 echo
