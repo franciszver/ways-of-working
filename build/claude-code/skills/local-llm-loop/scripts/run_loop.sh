@@ -281,6 +281,17 @@ fi
 # Worktree setup (always real, even under --dry-run, so plumbing checks
 # have something to inspect).
 # --------------------------------------------------------------------
+# The driver removes and rewrites its bookkeeping files at the worktree
+# root. A target repo that tracks one of those names (a GitHub-style
+# SECURITY.md, say) would lose it, so refuse up front.
+for f in PLAN.md PLAN_INPUT.md HANDOFF.md NEXT_STEP.md TEST_OUTPUT.txt \
+         FINDINGS.md NEEDS_HUMAN.md SIMPLIFY.md SECURITY.md REVIEW.md; do
+  if git -C "$REPO_PATH" ls-files --error-unmatch -- "$f" >/dev/null 2>&1; then
+    echo "run_loop.sh: $REPO_PATH tracks $f at its root, a name the loop driver overwrites; rename it or run the loop on a copy" >&2
+    exit 1
+  fi
+done
+
 TS="$(date +%Y%m%d-%H%M%S)"
 BRANCH="loop/$TS"
 WORKTREE="$REPO_PATH/.loop/$TS"
@@ -302,6 +313,7 @@ mkdir -p "$LOG_DIR" "$GOOSE_CONFIG_DIR/goose"
 # BASE_COMMIT (nothing reviewed yet).
 LAST_REVIEWED_FILE="$WORKTREE/.loop-run/LAST_REVIEWED"
 echo "$BASE_COMMIT" > "$LAST_REVIEWED_FILE"
+rm -f "$WORKTREE/.loop-run/REJECTED_FINDINGS.md"
 
 # Seed this run's isolated Goose config: from $XDG_CONFIG_HOME/goose/config.yaml
 # if the caller pointed one at us, else from the bundled hardened example.
@@ -430,7 +442,7 @@ invoke_goose() {
     export OPENAI_HOST="$OPENAI_HOST" OPENAI_API_KEY="$OPENAI_API_KEY"
     export GOOSE_PROVIDER=openai GOOSE_MODEL="$GOOSE_MODEL" GOOSE_DISABLE_KEYRING=1
     export GOOSE_TELEMETRY_ENABLED=false
-    run_with_timeout "$STAGE_TIMEOUT" "${cmd[@]}"
+    run_with_timeout "$STAGE_TIMEOUT" "${cmd[@]}" < /dev/null
   ) > "$log_file" 2>&1
   return $?
 }
@@ -563,7 +575,7 @@ run_test_stage() {
 GATE_LOG=()          # one line per gate run, for LOOP_SUMMARY.md
 GATES_FAILED=()      # gates that wrote no output even after the retry
 NOT_CONVERGED=""     # the gate that still had findings after GATE_ROUNDS fixes
-DELETES_REVERTED=0   # fix-stage commits reverted because they deleted files
+DELETES_REVERTED=0   # fix stages whose deleted files the driver restored
 GATE_KEPT=0          # findings kept by the last filter_findings call
 GATE_DROPPED=0       # findings dropped by the last filter_findings call
 
@@ -586,7 +598,9 @@ done
 # files excluded, optionally narrowed to one path.
 gate_diff() {
   if [ $# -gt 0 ]; then
-    git -C "$WORKTREE" diff "$ITER_BASE" HEAD -- "$1" 2>&1
+    # :(literal) so a name starting with ':' or containing glob
+    # characters is a path, never pathspec magic.
+    git -C "$WORKTREE" diff "$ITER_BASE" HEAD -- ":(literal)$1" 2>&1
   else
     git -C "$WORKTREE" diff "$ITER_BASE" HEAD -- . "${GATE_DIFF_EXCLUDES[@]}" 2>&1
   fi
@@ -610,7 +624,10 @@ filter_findings() {
   GATE_DROPPED=0
   # rm before the first write: the model can write anything in the
   # worktree, including a symlink at this name; never follow one.
-  rm -f "$WORKTREE/FINDINGS.md" "$rejected"
+  # REJECTED_FINDINGS.md accumulates across the run (cleared once at
+  # setup), so a rejected line from an earlier gate stays on record.
+  rm -f "$WORKTREE/FINDINGS.md"
+  [ -L "$rejected" ] && rm -f "$rejected"
   : > "$WORKTREE/FINDINGS.md"
   if [ ! -s "$src" ]; then
     echo "no findings" > "$WORKTREE/FINDINGS.md"
@@ -620,9 +637,6 @@ filter_findings() {
     case "$line" in
       ''|'#'*) continue ;;
     esac
-    case "$line" in
-      *[Nn][Oo]\ [Ff][Ii][Nn][Dd][Ii][Nn][Gg][Ss]*) continue ;;
-    esac
     if [[ "$line" =~ $FINDING_RE ]]; then
       path="${BASH_REMATCH[2]}"
       if [ -f "$WORKTREE/$path" ]; then
@@ -630,6 +644,13 @@ filter_findings() {
         GATE_KEPT=$((GATE_KEPT + 1))
         continue
       fi
+    else
+      # A "no findings" line (from the gate, or from one per-file chunk)
+      # is skipped only when the line is not a finding: a finding whose
+      # sentence happens to contain the phrase is still a finding.
+      case "$line" in
+        *[Nn][Oo]\ [Ff][Ii][Nn][Dd][Ii][Nn][Gg][Ss]*) continue ;;
+      esac
     fi
     printf '%s: %s\n' "$gate" "$line" >> "$rejected"
     GATE_DROPPED=$((GATE_DROPPED + 1))
@@ -651,10 +672,18 @@ run_gate() {
   local gate="$1" out prompt files nfiles diff_bytes acc f
   out="$(gate_output_file "$gate")"
   prompt="$PROMPTS_DIR/$gate.md"
+  local -a files
+  local chunk_missing=false
   gate_diff > "$WORKTREE/.loop-run/DIFF.txt" || true
   diff_bytes="$(wc -c < "$WORKTREE/.loop-run/DIFF.txt" | tr -d ' ')"
-  files="$(git -C "$WORKTREE" diff --name-only "$ITER_BASE" HEAD -- . "${GATE_DIFF_EXCLUDES[@]}" 2>/dev/null)"
-  nfiles="$(printf '%s\n' "$files" | grep -c .)"
+  # NUL-separated names: with -z git prints every name literally, so a
+  # non-ASCII or otherwise quotable name survives the round trip into
+  # the per-file pathspec below.
+  files=()
+  while IFS= read -r -d '' f; do
+    files+=("$f")
+  done < <(git -C "$WORKTREE" diff --name-only -z "$ITER_BASE" HEAD -- . "${GATE_DIFF_EXCLUDES[@]}" 2>/dev/null)
+  nfiles="${#files[@]}"
   rm -f "$WORKTREE/$out"
   # DIFF.txt is rewritten on entry to every run_gate call, so after a
   # per-file split it is left holding the last file's diff on purpose.
@@ -664,15 +693,19 @@ run_gate() {
     acc="$WORKTREE/.loop-run/${gate}_chunks.md"
     rm -f "$acc"
     : > "$acc"
-    while IFS= read -r f; do
-      [ -n "$f" ] || continue
+    for f in "${files[@]}"; do
       gate_diff "$f" > "$WORKTREE/.loop-run/DIFF.txt" || true
       rm -f "$WORKTREE/$out"
       stage_or_abort "$gate" "$prompt" "$out"
       if [ -f "$WORKTREE/$out" ]; then
         { printf '## %s\n' "$f"; cat "$WORKTREE/$out"; echo; } >> "$acc"
+      else
+        # One unreviewed file fails the whole gate, same as the
+        # unsplit path: never let a partial review pass as a full one.
+        chunk_missing=true
+        echo "run_loop.sh: gate '$gate' wrote no $out for $f" >&2
       fi
-    done <<< "$files"
+    done
     if [ -s "$acc" ]; then
       cp "$acc" "$WORKTREE/$out"
     fi
@@ -680,7 +713,7 @@ run_gate() {
     stage_or_abort "$gate" "$prompt" "$out"
   fi
 
-  if [ ! -f "$WORKTREE/$out" ] && ! $DRY_RUN; then
+  if ! $DRY_RUN && { [ ! -f "$WORKTREE/$out" ] || $chunk_missing; }; then
     return 3
   fi
   if filter_findings "$gate"; then
@@ -695,18 +728,31 @@ run_gate() {
 # NEEDS_HUMAN.md for a person to decide.
 guard_deletes() {
   $DRY_RUN && return 0
-  local deleted
-  deleted="$(git -C "$WORKTREE" diff --diff-filter=D --name-only HEAD~1 HEAD 2>/dev/null)"
-  [ -n "$deleted" ] || return 0
-  echo "run_loop.sh: WARNING fix stage deleted file(s); reverting that commit and leaving them for a human: $(printf '%s ' $deleted)" >&2
-  if ! git -C "$WORKTREE" revert --no-edit HEAD >/dev/null 2>&1; then
-    echo "run_loop.sh: WARNING revert of the deleting fix commit failed; inspect $WORKTREE by hand" >&2
-  fi
+  local -a deleted
+  local f n
+  deleted=()
+  # --no-renames: a file the model moved is a delete plus an add here,
+  # so a rename cannot slip past the guard as "R".
+  while IFS= read -r -d '' f; do
+    deleted+=("$f")
+  done < <(git -C "$WORKTREE" diff --no-renames --diff-filter=D --name-only -z HEAD~1 HEAD 2>/dev/null)
+  [ "${#deleted[@]}" -gt 0 ] || return 0
+  echo "run_loop.sh: WARNING fix stage deleted ${#deleted[@]} file(s); restoring them and leaving the decision to a human: ${deleted[*]}" >&2
+  # Restore only the deleted paths, in a checkpoint of their own, so the
+  # rest of the fix stage's work stays.
+  for f in "${deleted[@]}"; do
+    git -C "$WORKTREE" checkout HEAD~1 -- ":(literal)$f" >/dev/null 2>&1 \
+      || echo "run_loop.sh: WARNING could not restore $f; inspect $WORKTREE by hand" >&2
+  done
   if [ -L "$WORKTREE/NEEDS_HUMAN.md" ]; then rm -f "$WORKTREE/NEEDS_HUMAN.md"; fi
   {
-    echo "## fix stage (step $STEP_N) deleted files; the driver reverted that commit"
-    printf '%s\n' "$deleted" | sed 's/^/- /'
+    echo "## fix stage (step $STEP_N) deleted these files; the driver restored them"
+    echo "A later fix stage must not delete them again. A human decides whether they go."
+    printf -- '- %s\n' "${deleted[@]}"
   } >> "$WORKTREE/NEEDS_HUMAN.md"
+  n="$(next_step_n)"
+  STAGES_RUN+=("restore")
+  commit_or_warn restore "$n"
   DELETES_REVERTED=$((DELETES_REVERTED + 1))
 }
 
@@ -790,7 +836,7 @@ finalize() {
     echo "Gates: ${GATES[*]:-none}"
     echo "Gates with no output (failed closed): ${GATES_FAILED[*]:-none}"
     echo "Not converged: ${NOT_CONVERGED:-no}"
-    echo "Fix commits reverted for deleting files: $DELETES_REVERTED$([ "$DELETES_REVERTED" -gt 0 ] && echo ' (see NEEDS_HUMAN.md)')"
+    echo "Fix stages that deleted files (restored): $DELETES_REVERTED$([ "$DELETES_REVERTED" -gt 0 ] && echo ' (see NEEDS_HUMAN.md)')"
     echo "Wall time: ${wall}s"
     echo
     echo "## Gate log"
@@ -848,9 +894,24 @@ while [ "$ITER" -lt "$MAX_ITERATIONS" ]; do
 
   run_gates_for_iteration
 
+  # The gates review changed lines; a failing mechanical test that no
+  # gate turned into a finding still needs a fix stage, or the loop
+  # would spin to --max-iterations with nothing left to execute.
+  if [ "$LAST_TEST_RC" -ne 0 ] && [ -z "$NOT_CONVERGED" ] && [ "${#GATES_FAILED[@]}" -eq 0 ]; then
+    echo "run_loop.sh: tests fail with no gate finding to act on; running a fix stage on TEST_OUTPUT.txt" >&2
+    rm -f "$WORKTREE/FINDINGS.md"
+    echo "- TEST_OUTPUT.txt:1: the test command failed; read this output, find the cause in the code, and make the tests pass" > "$WORKTREE/FINDINGS.md"
+    stage_or_abort fix "$PROMPTS_DIR/fix.md"
+    guard_deletes
+    run_test_stage
+    LAST_TEST_RC=$?
+  fi
+
   git -C "$WORKTREE" rev-parse HEAD > "$LAST_REVIEWED_FILE"
 
-  if [ -n "$NOT_CONVERGED" ]; then
+  if [ -n "$NOT_CONVERGED" ] || [ "${#GATES_FAILED[@]}" -gt 0 ]; then
+    # Neither can pass any more; spending further iterations only
+    # gates later deltas while this one stays unreviewed.
     break
   fi
   if ! plan_has_unchecked && [ "$LAST_TEST_RC" -eq 0 ]; then

@@ -41,4 +41,4 @@ Anything that can be done now gets done now. Never game a metric — non-determi
 
 ## Adapting to a new environment
 
-Map each element to what exists (which skills are the gates, board vs WORKPLAN.md, subagents vs phase separation). State the mapping once, then follow it. Do not silently drop the awkward parts.
+Map each element to what exists (which skills are the gates, board vs WORKPLAN.md, subagents vs phase separation). State the mapping once, then follow it. Do not silently drop the awkward parts. No subagents and only a local model: use `local-llm-loop`; its driver runs the three gates as sequential fresh-process stages.

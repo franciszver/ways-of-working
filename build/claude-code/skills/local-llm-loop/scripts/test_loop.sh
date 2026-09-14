@@ -143,6 +143,12 @@ assert_true "dry-run's mechanical test stage actually ran the fixture's real tes
 #   REVIEW_SKIP_FIRST when set, the review gate writes nothing on its
 #                     first call only, then behaves normally
 #   FIX_DELETES       when set, the fix stage deletes this file
+#   FIX_RENAMES       when set, the fix stage moves this file to moved_<name>
+#   REVIEW_SKIP_FILE  the review gate writes nothing when DIFF.txt mentions it
+#   EXECUTE_EXTRA_FILE  execute also writes this file (e.g. a non-ASCII name)
+#   EXECUTE_BREAKS_TESTS  execute adds a failing tests/test_broken.py; the
+#                     fix stage repairs it only when FINDINGS.md points at
+#                     TEST_OUTPUT.txt
 # --------------------------------------------------------------------
 write_gate_shim() {
   local path="$1"
@@ -165,6 +171,9 @@ for a in "$@"; do
 done
 stage="$(basename "$prompt" | sed 's/_prompt.*//')"
 echo "$stage" >> "$STATE_DIR/stages"
+# A harness that reads stdin must not be able to drain the driver's
+# own input (a here-string of file names, say).
+cat > /dev/null
 cp .loop-run/DIFF.txt "$STATE_DIR/diff_seen_$(wc -l < "$STATE_DIR/stages" | tr -d ' ')_$stage.txt" 2>/dev/null || true
 case "$stage" in
   plan)
@@ -174,6 +183,10 @@ case "$stage" in
   execute)
     echo "new code" > new_a.txt
     echo "new code" > new_b.txt
+    if [ -n "${EXECUTE_EXTRA_FILE:-}" ]; then echo "new code" > "$EXECUTE_EXTRA_FILE"; fi
+    if [ -n "${EXECUTE_BREAKS_TESTS:-}" ]; then
+      printf 'import unittest\nclass T(unittest.TestCase):\n    def test_broken(self):\n        self.fail("broken by execute")\n' > tests/test_broken.py
+    fi
     printf '1. [x] do the thing\n' > PLAN.md
     printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
     ;;
@@ -183,6 +196,8 @@ case "$stage" in
     if [ -n "${REVIEW_SKIP_FIRST:-}" ] && [ ! -f "$STATE_DIR/review_skipped" ]; then
       touch "$STATE_DIR/review_skipped"
       echo "I looked at the diff and it seems fine." # prose, no file written
+    elif [ -n "${REVIEW_SKIP_FILE:-}" ] && grep -q "$REVIEW_SKIP_FILE" .loop-run/DIFF.txt; then
+      echo "prose instead of a file, for this chunk only"
     elif [ -n "${GATE_REVIEW_OUT-no findings}" ]; then
       # Unset: a clean review. Set but empty: write nothing at all.
       printf '%b\n' "${GATE_REVIEW_OUT-no findings\nclean}" > REVIEW.md
@@ -191,6 +206,10 @@ case "$stage" in
   fix)
     cp FINDINGS.md "$STATE_DIR/findings_seen_$(wc -l < "$STATE_DIR/stages" | tr -d ' ').md"
     if [ -n "${FIX_DELETES:-}" ]; then rm -f "$FIX_DELETES"; fi
+    if [ -n "${FIX_RENAMES:-}" ]; then mv "$FIX_RENAMES" "moved_$FIX_RENAMES"; fi
+    if grep -q 'TEST_OUTPUT.txt:1' FINDINGS.md 2>/dev/null && [ -f tests/test_broken.py ]; then
+      printf 'import unittest\nclass T(unittest.TestCase):\n    def test_broken(self):\n        pass\n' > tests/test_broken.py
+    fi
     printf '# Handoff: test\nUpdated: now - State: fixed\n' > HANDOFF.md
     ;;
   *) echo "gate shim: unrecognized stage '$stage' from $prompt" >&2; exit 1 ;;
@@ -637,9 +656,19 @@ assert_true "a finding citing a missing file was kept out of FINDINGS.md" file_l
 WT14="$(wt_of gates-filter)"
 assert_true "the rejected finding was logged with its gate name" file_has "$WT14/.loop-run/REJECTED_FINDINGS.md" "review: - ghost/nowhere.py:7"
 assert_true "a fix stage ran after the review gate found something" bash -c 'grep -q "^fix$" "$1"' _ "$STATE14/stages"
-assert_true "a test stage ran after the fix (TEST_OUTPUT.txt committed after fix)" bash -c '
-  git -C "$1" log --oneline | grep -q "loop: test" && git -C "$1" log --oneline | grep -q "loop: fix"
+assert_true "a test stage commit directly follows the first fix stage commit" bash -c '
+  git -C "$1" log --reverse --format=%s | grep -A1 "^loop: fix" | sed -n 2p | grep -q "^loop: test"
 ' _ "$WT14"
+
+# A finding whose sentence contains the phrase "no findings" is still a
+# finding: the phrase skip applies only to lines that are not findings.
+echo
+echo "----- (14b) a finding mentioning 'no findings' in its sentence is kept -----"
+GATE_REVIEW_OUT='- new_a.txt:1: returns no findings for an empty list instead of raising' \
+  run_gate_case gates-phrase --max-iterations 1
+STATE14B="$SCRATCH/state-gates-phrase"
+FIRST14B="$(ls "$STATE14B"/findings_seen_*.md 2>/dev/null | head -n1)"
+assert_true "the finding reached FINDINGS.md and a fix stage ran" bash -c '[ -n "$1" ] && file_has "$1" "new_a.txt:1"' _ "$FIRST14B"
 
 # --------------------------------------------------------------------
 # 15. Delete guard: a fix stage that deletes a file has its commit
@@ -650,10 +679,19 @@ echo "===== (15) a fix stage that deletes a file is reverted ====="
 GATE_REVIEW_OUT='- new_b.txt:1: remove this file' FIX_DELETES=new_b.txt \
   run_gate_case gates-delete --max-iterations 1
 WT15="$(wt_of gates-delete)"
-assert_true "the deleted file is back after the revert" [ -f "$WT15/new_b.txt" ]
-assert_true "the driver logged the revert" file_has "$SCRATCH/gates-delete.out" "reverting that commit"
+assert_true "the deleted file is back after the restore" [ -f "$WT15/new_b.txt" ]
+assert_true "the driver logged the restore" file_has "$SCRATCH/gates-delete.out" "restoring them"
+assert_true "the fix stage's other work survived (HANDOFF.md still says fixed)" file_has "$WT15/HANDOFF.md" "State: fixed"
 assert_true "NEEDS_HUMAN.md names the deleted file" file_has "$WT15/NEEDS_HUMAN.md" "new_b.txt"
-assert_true "LOOP_SUMMARY.md counts the reverted fix" file_has "$WT15/LOOP_SUMMARY.md" "Fix commits reverted for deleting files: [1-9]"
+assert_true "the restore has its own checkpoint commit" bash -c 'git -C "$1" log --format=%s | grep -q "^loop: restore"' _ "$WT15"
+assert_true "LOOP_SUMMARY.md counts the restored fix" file_has "$WT15/LOOP_SUMMARY.md" "Fix stages that deleted files (restored): [1-9]"
+
+echo
+echo "----- (15b) a fix stage that moves a file is caught as a delete -----"
+GATE_REVIEW_OUT='- new_a.txt:1: rename this' FIX_RENAMES=new_a.txt run_gate_case gates-rename --max-iterations 1
+WT15B="$(wt_of gates-rename)"
+assert_true "the moved file is restored at its old path" [ -f "$WT15B/new_a.txt" ]
+assert_true "NEEDS_HUMAN.md names the moved file" file_has "$WT15B/NEEDS_HUMAN.md" "new_a.txt"
 
 # --------------------------------------------------------------------
 # 16. Two-round cap: a gate that reports the same finding after two fix
@@ -684,10 +722,11 @@ WT17="$(wt_of gates-nudge)"
 assert_true "the retry prompt carries the reminder line" file_has "$WT17/.loop-run/logs/review_prompt_retry.md" "previous attempt ended without writing REVIEW.md"
 assert_eq "$(stages_of gates-nudge)" "plan execute simplify security review review" "review ran twice: the prose attempt and the nudged retry"
 
-GATE_REVIEW_OUT='' run_gate_case gates-noout --max-iterations 1
+GATE_REVIEW_OUT='' run_gate_case gates-noout --max-iterations 3
 assert_eq "$(cat "$SCRATCH/gates-noout.rc")" "1" "a gate that never writes its file makes the run fail"
 WT17B="$(wt_of gates-noout)"
 assert_true "LOOP_SUMMARY.md lists the gate that failed closed" file_has "$WT17B/LOOP_SUMMARY.md" "Gates with no output (failed closed): review"
+assert_eq "$(stages_of gates-noout)" "plan execute simplify security review review" "a failed-closed gate stops the loop; no further iterations run"
 
 # --------------------------------------------------------------------
 # 18. Per-file split: with LOOP_DIFF_SPLIT_BYTES=1 and two changed
@@ -696,13 +735,28 @@ assert_true "LOOP_SUMMARY.md lists the gate that failed closed" file_has "$WT17B
 # --------------------------------------------------------------------
 echo
 echo "===== (18) a large diff runs each gate once per changed file ====="
-GATE_REVIEW_OUT='no findings\nclean' LOOP_DIFF_SPLIT_BYTES=1 run_gate_case gates-split --max-iterations 1 --gates review
+GATE_REVIEW_OUT='no findings\nclean' LOOP_DIFF_SPLIT_BYTES=1 EXECUTE_EXTRA_FILE='café.txt' \
+  run_gate_case gates-split --max-iterations 1 --gates review
 assert_eq "$(cat "$SCRATCH/gates-split.rc")" "0" "split run exits 0"
-assert_eq "$(stages_of gates-split)" "plan execute review review" "review ran once per changed file"
+assert_eq "$(stages_of gates-split)" "plan execute review review review" "review ran once per changed file (three files)"
 STATE18="$SCRATCH/state-gates-split"
-assert_true "first per-file review saw only new_a.txt" bash -c 'file_has "$1/diff_seen_3_review.txt" new_a.txt && file_lacks "$1/diff_seen_3_review.txt" new_b.txt' _ "$STATE18"
-assert_true "second per-file review saw only new_b.txt" bash -c 'file_has "$1/diff_seen_4_review.txt" new_b.txt && file_lacks "$1/diff_seen_4_review.txt" new_a.txt' _ "$STATE18"
+assert_true "the café.txt chunk carried a real diff, not an empty one" bash -c '
+  for d in "$1"/diff_seen_*_review.txt; do
+    if grep -q "caf" "$d" && grep -q "^+new code" "$d"; then exit 0; fi
+  done; exit 1' _ "$STATE18"
+assert_true "the new_a.txt chunk saw only new_a.txt" bash -c '
+  for d in "$1"/diff_seen_*_review.txt; do
+    if file_has "$d" "new_a.txt" && file_lacks "$d" "new_b.txt" && file_lacks "$d" "caf"; then exit 0; fi
+  done; exit 1' _ "$STATE18"
 assert_true "the driver announced the split" file_has "$SCRATCH/gates-split.out" "running once per file"
+
+echo
+echo "----- (18b) a per-file chunk that writes nothing fails the gate closed -----"
+GATE_REVIEW_OUT='no findings\nclean' LOOP_DIFF_SPLIT_BYTES=1 REVIEW_SKIP_FILE=new_b.txt \
+  run_gate_case gates-splitfail --max-iterations 1 --gates review
+assert_eq "$(cat "$SCRATCH/gates-splitfail.rc")" "1" "a split gate with one unreviewed file makes the run fail"
+WT18B="$(wt_of gates-splitfail)"
+assert_true "LOOP_SUMMARY.md lists the gate that failed closed" file_has "$WT18B/LOOP_SUMMARY.md" "Gates with no output (failed closed): review"
 
 # --------------------------------------------------------------------
 # 19. --gates validation and --gates none.
@@ -717,6 +771,33 @@ bash "$RESET_TASK" --dest "$DEST19" >/dev/null
 bash "$RUN_LOOP" "$DEST19" "$TASK_PROMPT" --gates simplify,bogus > "$SCRATCH/gates-bad.out" 2>&1
 assert_eq "$?" "1" "an unknown gate name exits 1"
 assert_true "the unknown gate name is reported" file_has "$SCRATCH/gates-bad.out" "unknown gate 'bogus'"
+
+# --------------------------------------------------------------------
+# 20. A target repo that tracks a bookkeeping name at its root is
+#     refused before any worktree is created.
+# --------------------------------------------------------------------
+echo
+echo "===== (20) a repo tracking SECURITY.md at its root is refused ====="
+DEST20="$SCRATCH/tracked/taskrepo"
+bash "$RESET_TASK" --dest "$DEST20" >/dev/null
+echo "policy" > "$DEST20/SECURITY.md"
+git -C "$DEST20" add SECURITY.md >/dev/null && git -C "$DEST20" commit -q -m "security policy"
+bash "$RUN_LOOP" "$DEST20" "$TASK_PROMPT" --max-iterations 1 > "$SCRATCH/tracked.out" 2>&1
+assert_eq "$?" "1" "the run is refused"
+assert_true "the refusal names the file" file_has "$SCRATCH/tracked.out" "tracks SECURITY.md"
+assert_true "no worktree was created" [ ! -d "$DEST20/.loop" ]
+
+# --------------------------------------------------------------------
+# 21. Tests that fail with no gate finding still reach a fix stage.
+# --------------------------------------------------------------------
+echo
+echo "===== (21) failing tests with no gate finding get a fix stage ====="
+EXECUTE_BREAKS_TESTS=1 run_gate_case gates-testfix --max-iterations 1
+assert_eq "$(cat "$SCRATCH/gates-testfix.rc")" "0" "the run passes after the test-driven fix"
+assert_eq "$(stages_of gates-testfix)" "plan execute simplify security review fix" "a fix stage ran after clean gates because tests failed"
+assert_true "the driver said why the fix ran" file_has "$SCRATCH/gates-testfix.out" "tests fail with no gate finding"
+STATE21="$SCRATCH/state-gates-testfix"
+assert_true "the fix stage was pointed at TEST_OUTPUT.txt" bash -c 'file_has "$(ls "$1"/findings_seen_*.md | head -n1)" "TEST_OUTPUT.txt:1"' _ "$STATE21"
 
 # --------------------------------------------------------------------
 echo

@@ -11,8 +11,8 @@ Look only for defects in the changed lines:
 - an off-by-one or a wrong boundary
 - a call that breaks the contract of an existing caller or callee
 - a test whose name promises a check its body does not make
-- new behavior with no test (cite the test file and the line where the
-  missing test belongs, for example tests/test_store.py:1)
+- new behavior with no test (cite the source line that has no test, not
+  a test file that does not exist yet)
 
 Before you list a finding, read the file at the cited line to confirm it.
 A finding without path:LINE at the start of its line is discarded.

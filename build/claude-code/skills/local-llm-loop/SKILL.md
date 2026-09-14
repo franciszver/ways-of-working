@@ -56,8 +56,8 @@ once you're done with a run, so `git status` in `<repo>` stays clean.
 The three gates map `apply-working-process`'s "Three gates before anything merges" (simplify → security review → code review) onto a local model with no subagents: each gate runs as its own fresh-context Goose stage instead of a fresh subagent, in the same fixed order, each finding fixed and tests re-run green after, capped at `LOOP_GATE_ROUNDS` fix rounds (default 2) before the loop reports "not converged". The local security gate is a prefilter, not the real check — run `/security-review` in Claude Code on the loop branch before merging.
 
 - A finding is kept only if it cites a file that exists in the worktree; rejected lines go to `.loop-run/REJECTED_FINDINGS.md` instead of `FINDINGS.md`.
-- A gate that writes no output file is retried once with a write reminder, then fails closed if still missing.
-- A fix commit that deletes any file is reverted whole, and the files are listed in `NEEDS_HUMAN.md`.
+- A gate that writes no output file is retried once with a write reminder, then fails closed if still missing, and the loop stops. Tests that fail with no gate finding still get a fix stage pointed at `TEST_OUTPUT.txt`.
+- A fix stage that deletes or moves any file has those files restored in a checkpoint of their own, the rest of its work kept, and the files listed in `NEEDS_HUMAN.md`; a repo that already tracks a bookkeeping name such as `SECURITY.md` at its root is refused up front.
 - A diff over `LOOP_DIFF_SPLIT_BYTES` (default 32768 bytes) that touches more than one file runs each gate once per changed file, on that file's diff alone.
 
 ## The loop
