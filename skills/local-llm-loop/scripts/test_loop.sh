@@ -147,6 +147,8 @@ assert_true "dry-run's mechanical test stage actually ran the fixture's real tes
 #   FIX_RENAMES       when set, the fix stage moves this file to moved_<name>
 #   REVIEW_SKIP_FILE  the review gate writes nothing when DIFF.txt mentions it
 #   EXECUTE_EXTRA_FILE  execute also writes this file (e.g. a non-ASCII name)
+#   SHIM_ENV_DUMP     file to append "<stage> GOOSE_MAX_TOKENS=<value>" to on every call
+#   REVIEW_SLEEP      seconds the review gate sleeps before answering
 #   EXECUTE_BREAKS_TESTS  execute adds a failing tests/test_broken.py; the
 #                     fix stage repairs it only when FINDINGS.md points at
 #                     TEST_OUTPUT.txt
@@ -172,6 +174,9 @@ for a in "$@"; do
 done
 stage="$(basename "$prompt" | sed 's/_prompt.*//')"
 echo "$stage" >> "$STATE_DIR/stages"
+if [ -n "${SHIM_ENV_DUMP:-}" ]; then
+  printf '%s GOOSE_MAX_TOKENS=%s\n' "$stage" "${GOOSE_MAX_TOKENS:-unset}" >> "$SHIM_ENV_DUMP"
+fi
 # A harness that reads stdin must not be able to drain the driver's
 # own input (a here-string of file names, say).
 cat > /dev/null
@@ -194,6 +199,7 @@ case "$stage" in
   simplify)  printf 'no findings\n' > SIMPLIFY.md ;;
   security)  printf 'no findings\n' > SECURITY.md ;;
   review)
+    if [ -n "${REVIEW_SLEEP:-}" ]; then sleep "$REVIEW_SLEEP"; fi   # a runaway gate
     if [ -n "${REVIEW_SKIP_FIRST:-}" ] && [ ! -f "$STATE_DIR/review_skipped" ]; then
       touch "$STATE_DIR/review_skipped"
       echo "I looked at the diff and it seems fine." # prose, no file written
@@ -808,57 +814,89 @@ assert_eq "$?" "1" "--gates , exits 1"
 assert_true "no worktree was created for the refused runs" [ ! -d "$DEST19C/.loop" ]
 
 # --------------------------------------------------------------------
-# 19d. Generation cap and gate timeout (#40): every harness call gets
-#      GOOSE_MAX_TOKENS from LOOP_MAX_TOKENS (default 3072); a gate stage
-#      is bounded by LOOP_GATE_TIMEOUT, shorter than LOOP_STAGE_TIMEOUT.
+# 19d. Generation cap and gate timeout (#40): gate stages get
+#      GOOSE_MAX_TOKENS from LOOP_MAX_TOKENS (default 3072), file-writing
+#      stages from LOOP_STAGE_MAX_TOKENS (default 8192); a gate stage is
+#      bounded by LOOP_GATE_TIMEOUT, shorter than LOOP_STAGE_TIMEOUT.
 # --------------------------------------------------------------------
 echo
-echo "===== (19d) GOOSE_MAX_TOKENS reaches the harness; gates get their own timeout ====="
-DEST19D="$SCRATCH/maxtok/taskrepo"
-bash "$RESET_TASK" --dest "$DEST19D" >/dev/null
-SHIMDIR19D="$SCRATCH/shim-maxtok"
-mkdir -p "$SHIMDIR19D"
+echo "===== (19d) per-stage token caps reach the harness; gates get their own timeout ====="
 ENV_DUMP19D="$SCRATCH/maxtok_env.txt"
-cat > "$SHIMDIR19D/goose" <<'SHIM'
-#!/usr/bin/env bash
-cat > /dev/null
-printf 'GOOSE_MAX_TOKENS=%s\n' "${GOOSE_MAX_TOKENS:-unset}" >> "$ENV_DUMP19D"
-prompt=""; prev=""
-for a in "$@"; do [ "$prev" = "-i" ] && prompt="$a"; prev="$a"; done
-case "$(basename "$prompt" | sed 's/_prompt.*//')" in
-  plan) printf '1. [ ] do the thing\n' > PLAN.md; printf '# Handoff\n' > HANDOFF.md ;;
-  execute) echo x > new_a.txt; printf '1. [x] do the thing\n' > PLAN.md ;;
-  simplify) printf 'no findings\n' > SIMPLIFY.md ;;
-  security) printf 'no findings\n' > SECURITY.md ;;
-  review) sleep 30 ;;   # a runaway gate: must be cut by LOOP_GATE_TIMEOUT, not LOOP_STAGE_TIMEOUT
-esac
-exit 0
-SHIM
-chmod +x "$SHIMDIR19D/goose"
-export ENV_DUMP19D
+: > "$ENV_DUMP19D"
 START19D=$(date +%s)
-PATH="$SHIMDIR19D:$PATH" LOOP_STAGE_TIMEOUT=60 LOOP_GATE_TIMEOUT=1 \
-  tmo 40 bash "$RUN_LOOP" "$DEST19D" "$TASK_PROMPT" --max-iterations 1 > "$SCRATCH/maxtok.out" 2>&1
-RC19D=$?
+SHIM_ENV_DUMP="$ENV_DUMP19D" REVIEW_SLEEP=30 LOOP_STAGE_TIMEOUT=60 LOOP_GATE_TIMEOUT=1 \
+  run_gate_case maxtok --max-iterations 1
 END19D=$(date +%s)
-cat "$SCRATCH/maxtok.out"
 ELAPSED19D=$((END19D - START19D))
-assert_true "the default cap reached every harness call (GOOSE_MAX_TOKENS=3072)" bash -c '
-  [ "$(grep -c "GOOSE_MAX_TOKENS=3072" "$1")" -ge 3 ] && ! grep -q "GOOSE_MAX_TOKENS=unset" "$1"' _ "$ENV_DUMP19D"
-assert_true "the runaway review gate was cut at LOOP_GATE_TIMEOUT, not left to LOOP_STAGE_TIMEOUT ($ELAPSED19D s elapsed)" [ "$ELAPSED19D" -lt 20 ]
+assert_true "every gate call carried the gate cap and nothing else (3072)" bash -c '
+  g="$(grep -E "^(simplify|security|review) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "GOOSE_MAX_TOKENS=3072$"' _ "$ENV_DUMP19D"
+assert_true "every file-writing call carried the stage cap and nothing else (8192)" bash -c '
+  g="$(grep -E "^(plan|execute|fix) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "GOOSE_MAX_TOKENS=8192$"' _ "$ENV_DUMP19D"
+assert_true "no call ran without a cap" file_lacks "$ENV_DUMP19D" "unset"
+assert_true "the runaway review gate was cut at LOOP_GATE_TIMEOUT, not left to LOOP_STAGE_TIMEOUT ($ELAPSED19D s elapsed)" [ "$ELAPSED19D" -lt 25 ]
 assert_true "the gate timeout is reported as exit 124 on the review stage" file_has "$SCRATCH/maxtok.out" "stage 'review' exited 124"
 
-DEST19E="$SCRATCH/maxtok2/taskrepo"
-bash "$RESET_TASK" --dest "$DEST19E" >/dev/null
 : > "$ENV_DUMP19D"
-PATH="$SHIMDIR19D:$PATH" LOOP_MAX_TOKENS=512 LOOP_GATE_TIMEOUT=1 \
-  tmo 40 bash "$RUN_LOOP" "$DEST19E" "$TASK_PROMPT" --max-iterations 1 --gates none > "$SCRATCH/maxtok2.out" 2>&1
-assert_true "LOOP_MAX_TOKENS overrides the cap (GOOSE_MAX_TOKENS=512)" bash -c '
-  grep -q "GOOSE_MAX_TOKENS=512" "$1" && ! grep -q "GOOSE_MAX_TOKENS=3072" "$1"' _ "$ENV_DUMP19D"
+SHIM_ENV_DUMP="$ENV_DUMP19D" LOOP_MAX_TOKENS=512 LOOP_STAGE_MAX_TOKENS=700 run_gate_case maxtok2 --max-iterations 1
+assert_true "LOOP_MAX_TOKENS and LOOP_STAGE_MAX_TOKENS override the caps" bash -c '
+  grep -q "^review GOOSE_MAX_TOKENS=512$" "$1" && grep -q "^execute GOOSE_MAX_TOKENS=700$" "$1" && ! grep -qE "=(3072|8192)$" "$1"' _ "$ENV_DUMP19D"
+
+DEST19E="$SCRATCH/maxtok2/taskrepo"
 bash "$RUN_LOOP" "$DEST19E" "$TASK_PROMPT" --dry-run --max-iterations 1 > "$SCRATCH/maxtok_dry.out" 2>&1
-assert_true "the dry-run print shows the cap so an operator can see it" file_has "$SCRATCH/maxtok_dry.out" "GOOSE_MAX_TOKENS=3072"
-LOOP_MAX_TOKENS=lots bash "$RUN_LOOP" "$DEST19E" "$TASK_PROMPT" > "$SCRATCH/maxtok_bad.out" 2>&1
-assert_eq "$?" "1" "LOOP_MAX_TOKENS=lots exits 1"
+assert_true "the dry-run print shows the caps so an operator can see them" bash -c '
+  file_has "$1" "GOOSE_MAX_TOKENS=3072" && file_has "$1" "GOOSE_MAX_TOKENS=8192"' _ "$SCRATCH/maxtok_dry.out"
+
+echo
+echo "----- (19e) 0 and non-integers are refused for timeouts and caps; the clamp is announced -----"
+for kv in LOOP_MAX_TOKENS=lots LOOP_MAX_TOKENS=0 LOOP_GATE_TIMEOUT=0 LOOP_STAGE_TIMEOUT=0 LOOP_STAGE_TIMEOUT=30m LOOP_STAGE_MAX_TOKENS=0; do
+  env "$kv" bash "$RUN_LOOP" "$DEST19E" "$TASK_PROMPT" > "$SCRATCH/badknob.out" 2>&1
+  rc=$?
+  assert_true "$kv is refused with exit 1 and names the knob" bash -c '[ "$1" -eq 1 ] && grep -q "$2 must be an integer of at least 1" "$3"' _ "$rc" "${kv%%=*}" "$SCRATCH/badknob.out"
+done
+LOOP_STAGE_TIMEOUT=5 LOOP_GATE_TIMEOUT=500 bash "$RUN_LOOP" "$DEST19E" "$TASK_PROMPT" --dry-run --max-iterations 1 > "$SCRATCH/clamp.out" 2>&1
+assert_true "a gate timeout above the stage timeout is clamped and announced" bash -c '
+  file_has "$1" "LOOP_GATE_TIMEOUT=500 is above LOOP_STAGE_TIMEOUT=5; using 5" && grep -q "timeout 5 \|gtimeout 5 \|perl 5 " "$1"' _ "$SCRATCH/clamp.out"
+
+echo
+echo "----- (19f) two runs in the same second get distinct worktrees and branches -----"
+DEST19F="$SCRATCH/samesec/taskrepo"
+bash "$RESET_TASK" --dest "$DEST19F" >/dev/null
+bash "$RUN_LOOP" "$DEST19F" "$TASK_PROMPT" --dry-run --max-iterations 1 > "$SCRATCH/samesec1.out" 2>&1 &
+bash "$RUN_LOOP" "$DEST19F" "$TASK_PROMPT" --dry-run --max-iterations 1 > "$SCRATCH/samesec2.out" 2>&1 &
+wait
+bash "$RUN_LOOP" "$DEST19F" "$TASK_PROMPT" --dry-run --max-iterations 1 > "$SCRATCH/samesec3.out" 2>&1
+NWT19F=$(find "$DEST19F/.loop" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
+NBR19F=$(git -C "$DEST19F" branch --list 'loop/*' | wc -l | tr -d ' ')
+assert_eq "$NWT19F" "3" "three runs produced three distinct worktrees"
+assert_eq "$NBR19F" "3" "three runs produced three distinct loop/ branches"
+assert_true "no run failed on the collision" bash -c '! grep -q "worktree add failed" "$1" "$2" "$3"' _ "$SCRATCH/samesec1.out" "$SCRATCH/samesec2.out" "$SCRATCH/samesec3.out"
+
+echo
+echo "----- (19g) a tool call cut at the output cap is retried once with a split reminder -----"
+DEST19G="$SCRATCH/truncated/taskrepo"
+bash "$RESET_TASK" --dest "$DEST19G" >/dev/null
+SHIMDIR19G="$SCRATCH/shim-truncated"
+mkdir -p "$SHIMDIR19G"
+write_gate_shim "$SHIMDIR19G/goose"
+cat > "$SHIMDIR19G/goose-wrap" <<'SHIM'
+#!/usr/bin/env bash
+# First call only: pretend goose cut a tool call at the output limit.
+if [ ! -f "$SHIM_STATE_DIR/truncated_once" ]; then
+  mkdir -p "$SHIM_STATE_DIR"; touch "$SHIM_STATE_DIR/truncated_once"
+  cat > /dev/null
+  echo "goose: it hit the output token limit while generating this tool call. Try increasing max_tokens for this provider or breaking the task into smaller steps."
+  exit 1
+fi
+exec "$(dirname "$0")/goose" "$@"
+SHIM
+chmod +x "$SHIMDIR19G/goose-wrap"
+LOOP_HARNESS_CMD="$SHIMDIR19G/goose-wrap -i {prompt}" SHIM_STATE_DIR="$SCRATCH/state-truncated" \
+  bash "$RUN_LOOP" "$DEST19G" "$TASK_PROMPT" --max-iterations 1 > "$SCRATCH/truncated.out" 2>&1
+RC19G=$?
+assert_eq "$RC19G" "0" "the run passes after the split-reminder retry"
+assert_true "the driver named the cut and retried once" file_has "$SCRATCH/truncated.out" "cut at the output cap; retrying once with a split reminder"
+WT19G="$(find "$DEST19G/.loop" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+assert_true "the retry prompt carries the split reminder" file_has "$WT19G/.loop-run/logs/plan_prompt_retry.md" "Split the work"
 
 # --------------------------------------------------------------------
 # 20. A target repo that tracks a bookkeeping name at its root is

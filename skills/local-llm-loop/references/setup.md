@@ -71,12 +71,22 @@ alone — no single prompt carries the whole diff.
 iteration; a gate still reporting findings after that many rounds stops
 the loop as "not converged".
 
-`LOOP_MAX_TOKENS` (default 3072) is the output-token cap sent to the
-harness as `GOOSE_MAX_TOKENS` on every call. 3072 is the benchmark's
-recommended client cap for tool-calling tasks (`local-coding-env`
-REPORT.md). It bounds a runaway generation at the server instead of
-waiting for the stage timeout: `GOOSE_MAX_TOKENS=48` was verified live
-to truncate a 400-line answer to 7 lines.
+`LOOP_MAX_TOKENS` (default 3072) is the output-token cap for the three
+gate stages, sent to the harness as `GOOSE_MAX_TOKENS`. 3072 is the
+benchmark's recommended client cap for tool-calling tasks
+(`local-coding-env` REPORT.md). It bounds a runaway generation at the
+server instead of waiting for the stage timeout: `GOOSE_MAX_TOKENS=48`
+was verified live to truncate a 400-line answer to 7 lines.
+
+`LOOP_STAGE_MAX_TOKENS` (default 8192) is the same cap for the plan,
+execute and fix stages, which write files. The benchmark measured 3072
+truncating whole-file writes, so those stages get the larger budget. A
+tool call cut at either cap is retried once with a reminder to split
+the write.
+
+All four timeout and cap knobs (`LOOP_STAGE_TIMEOUT`, `LOOP_GATE_TIMEOUT`,
+`LOOP_MAX_TOKENS`, `LOOP_STAGE_MAX_TOKENS`) must be integers of at least
+1: 0 would disable a timeout and goose rejects a 0 cap.
 
 `LOOP_GATE_TIMEOUT` (default 300 seconds) is the per-stage timeout for
 the three gate stages, and is never set above `LOOP_STAGE_TIMEOUT`. A

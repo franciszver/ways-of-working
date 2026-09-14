@@ -68,11 +68,17 @@ Environment (see env.example):
                         seconds (default 300). A gate writes at most ten
                         lines, so a gate still running at this limit is a
                         runaway generation, not slow work.
-  LOOP_MAX_TOKENS      Optional. Output-token cap sent to the harness as
-                        GOOSE_MAX_TOKENS on every call (default 3072, the
+  LOOP_MAX_TOKENS      Optional. Output-token cap for the gate stages, sent
+                        to the harness as GOOSE_MAX_TOKENS (default 3072, the
                         benchmark's recommended client cap for tool-calling
                         tasks). Bounds a runaway at the server instead of
                         waiting for the stage timeout.
+  LOOP_STAGE_MAX_TOKENS
+                       Optional. The same cap for plan, execute and fix
+                        stages, which write files (default 8192). A write
+                        cut at the cap is retried once with a reminder to
+                        split it.
+                       All timeouts and caps must be integers of at least 1.
   LOOP_HARNESS_CMD     Optional. The CLI harness command to run each stage
                         through, with `{prompt}` substituted for the stage's
                         prompt file. Default: `goose run --no-session -i
@@ -203,9 +209,8 @@ DIFF_SPLIT_BYTES="${LOOP_DIFF_SPLIT_BYTES:-32768}"
 GATE_ROUNDS="${LOOP_GATE_ROUNDS:-2}"
 GATE_TIMEOUT="${LOOP_GATE_TIMEOUT:-300}"
 MAX_TOKENS="${LOOP_MAX_TOKENS:-3072}"
-for pair in "LOOP_DIFF_SPLIT_BYTES=$DIFF_SPLIT_BYTES" "LOOP_GATE_ROUNDS=$GATE_ROUNDS" \
-            "LOOP_GATE_TIMEOUT=$GATE_TIMEOUT" "LOOP_MAX_TOKENS=$MAX_TOKENS" \
-            "LOOP_STAGE_TIMEOUT=$STAGE_TIMEOUT"; do
+STAGE_MAX_TOKENS="${LOOP_STAGE_MAX_TOKENS:-8192}"
+for pair in "LOOP_DIFF_SPLIT_BYTES=$DIFF_SPLIT_BYTES" "LOOP_GATE_ROUNDS=$GATE_ROUNDS"; do
   case "${pair#*=}" in
     ''|*[!0-9]*)
       echo "run_loop.sh: ${pair%%=*} must be a non-negative integer, got '${pair#*=}'" >&2
@@ -213,8 +218,20 @@ for pair in "LOOP_DIFF_SPLIT_BYTES=$DIFF_SPLIT_BYTES" "LOOP_GATE_ROUNDS=$GATE_RO
       ;;
   esac
 done
+# Timeouts and token caps: 0 would mean "no limit" to GNU timeout and
+# perl's alarm, and goose rejects a 0 cap, so 0 is refused, not blessed.
+for pair in "LOOP_STAGE_TIMEOUT=$STAGE_TIMEOUT" "LOOP_GATE_TIMEOUT=$GATE_TIMEOUT" \
+            "LOOP_MAX_TOKENS=$MAX_TOKENS" "LOOP_STAGE_MAX_TOKENS=$STAGE_MAX_TOKENS"; do
+  case "${pair#*=}" in
+    ''|*[!0-9]*|0)
+      echo "run_loop.sh: ${pair%%=*} must be an integer of at least 1, got '${pair#*=}'" >&2
+      exit 1
+      ;;
+  esac
+done
 # A gate never gets a longer budget than an ordinary stage.
 if [ "$GATE_TIMEOUT" -gt "$STAGE_TIMEOUT" ]; then
+  echo "run_loop.sh: LOOP_GATE_TIMEOUT=$GATE_TIMEOUT is above LOOP_STAGE_TIMEOUT=$STAGE_TIMEOUT; using $STAGE_TIMEOUT for the gates" >&2
   GATE_TIMEOUT="$STAGE_TIMEOUT"
 fi
 
@@ -266,9 +283,13 @@ is_gate() {
   [ -n "$(gate_output_file "$1")" ]
 }
 
-# Per-stage timeout: gates get the shorter budget.
+# Per-stage timeout and output cap: gates get the shorter budgets;
+# plan, execute and fix write files and get the larger cap.
 stage_timeout_for() {
   if is_gate "$1"; then echo "$GATE_TIMEOUT"; else echo "$STAGE_TIMEOUT"; fi
+}
+stage_max_tokens_for() {
+  if is_gate "$1"; then echo "$MAX_TOKENS"; else echo "$STAGE_MAX_TOKENS"; fi
 }
 
 # --------------------------------------------------------------------
@@ -337,26 +358,28 @@ for f in PLAN.md PLAN_INPUT.md HANDOFF.md NEXT_STEP.md TEST_OUTPUT.txt \
   fi
 done
 
-TS="$(date +%Y%m%d-%H%M%S)"
+TS0="$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$REPO_PATH/.loop"
-# Two runs in the same second (a dry run right after a real one) must
-# not collide on the worktree name or the branch.
-_suffix=""
+# Two runs in the same second (a dry run right after a real one, or two
+# concurrent starts) must not collide on the worktree name or the
+# branch. git's own add is the check: on failure, try the next suffix.
 _k=1
-while [ -e "$REPO_PATH/.loop/$TS$_suffix" ] \
-   || git -C "$REPO_PATH" show-ref --verify --quiet "refs/heads/loop/$TS$_suffix"; do
+TS="$TS0"
+while :; do
+  BRANCH="loop/$TS"
+  WORKTREE="$REPO_PATH/.loop/$TS"
+  if git -C "$REPO_PATH" worktree add -b "$BRANCH" "$WORKTREE" >/dev/null 2>"$REPO_PATH/.loop/.add_err"; then
+    break
+  fi
   _k=$((_k + 1))
-  _suffix="-$_k"
+  if [ "$_k" -gt 20 ]; then
+    echo "run_loop.sh: git worktree add failed: $(cat "$REPO_PATH/.loop/.add_err")" >&2
+    exit 1
+  fi
+  TS="$TS0-$_k"
 done
-TS="$TS$_suffix"
-BRANCH="loop/$TS"
-WORKTREE="$REPO_PATH/.loop/$TS"
-
-echo "run_loop.sh: creating worktree $WORKTREE on branch $BRANCH"
-if ! git -C "$REPO_PATH" worktree add -b "$BRANCH" "$WORKTREE" >/dev/null; then
-  echo "run_loop.sh: git worktree add failed" >&2
-  exit 1
-fi
+rm -f "$REPO_PATH/.loop/.add_err"
+echo "run_loop.sh: created worktree $WORKTREE on branch $BRANCH"
 
 BASE_COMMIT="$(git -C "$WORKTREE" rev-parse HEAD)"
 LOG_DIR="$WORKTREE/.loop-run/logs"
@@ -481,8 +504,11 @@ build_stage_prompt() {
   fi
 }
 
+# invoke_goose <prompt> <log> <timeout> <max_tokens>: the last two are
+# required so a call site can never silently fall back to the long
+# budget for a gate.
 invoke_goose() {
-  local prompt_file="$1" log_file="$2" stage_timeout="${3:-$STAGE_TIMEOUT}"
+  local prompt_file="$1" log_file="$2" stage_timeout="${3:?invoke_goose: timeout required}" max_tokens="${4:?invoke_goose: max_tokens required}"
   local cmd=() quoted_prompt template
   # LOOP_HARNESS_CMD is parsed with normal shell word/quoting rules, not
   # naive whitespace splitting, so a quoted multi-word argument in the
@@ -497,7 +523,7 @@ invoke_goose() {
   eval "cmd=( $template )"
 
   if $DRY_RUN; then
-    echo "[dry-run] would run: (cd $WORKTREE && env XDG_CONFIG_HOME=$GOOSE_CONFIG_DIR OPENAI_HOST=$OPENAI_HOST OPENAI_API_KEY=*** GOOSE_PROVIDER=openai GOOSE_MODEL=$GOOSE_MODEL GOOSE_MAX_TOKENS=$MAX_TOKENS GOOSE_DISABLE_KEYRING=1 GOOSE_TELEMETRY_ENABLED=false $TIMEOUT_BIN $stage_timeout $(printf '%q ' "${cmd[@]}")) > $log_file 2>&1"
+    echo "[dry-run] would run: (cd $WORKTREE && env XDG_CONFIG_HOME=$GOOSE_CONFIG_DIR OPENAI_HOST=$OPENAI_HOST OPENAI_API_KEY=*** GOOSE_PROVIDER=openai GOOSE_MODEL=$GOOSE_MODEL GOOSE_MAX_TOKENS=$max_tokens GOOSE_DISABLE_KEYRING=1 GOOSE_TELEMETRY_ENABLED=false $TIMEOUT_BIN $stage_timeout $(printf '%q ' "${cmd[@]}")) > $log_file 2>&1"
     : > "$log_file"
     return 0
   fi
@@ -508,8 +534,8 @@ invoke_goose() {
     export GOOSE_PROVIDER=openai GOOSE_MODEL="$GOOSE_MODEL" GOOSE_DISABLE_KEYRING=1
     export GOOSE_TELEMETRY_ENABLED=false
     # Output cap on every call: a runaway generation stops at the
-    # server after MAX_TOKENS instead of running to the stage timeout.
-    export GOOSE_MAX_TOKENS="$MAX_TOKENS"
+    # server after the cap instead of running to the stage timeout.
+    export GOOSE_MAX_TOKENS="$max_tokens"
     run_with_timeout "$stage_timeout" "${cmd[@]}" < /dev/null
   ) > "$log_file" 2>&1
   return $?
@@ -525,10 +551,15 @@ RETRY_TRIGGER_HTTP_500='HTTP 500'
 # checked separately rather than folded into the regex above as if the
 # two were equivalent.
 RETRY_TRIGGER_LLAMACPP_FALLBACK='does not match the expected'
+# Retry trigger, output cap: goose's own message when a tool call was
+# cut at GOOSE_MAX_TOKENS. The retry nudge tells the model to split the
+# write instead of raising the cap.
+RETRY_TRIGGER_TRUNCATED='hit the output token limit'
 
 log_has_retry_trigger() {
   grep -qE "$RETRY_TRIGGER_HTTP_500" "$1" 2>/dev/null \
-    || grep -qF "$RETRY_TRIGGER_LLAMACPP_FALLBACK" "$1" 2>/dev/null
+    || grep -qF "$RETRY_TRIGGER_LLAMACPP_FALLBACK" "$1" 2>/dev/null \
+    || grep -qF "$RETRY_TRIGGER_TRUNCATED" "$1" 2>/dev/null
 }
 
 # Retry prompts differ from the first attempt on purpose: at temperature
@@ -536,6 +567,7 @@ log_has_retry_trigger() {
 # a malformed call or a missing output file would replay the same path.
 # One appended line changes the prefix and gives the model the reason.
 RETRY_NUDGE_FORMAT='Note: the previous attempt produced a malformed tool call. Keep every tool call small, under 300 tokens, one file per call.'
+RETRY_NUDGE_TRUNCATED='Note: the previous attempt was cut off at the output limit. Split the work: write one file per call and keep each write under 500 lines.'
 RETRY_NUDGE_MISSING='Note: the previous attempt ended without writing %s. Write %s at the root of the current directory now, in one call, then stop.'
 
 # Runs one fresh-context goose stage, retrying once on a format
@@ -549,9 +581,10 @@ RETRY_NUDGE_MISSING='Note: the previous attempt ended without writing %s. Write 
 #   retry is the caller's problem (gates fail closed on it).
 run_model_stage() {
   local name="$1" prompt_file="$2" expected="${3:-}"
-  local n log_file goose_rc attempt built_prompt retry_prompt nudge stage_timeout
+  local n log_file goose_rc attempt built_prompt retry_prompt nudge stage_timeout max_tokens
   STAGES_RUN+=("$name")
   stage_timeout="$(stage_timeout_for "$name")"
+  max_tokens="$(stage_max_tokens_for "$name")"
 
   built_prompt="$LOG_DIR/${name}_prompt.md"
   build_stage_prompt "$prompt_file" "$built_prompt" "$name"
@@ -561,11 +594,11 @@ run_model_stage() {
     next_step_n; n="$STEP_N"
     if [ "$attempt" -eq 1 ]; then
       log_file="$LOG_DIR/${name}_${n}.log"
-      invoke_goose "$built_prompt" "$log_file" "$stage_timeout"
+      invoke_goose "$built_prompt" "$log_file" "$stage_timeout" "$max_tokens"
     else
       log_file="$LOG_DIR/${name}_${n}_retry.log"
       { cat "$built_prompt"; printf '\n%s\n' "$nudge"; } > "$retry_prompt"
-      invoke_goose "$retry_prompt" "$log_file" "$stage_timeout"
+      invoke_goose "$retry_prompt" "$log_file" "$stage_timeout" "$max_tokens"
     fi
     goose_rc=$?
 
@@ -575,8 +608,13 @@ run_model_stage() {
 
     if log_has_retry_trigger "$log_file"; then
       if [ "$attempt" -lt 2 ]; then
-        echo "run_loop.sh: stage '$name' hit a format rejection; retrying once" >&2
-        nudge="$RETRY_NUDGE_FORMAT"
+        if grep -qF "$RETRY_TRIGGER_TRUNCATED" "$log_file" 2>/dev/null; then
+          echo "run_loop.sh: stage '$name' was cut at the output cap; retrying once with a split reminder" >&2
+          nudge="$RETRY_NUDGE_TRUNCATED"
+        else
+          echo "run_loop.sh: stage '$name' hit a format rejection; retrying once" >&2
+          nudge="$RETRY_NUDGE_FORMAT"
+        fi
         continue
       elif ! $DRY_RUN; then
         # The retry hit the same format rejection -- don't go silent.

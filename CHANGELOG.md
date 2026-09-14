@@ -8,10 +8,17 @@ All notable changes to this repo are recorded here. Format loosely follows
 ## [0.13.0] - 2026-09-14
 
 - **`local-llm-loop`: bound gate output and gate timeout separately** (#40):
-  `run_loop.sh` now sends `LOOP_MAX_TOKENS` (default 3072, the
-  benchmark's recommended client cap for tool-calling tasks) to the
-  harness as `GOOSE_MAX_TOKENS` on every call, so a runaway generation
-  stops at the server instead of only at the stage timeout. The three
+  `run_loop.sh` now sends an output-token cap to the harness as
+  `GOOSE_MAX_TOKENS` on every call, so a runaway generation stops at the
+  server instead of only at the stage timeout: `LOOP_MAX_TOKENS`
+  (default 3072, the benchmark's recommended client cap for tool-calling
+  tasks) for the three gate stages, `LOOP_STAGE_MAX_TOKENS` (default
+  8192) for plan, execute and fix, which write files. A tool call cut at
+  the cap is retried once with a reminder to split the write.
+  `LOOP_STAGE_TIMEOUT`, `LOOP_GATE_TIMEOUT` and both caps are now
+  validated as integers of at least 1 (a `30m`-style value that GNU
+  `timeout` used to accept is refused, and 0 no longer disables a
+  timeout). The three
   gate stages get their own `LOOP_GATE_TIMEOUT` (default 300 seconds,
   never above `LOOP_STAGE_TIMEOUT`), since a gate writes at most ten
   lines and a gate still running at 300s is a runaway, not slow work.
