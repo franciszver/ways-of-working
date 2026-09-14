@@ -16,6 +16,7 @@ every surface that carries a compression of it:
 | `antigravity/workflows/<name>.md` | Nothing by hand — run `python3 scripts/gen-ports.py`, which regenerates the stub's `description:` from `skills/<name>/SKILL.md` |
 | `ports/agents-md/AGENTS.md` | Nothing by hand for the skill pointer line — the same `gen-ports.py` run regenerates it; edit the file directly only for its always-on floor |
 | `agents/*.md` | Only if the skill is one of the four subagent definitions; each preloads its matching skill's full text |
+| `mcp-server/library.py` (`_ROUTE_HINT_SOURCE`) | A new canonical skill needs a route hint that mentions its exact name in the hint text; `test_every_canonical_skill_has_a_route_hint` enforces this |
 
 `ports/cursor/` is not per-skill: it carries only the always-on floor
 (`baseline.mdc`) plus two glob-scoped rules `SKILL.md` cannot express

@@ -61,9 +61,11 @@ PACKS = ("skills", "skills-local")
 # reference really means "this file may exist in the repo/install this
 # skill runs in" — not just because the filename happens to match.
 REFERENCE_ALLOWLIST = {
-    "REVIEW.md": {("skills", "deep-review"), ("skills-local", "deep-review")},
+    "REVIEW.md": {("skills", "deep-review"), ("skills-local", "deep-review"), ("skills", "local-llm-loop")},
     "CLAUDE.md": {("skills", "deep-review")},
-    "HANDOFF.md": {("skills", "handoff"), ("skills-local", "handoff")},
+    "HANDOFF.md": {("skills", "handoff"), ("skills-local", "handoff"), ("skills", "local-llm-loop")},
+    "LOOP_SUMMARY.md": {("skills", "local-llm-loop")},
+    "NEXT_STEP.md": {("skills", "local-llm-loop")},
     "WORKPLAN.md": {("skills", "apply-working-process"), ("skills-local", "apply-working-process")},
     "TASKS.md": {("skills", "breakdown")},
     "DECISIONS.md": {("skills", "apply-working-process"), ("skills-local", "apply-working-process")},

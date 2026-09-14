@@ -43,6 +43,7 @@ Each line points at one canonical skill's full protocol. Load the file at its pa
 - @.agents/skills/handoff/SKILL.md — Use when context is running long, when ending a session mid-task, when downshifting work to a smaller model, or when delegating a subtask.
 - @.agents/skills/incident/SKILL.md — Use when production is down or degraded, users are impacted, an alert is firing, or "something is wrong in prod" — before any root-cause work.
 - @.agents/skills/lean-max-effort/SKILL.md — Use when a task spans multiple steps, files, or tool calls, or when the user asks for thoroughness, tokens, budget, or efficiency.
+- @.agents/skills/local-llm-loop/SKILL.md — Use when Claude Code or any agent runs against a local server (ANTHROPIC_BASE_URL, llama.cpp, Ollama, LM Studio), or when tuning that server's inference flags.
 - @.agents/skills/migrate/SKILL.md — Use for dependency/framework/language upgrades, API version bumps, database schema or data migrations, and platform moves.
 - @.agents/skills/onboard/SKILL.md — Use when joining a project, picking up an unfamiliar repo/service/module, or before making changes in code you've never touched.
 - @.agents/skills/perf/SKILL.md — Use when something is slow, uses too much memory, or costs too much; when asked to optimize; or when setting performance budgets.

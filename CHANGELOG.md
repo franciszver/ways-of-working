@@ -5,6 +5,21 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-14
+
+- **New skill: `local-llm-loop`** (#36): the measured working loop for a
+  coding agent backed by a local, small-active-parameter model — short
+  steps, a mechanical check after every write, tolerant of
+  format-rejection retries and prose-instead-of-a-call. Bundles a
+  runnable unattended loop driver (`scripts/run_loop.sh`,
+  `scripts/test_loop.sh`, stage prompts, a hardened example Goose
+  config) under `skills/local-llm-loop/scripts/`, following
+  `demo-video`'s convention of shipping SKILL.md + scripts/ +
+  references/ together. Every rule cites the benchmark run that
+  justifies it, in `local-coding-env`. `references/setup.md` covers
+  server prerequisites, the Goose install line, and endpoint env vars.
+  Compact twin at `skills-local/local-llm-loop/SKILL.md`.
+
 ## [0.10.0] - 2026-09-13
 
 The Claude Code profile plugin hides four owner-triggered skills from the

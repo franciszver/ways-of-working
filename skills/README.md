@@ -46,6 +46,12 @@ Judgment-dense skills tuned for frontier models (Opus, Sonnet) in Claude Code. E
 | [`postmortem`](postmortem/) | Blameless retrospective — plural causes, owned action items | After any incident, outage, data loss, or near-miss |
 | [`release`](release/) | Staged-exposure deploys — verify, ramp, watch, rollback-ready | Deploying, releasing, publishing, flipping major flags |
 
+### Local models
+
+| Skill | One line | Reach for it when |
+|---|---|---|
+| [`local-llm-loop`](local-llm-loop/) | Short steps, checked after every write, tolerant of format-rejection retries — the measured working loop for a local small-active-parameter model | An agent runs against a local model server, or you're tuning that server's inference flags |
+
 ### Codebase navigation
 
 | Skill | One line | Reach for it when |

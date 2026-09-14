@@ -1,0 +1,128 @@
+# Hardened Goose CLI config for the local-llm-loop driver.
+#
+# Provider/model/host/key come from env vars (OPENAI_HOST, OPENAI_API_KEY,
+# GOOSE_MODEL — see env.example) — this file carries only extension,
+# tool-permission, and telemetry settings, so it can be tracked in git
+# without secrets or endpoint details.
+#
+# Rationale: the measured benchmark behind this skill found Goose offering
+# the model 18 tools by default (developer's 5 plus analyze, todo, apps x4,
+# extensionmanager x4, summon's load/delegate, skills' load_skill), and the
+# model mis-picked read_image on .html/.js files under selection pressure.
+# This config keeps only the `developer` extension (shell, edit, write,
+# tree) and drops read_image plus every other default-on platform
+# extension, so the model sees the same small tool surface it was
+# validated against — a small-active-parameter model is measurably more
+# reliable at tool selection when the tool list is short (see this skill's
+# SKILL.md, step 9).
+#
+# Extension entries below use `type: platform` and exact name/display_name/
+# description text matching Goose's built-in registry so Goose's own
+# config migration sees nothing to change and never rewrites this tracked
+# file on first run. Re-check this against your installed Goose version's
+# registry if extension names ever drift.
+#
+# To use: copy this directory (or point run_loop.sh's XDG_CONFIG_HOME at a
+# copy of it) so the "goose/config.yaml" path resolves to this file, e.g.:
+#
+#   mkdir -p ~/.config/local-llm-loop/goose
+#   cp goose-config.example.yaml ~/.config/local-llm-loop/goose/config.yaml
+#   export XDG_CONFIG_HOME=~/.config/local-llm-loop
+#
+# run_loop.sh copies whatever config it finds at
+# $XDG_CONFIG_HOME/goose/config.yaml into each run's own isolated config
+# directory; if XDG_CONFIG_HOME is unset, it falls back to this bundled
+# file directly.
+
+GOOSE_TELEMETRY_ENABLED: false
+
+extensions:
+  developer:
+    enabled: true
+    type: platform
+    name: developer
+    display_name: Developer
+    description: Write and edit files, and execute shell commands
+    bundled: true
+    available_tools:
+      - shell
+      - edit
+      - write
+      - tree
+  analyze:
+    enabled: false
+    type: platform
+    name: analyze
+    display_name: Analyze
+    description: "Analyze code structure with tree-sitter: directory overviews, file details, symbol call graphs"
+    bundled: true
+  todo:
+    enabled: false
+    type: platform
+    name: todo
+    display_name: Todo
+    description: Enable a todo list for goose so it can keep track of what it is doing
+    bundled: true
+  apps:
+    enabled: false
+    type: platform
+    name: apps
+    display_name: Apps
+    description: Create and manage custom Goose apps through chat. Apps are HTML/CSS/JavaScript and run in sandboxed windows.
+    bundled: true
+  extensionmanager:
+    enabled: false
+    type: platform
+    name: Extension Manager
+    display_name: Extension Manager
+    description: Enable extension management tools for discovering, enabling, and disabling extensions
+    bundled: true
+  summon:
+    enabled: false
+    type: platform
+    name: summon
+    display_name: Summon
+    description: Load knowledge and delegate tasks to subagents
+    bundled: true
+  skills:
+    enabled: false
+    type: platform
+    name: skills
+    display_name: Skills
+    description: Discover and provide skill instructions from filesystem and builtins
+    bundled: true
+  tom:
+    enabled: false
+    type: platform
+    name: tom
+    display_name: Top Of Mind
+    description: Inject custom context into every turn via GOOSE_MOIM_MESSAGE_TEXT and GOOSE_MOIM_MESSAGE_FILE environment variables
+    bundled: true
+  chatrecall:
+    enabled: false
+    type: platform
+    name: chatrecall
+    display_name: Chat Recall
+    description: Search past conversations and load session summaries for contextual memory
+    bundled: true
+  scheduler:
+    enabled: false
+    type: platform
+    name: scheduler
+    display_name: Scheduler
+    description: Create and manage scheduled recipe execution
+    bundled: true
+  orchestrator:
+    enabled: false
+    type: platform
+    name: orchestrator
+    display_name: Orchestrator
+    description: "Manage agent sessions: list, view, start, send messages, interrupt, and stop agents"
+    bundled: true
+  summarize:
+    enabled: false
+    type: platform
+    name: summarize
+    display_name: Summarize
+    description: Load files/directories and get an LLM summary in a single call
+    bundled: true
