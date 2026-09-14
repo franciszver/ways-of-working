@@ -183,6 +183,24 @@ infer_installed_profile() { # $1 = base; echoes frontier|local, or nothing if no
   echo ""
 }
 
+end_marker_for() { # $1 = begin marker line; echoes the matching end marker. Not ${marker/…/\/…}: bash 3.2 (macOS) keeps the backslash in the replacement.
+  local marker="$1"
+  echo "<!-- /${marker#<!-- }"
+}
+
+realpath_m() { # $1 = path; `realpath -m` (resolve even if missing), portable to BSD/macOS realpath which lacks -m
+  if realpath -m / >/dev/null 2>&1; then
+    realpath -m "$1"
+    return
+  fi
+  local p="$1" suffix=""
+  while [ ! -e "$p" ]; do
+    suffix="/$(basename "$p")$suffix"
+    p="$(dirname "$p")"
+  done
+  echo "$(readlink -f "$p")$suffix"
+}
+
 resolve_target() { # $1 = path; echoes the resolved real path (dereferences a symlink), even if it doesn't exist yet
   local path="$1"
   if [ -e "$path" ]; then
@@ -205,7 +223,7 @@ guarded_block_range() { # $1 = target file, $2 = begin marker line; echoes "STAR
   # the same begin marker, which counts as "the next marker". Comparisons
   # strip a trailing \r so CRLF files still match exactly.
   local target="$1" marker="$2" end_marker
-  end_marker="${marker/ways-of-working:/\/ways-of-working:}"
+  end_marker="$(end_marker_for "$marker")"
   awk -v marker="$marker" -v end_marker="$end_marker" '
     {
       line = $0
@@ -272,7 +290,7 @@ _copy_skill_dir_cb() { # $1 = source dir, $2 = name, $3 = dest skills dir
   # (users tune installed skills), --force refreshes them from the library.
   # --link installs a symlink to the library dir instead of a copy.
   local dir="$1" name="$2" dest="$3"
-  if [ "$(realpath -m "$dest/$name")" = "$(realpath "${dir%/}")" ]; then
+  if [ "$(realpath_m "$dest/$name")" = "$(realpath "${dir%/}")" ]; then
     note "skill source and destination are the same path, skipping: $dest/$name"
     return 0
   fi
@@ -315,7 +333,7 @@ guarded_block_replace() { # $1 = target file, $2 = begin marker line, $3 = sourc
     return 0
   fi
   _maybe_backup_legacy "$target" "$legacy"
-  end_marker="${marker/ways-of-working:/\/ways-of-working:}"
+  end_marker="$(end_marker_for "$marker")"
   resolved="$(resolve_target "$target")"
   tmp="$(mktemp "${resolved}.XXXXXX")"
   {
@@ -345,14 +363,18 @@ extract_guarded_block() { # $1 = target file, $2 = marker line; prints the block
 }
 
 append_guarded() { # $1 = snippet file, $2 = target file, $3 = begin marker
-  local snippet="$1" target="$2" marker="$3" count suffix end_marker
+  local snippet="$1" target="$2" marker="$3" count suffix end_marker resolved tmp
   if [ -f "$target" ] && [ "$(count_marker_lines "$target" "$marker")" -eq 0 ]; then
     suffix="${marker#*:}"
     suffix="${suffix% -->}"
     if grep -qE "^<!-- [a-z0-9-]+:${suffix} -->\$" "$target"; then
       note "migrated guard marker in $target"
       if [ "$DRY_RUN" -eq 0 ]; then
-        sed -i -E "s|^<!-- [a-z0-9-]+:${suffix} -->\$|${marker}|" "$target"
+        # BRE + tmp-file write: BSD sed has no GNU-style `-i -E` (it eats -E as the backup suffix)
+        resolved="$(resolve_target "$target")"
+        tmp="$(mktemp "${resolved}.XXXXXX")"
+        sed "s|^<!-- [a-z0-9-][a-z0-9-]*:${suffix} -->\$|${marker}|" "$target" > "$tmp"
+        _finish_write "$tmp" "$resolved"
       else
         echo "[dry-run] migrate guard marker in $target"
       fi
@@ -379,7 +401,7 @@ append_guarded() { # $1 = snippet file, $2 = target file, $3 = begin marker
 
   note "appending $(basename "$snippet") -> $target"
   if [ "$DRY_RUN" -eq 0 ]; then
-    end_marker="${marker/ways-of-working:/\/ways-of-working:}"
+    end_marker="$(end_marker_for "$marker")"
     mkdir -p "$(dirname "$target")"
     { echo ""; echo "$marker"; cat "$snippet"; echo "$end_marker"; } >> "$target"
   else
@@ -623,7 +645,7 @@ do_cursor() {
 
 refuse_if_inside_library() { # $1 = flag name (for the message), $2 = destination path; exits 1 if it resolves inside $LIB
   local flag="$1" dest="$2" dest_real lib_real
-  dest_real="$(realpath -m "$dest")"
+  dest_real="$(realpath_m "$dest")"
   lib_real="$(realpath "$LIB")"
   if [ "$dest_real" = "$lib_real" ] || [[ "$dest_real" == "$lib_real"/* ]]; then
     echo "Refusing $flag $dest: it resolves inside this library ($lib_real)." >&2
