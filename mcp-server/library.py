@@ -277,6 +277,13 @@ _ROUTE_HINT_SOURCE: list[tuple[tuple[str, ...], str]] = [
         "signals cost/quality discipline → lean-max-effort skill",
     ),
     (
+        (
+            r"(?i)\b(local.?llm|local.?model|llama\.?cpp|llama.?server|goose|offline.?agent|unattended.?loop|small.?active.?param(eter)?s?)\w*\b",
+            r"(?i)\bLM Studio\b",
+        ),
+        "signals a coding agent driven by a local small-active-parameter model → local-llm-loop skill, small verified steps with a check after every write",
+    ),
+    (
         (r"(?i)\b(ai writing tells?|sounds like ai|plain.?language)\w*\b",),
         "signals AI-writing-tell cleanup → plain-language skill",
     ),
