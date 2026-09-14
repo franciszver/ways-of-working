@@ -16,13 +16,7 @@ dangerous operation:
 Report a finding only when you can name the untrusted input and the line
 it reaches. Read the file at the cited line to confirm it.
 
-Write SECURITY.md: one finding per line, at most 10 lines, each in this
-exact shape (path relative to this directory, then the line number):
-
-    - path/to/file.py:LINE: which input reaches which operation, in one sentence
-
-If there is nothing to report, write exactly "no findings" plus a
-one-line reason.
+Write SECURITY.md, in the findings format below. On each line say which input reaches which operation.
 
 Rules:
 - Do not edit any file besides SECURITY.md.

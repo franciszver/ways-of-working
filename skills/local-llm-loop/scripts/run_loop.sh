@@ -175,6 +175,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROMPTS_DIR="$SCRIPT_DIR/prompts"
 BUNDLED_GOOSE_CONFIG="$SCRIPT_DIR/goose-config.example.yaml"
 COMMON_RULES_FILE="$PROMPTS_DIR/common-rules.md"
+GATE_RULES_FILE="$PROMPTS_DIR/gate-rules.md"
 
 MISSING=()
 [ -z "${OPENAI_HOST:-}" ] && MISSING+=("OPENAI_HOST")
@@ -199,12 +200,6 @@ GATE_ROUNDS="${LOOP_GATE_ROUNDS:-2}"
 # --------------------------------------------------------------------
 GATES=()
 if [ "$GATES_SPEC" != "none" ]; then
-  for g in simplify security review; do
-    case ",$GATES_SPEC," in
-      *",$g,"*) GATES+=("$g") ;;
-    esac
-  done
-  # Reject anything that is not a known gate name.
   IFS=',' read -r -a _spec_items <<< "$GATES_SPEC"
   for g in "${_spec_items[@]}"; do
     case "$g" in
@@ -214,6 +209,12 @@ if [ "$GATES_SPEC" != "none" ]; then
         exit 1
         ;;
     esac
+  done
+  # Fixed order regardless of how the list was written.
+  for g in simplify security review; do
+    for item in "${_spec_items[@]}"; do
+      [ "$item" = "$g" ] && GATES+=("$g") && break
+    done
   done
 fi
 
@@ -392,9 +393,15 @@ commit_or_warn() {
 # (small steps, one file per write, test after each write, no delete/git
 # beyond status+diff) live in exactly one file instead of being retyped
 # in every stage prompt.
+# Gate stages additionally get gate-rules.md: the one copy of the
+# findings-file format that filter_findings' FINDING_RE parses.
 build_stage_prompt() {
-  local base_prompt="$1" out="$2"
-  cat "$base_prompt" "$COMMON_RULES_FILE" > "$out"
+  local base_prompt="$1" out="$2" name="$3"
+  if [ -n "$(gate_output_file "$name")" ]; then
+    cat "$base_prompt" "$GATE_RULES_FILE" "$COMMON_RULES_FILE" > "$out"
+  else
+    cat "$base_prompt" "$COMMON_RULES_FILE" > "$out"
+  fi
 }
 
 invoke_goose() {
@@ -466,7 +473,7 @@ run_model_stage() {
   STAGES_RUN+=("$name")
 
   built_prompt="$LOG_DIR/${name}_prompt.md"
-  build_stage_prompt "$prompt_file" "$built_prompt"
+  build_stage_prompt "$prompt_file" "$built_prompt" "$name"
   retry_prompt="$LOG_DIR/${name}_prompt_retry.md"
 
   for attempt in 1 2; do
@@ -560,16 +567,20 @@ DELETES_REVERTED=0   # fix-stage commits reverted because they deleted files
 GATE_KEPT=0          # findings kept by the last filter_findings call
 GATE_DROPPED=0       # findings dropped by the last filter_findings call
 
-# The driver's own bookkeeping files are excluded from every gate diff:
-# a reviewer reading PLAN.md checkboxes or the last TEST_OUTPUT.txt is
-# spending prefill on noise, and a per-file split must count only the
-# task's files. Git pathspec form, used after `--` in git diff.
-GATE_DIFF_EXCLUDES=(
-  ':(exclude).gitignore' ':(exclude)PLAN.md' ':(exclude)PLAN_INPUT.md'
-  ':(exclude)HANDOFF.md' ':(exclude)NEXT_STEP.md' ':(exclude)TEST_OUTPUT.txt'
-  ':(exclude)FINDINGS.md' ':(exclude)SIMPLIFY.md' ':(exclude)SECURITY.md'
-  ':(exclude)REVIEW.md' ':(exclude)NEEDS_HUMAN.md'
+# Every file the driver or a stage writes at the worktree root for its
+# own bookkeeping. One list: the gate-diff excludes derive from it, so a
+# new bookkeeping file is added here and nowhere else. A reviewer
+# reading PLAN.md checkboxes or the last TEST_OUTPUT.txt spends prefill
+# on noise, and a per-file split must count only the task's files.
+BOOKKEEPING_FILES=(
+  .gitignore PLAN.md PLAN_INPUT.md HANDOFF.md NEXT_STEP.md TEST_OUTPUT.txt
+  FINDINGS.md NEEDS_HUMAN.md
+  "$(gate_output_file simplify)" "$(gate_output_file security)" "$(gate_output_file review)"
 )
+GATE_DIFF_EXCLUDES=()
+for f in "${BOOKKEEPING_FILES[@]}"; do
+  GATE_DIFF_EXCLUDES+=(":(exclude)$f")
+done
 
 # gate_diff [path]: the iteration's diff for the gates, bookkeeping
 # files excluded, optionally narrowed to one path.
@@ -606,9 +617,9 @@ filter_findings() {
     case "$line" in
       ''|'#'*) continue ;;
     esac
-    if printf '%s' "$line" | grep -qi 'no findings'; then
-      continue
-    fi
+    case "$line" in
+      *[Nn][Oo]\ [Ff][Ii][Nn][Dd][Ii][Nn][Gg][Ss]*) continue ;;
+    esac
     if [[ "$line" =~ $FINDING_RE ]]; then
       path="${BASH_REMATCH[2]}"
       if [ -f "$WORKTREE/$path" ]; then
@@ -642,6 +653,8 @@ run_gate() {
   files="$(git -C "$WORKTREE" diff --name-only "$ITER_BASE" HEAD -- . "${GATE_DIFF_EXCLUDES[@]}" 2>/dev/null)"
   nfiles="$(printf '%s\n' "$files" | grep -c .)"
   rm -f "$WORKTREE/$out"
+  # DIFF.txt is rewritten on entry to every run_gate call, so after a
+  # per-file split it is left holding the last file's diff on purpose.
 
   if [ "$diff_bytes" -gt "$DIFF_SPLIT_BYTES" ] && [ "$nfiles" -gt 1 ]; then
     echo "run_loop.sh: gate '$gate': diff is $diff_bytes bytes over $nfiles files (limit $DIFF_SPLIT_BYTES); running once per file" >&2
@@ -659,7 +672,6 @@ run_gate() {
     if [ -s "$acc" ]; then
       cp "$acc" "$WORKTREE/$out"
     fi
-    gate_diff > "$WORKTREE/.loop-run/DIFF.txt" || true
   else
     stage_or_abort "$gate" "$prompt" "$out"
   fi

@@ -15,13 +15,7 @@ Look only for defects in the changed lines:
 
 Before you list a finding, read the file at the cited line to confirm it.
 
-Write REVIEW.md: one finding per line, at most 10 lines, each in this
-exact shape (path relative to this directory, then the line number):
-
-    - path/to/file.py:LINE: what is wrong, in one sentence
-
-If you find nothing wrong, write exactly "no findings" plus a one-line
-reason.
+Write REVIEW.md, in the findings format below. On each line say what is wrong.
 
 Rules:
 - Do not edit any file besides REVIEW.md.

@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Tests for run_loop.sh. Runs entirely without a live model: a dry-run
-# against the bundled taskrepo fixture, and several `goose`/harness
-# shims on PATH (happy path, a 500-then-succeed retry path, a
-# non-goose harness, and a two-iteration review-diff path) — no live
-# model required.
+# against the bundled taskrepo fixture, and one shared `goose`/harness
+# shim on PATH driven by env knobs (happy path, a 500-then-succeed
+# retry path, a non-goose harness, gate order, findings filter, delete
+# guard, convergence cap, nudged retry, per-file split) plus two
+# specialized shims (a two-iteration review-diff path and an argv
+# quoting probe) — no live model required.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -115,7 +117,7 @@ git -C "$DEST2" worktree list 2>/dev/null | grep -q 'loop/'
 assert_eq "$?" "0" "dry-run registered a loop/<timestamp> branch worktree"
 
 assert_true "stage prompt files exist under scripts/prompts" bash -c '
-  [ -f "$1/plan.md" ] && [ -f "$1/execute.md" ] && [ -f "$1/review.md" ] && [ -f "$1/fix.md" ] && [ -f "$1/common-rules.md" ]
+  [ -f "$1/plan.md" ] && [ -f "$1/execute.md" ] && [ -f "$1/simplify.md" ] && [ -f "$1/security.md" ] && [ -f "$1/review.md" ] && [ -f "$1/fix.md" ] && [ -f "$1/common-rules.md" ] && [ -f "$1/gate-rules.md" ]
 ' _ "$SCRIPT_DIR/prompts"
 
 assert_true "dry-run seeded an isolated goose config from the bundled example" bash -c '[ -n "$1" ] && [ -f "$1/.loop-run/goose-config/goose/config.yaml" ]' _ "$WT2"
@@ -125,71 +127,92 @@ assert_true "dry-run's mechanical test stage actually ran the fixture's real tes
 ' _ "$WT2"
 
 # --------------------------------------------------------------------
-# Shared fake-goose shim body. Reads the -i <prompt file> argument to
-# tell which stage it's simulating (from the prompt filename) and
-# writes that stage's expected output file(s) into the cwd (the
-# worktree, since invoke_goose cd's there first). If FAIL_FIRST_CALL is
-# set and SHIM_STATE_DIR/called_once does not yet exist, it emits a
-# format-rejection message and fails instead, so run_loop.sh's retry
-# path is exercised exactly once, on its very first goose call. Every
-# stage prompt now has common-rules.md appended, so matching is still
-# by the stage prompt's basename, not exact content.
+# The shared fake-goose shim. Reads the -i <prompt file> argument to
+# tell which stage it is simulating (from the prompt filename; the
+# stage prompt has common-rules.md appended and a retry is named
+# *_prompt_retry.md, so matching is on the basename prefix) and writes
+# that stage's expected output file(s) into the cwd (the worktree).
+# Records every stage it is called for, in order, in
+# $SHIM_STATE_DIR/stages (default: .loop-run/shim-state in the
+# worktree, gitignored). Env knobs:
+#   FAIL_FIRST_CALL   emit a format-rejection and exit 1 on the very
+#                     first call only, to exercise the retry path once
+#   GATE_REVIEW_OUT   text the review gate writes to REVIEW.md; unset
+#                     means "no findings"; set but empty means write
+#                     nothing at all (prose instead of a call)
+#   REVIEW_SKIP_FIRST when set, the review gate writes nothing on its
+#                     first call only, then behaves normally
+#   FIX_DELETES       when set, the fix stage deletes this file
 # --------------------------------------------------------------------
-write_shim() {
+write_gate_shim() {
   local path="$1"
   cat > "$path" <<'SHIM'
 #!/usr/bin/env bash
 set -u
+STATE_DIR="${SHIM_STATE_DIR:-.loop-run/shim-state}"
+mkdir -p "$STATE_DIR"
 
-if [ -n "${FAIL_FIRST_CALL:-}" ] && [ -n "${SHIM_STATE_DIR:-}" ]; then
-  marker="$SHIM_STATE_DIR/called_once"
-  if [ ! -f "$marker" ]; then
-    mkdir -p "$SHIM_STATE_DIR"
-    touch "$marker"
-    echo "goose: request failed: HTTP 500 - does not match the expected peg-native format"
-    exit 1
-  fi
+if [ -n "${FAIL_FIRST_CALL:-}" ] && [ ! -f "$STATE_DIR/called_once" ]; then
+  touch "$STATE_DIR/called_once"
+  echo "goose: request failed: HTTP 500 - does not match the expected peg-native format"
+  exit 1
 fi
-
 prompt=""
 prev=""
 for a in "$@"; do
-  if [ "$prev" = "-i" ]; then
-    prompt="$a"
-  fi
+  if [ "$prev" = "-i" ]; then prompt="$a"; fi
   prev="$a"
 done
-
-case "$prompt" in
-  */plan_prompt*.md)
+stage="$(basename "$prompt" | sed 's/_prompt.*//')"
+echo "$stage" >> "$STATE_DIR/stages"
+cp .loop-run/DIFF.txt "$STATE_DIR/diff_seen_$(wc -l < "$STATE_DIR/stages" | tr -d ' ')_$stage.txt" 2>/dev/null || true
+case "$stage" in
+  plan)
     printf '1. [ ] do the thing\n' > PLAN.md
     printf '# Handoff: test\nUpdated: now - State: in progress\n' > HANDOFF.md
     ;;
-  */execute_prompt*.md)
+  execute)
+    echo "new code" > new_a.txt
+    echo "new code" > new_b.txt
     printf '1. [x] do the thing\n' > PLAN.md
     printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
     ;;
-  */simplify_prompt*.md)
-    printf 'no findings\n' > SIMPLIFY.md
+  simplify)  printf 'no findings\n' > SIMPLIFY.md ;;
+  security)  printf 'no findings\n' > SECURITY.md ;;
+  review)
+    if [ -n "${REVIEW_SKIP_FIRST:-}" ] && [ ! -f "$STATE_DIR/review_skipped" ]; then
+      touch "$STATE_DIR/review_skipped"
+      echo "I looked at the diff and it seems fine." # prose, no file written
+    elif [ -n "${GATE_REVIEW_OUT-no findings}" ]; then
+      # Unset: a clean review. Set but empty: write nothing at all.
+      printf '%b\n' "${GATE_REVIEW_OUT-no findings\nclean}" > REVIEW.md
+    fi
     ;;
-  */security_prompt*.md)
-    printf 'no findings\n' > SECURITY.md
+  fix)
+    cp FINDINGS.md "$STATE_DIR/findings_seen_$(wc -l < "$STATE_DIR/stages" | tr -d ' ').md"
+    if [ -n "${FIX_DELETES:-}" ]; then rm -f "$FIX_DELETES"; fi
+    printf '# Handoff: test\nUpdated: now - State: fixed\n' > HANDOFF.md
     ;;
-  */review_prompt*.md)
-    printf 'no findings\n' > REVIEW.md
-    ;;
-  */fix_prompt*.md)
-    printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
-    ;;
-  *)
-    echo "shim goose: unrecognized prompt file: $prompt" >&2
-    exit 1
-    ;;
+  *) echo "gate shim: unrecognized stage '$stage' from $prompt" >&2; exit 1 ;;
 esac
 exit 0
 SHIM
   chmod +x "$path"
 }
+
+run_gate_case() { # $1 = case name; remaining args passed to run_loop.sh
+  local name="$1"; shift
+  local dest="$SCRATCH/$name/taskrepo" shimdir="$SCRATCH/shim-$name"
+  bash "$RESET_TASK" --dest "$dest" >/dev/null
+  mkdir -p "$shimdir"
+  write_gate_shim "$shimdir/goose"
+  PATH="$shimdir:$PATH" SHIM_STATE_DIR="$SCRATCH/state-$name" \
+    bash "$RUN_LOOP" "$dest" "$TASK_PROMPT" "$@" > "$SCRATCH/$name.out" 2>&1
+  echo "$?" > "$SCRATCH/$name.rc"
+  cat "$SCRATCH/$name.out"
+}
+wt_of() { find "$SCRATCH/$1/taskrepo/.loop" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n1; }
+stages_of() { tr '\n' ' ' < "$SCRATCH/state-$1/stages" | sed 's/ $//'; }
 
 # --------------------------------------------------------------------
 # 3. Fake-goose happy path.
@@ -200,7 +223,7 @@ DEST3="$SCRATCH/shimok/taskrepo"
 bash "$RESET_TASK" --dest "$DEST3" >/dev/null
 SHIMDIR3="$SCRATCH/shim-ok"
 mkdir -p "$SHIMDIR3"
-write_shim "$SHIMDIR3/goose"
+write_gate_shim "$SHIMDIR3/goose"
 
 PATH="$SHIMDIR3:$PATH" bash "$RUN_LOOP" "$DEST3" "$TASK_PROMPT" --max-iterations 1 \
   > "$SCRATCH/shim_ok.out" 2>&1
@@ -232,7 +255,7 @@ DEST4="$SCRATCH/shimretry/taskrepo"
 bash "$RESET_TASK" --dest "$DEST4" >/dev/null
 SHIMDIR4="$SCRATCH/shim-retry"
 mkdir -p "$SHIMDIR4"
-write_shim "$SHIMDIR4/goose"
+write_gate_shim "$SHIMDIR4/goose"
 STATE4="$SCRATCH/shim-retry-state"
 
 PATH="$SHIMDIR4:$PATH" FAIL_FIRST_CALL=1 SHIM_STATE_DIR="$STATE4" \
@@ -321,7 +344,7 @@ DEST8="$SCRATCH/harness/taskrepo"
 bash "$RESET_TASK" --dest "$DEST8" >/dev/null
 SHIMDIR8="$SCRATCH/shim-harness"
 mkdir -p "$SHIMDIR8"
-write_shim "$SHIMDIR8/custom-harness"
+write_gate_shim "$SHIMDIR8/custom-harness"
 
 LOOP_HARNESS_CMD="$SHIMDIR8/custom-harness -i {prompt}" \
   bash "$RUN_LOOP" "$DEST8" "$TASK_PROMPT" --max-iterations 1 \
@@ -452,7 +475,7 @@ DEST10A="$SCRATCH/notimeout-ok/taskrepo"
 bash "$RESET_TASK" --dest "$DEST10A" >/dev/null
 SHIMDIR10A="$SCRATCH/shim-notimeout-ok"
 mkdir -p "$SHIMDIR10A"
-write_shim "$SHIMDIR10A/goose"
+write_gate_shim "$SHIMDIR10A/goose"
 
 PATH="$SHIMDIR10A:$NOTIMEOUT_PATH" bash "$RUN_LOOP" "$DEST10A" "$TASK_PROMPT" --max-iterations 1 \
   > "$SCRATCH/notimeout_ok.out" 2>&1
@@ -578,80 +601,6 @@ assert_true "argv[1] is --flag" bash -c 'sed -n "1p" "$1" | grep -qx -- "--flag"
 assert_true "argv[2] is the quoted value as one entry, unsplit" bash -c 'sed -n "2p" "$1" | grep -qx -- "quoted value"' _ "$ARGV_DUMP"
 assert_true "argv[3] is the substituted prompt file path" bash -c 'sed -n "3p" "$1" | grep -q -- "_prompt.md$"' _ "$ARGV_DUMP"
 assert_eq "$RC12" "0" "LOOP_HARNESS_CMD quoting run exits 0"
-
-# --------------------------------------------------------------------
-# Shared gate-test shim: every gate answers from an env var so one shim
-# body covers the ordering, filter, delete-guard, missing-output and
-# convergence cases. Records every stage it is called for, in order, in
-# $SHIM_STATE_DIR/stages.
-#   GATE_REVIEW_OUT   text the review gate writes to REVIEW.md
-#                     ("" = write nothing at all, i.e. prose instead of a call)
-#   REVIEW_SKIP_FIRST when set, the review gate writes nothing on its
-#                     first call only, then behaves normally
-#   FIX_DELETES       when set, the fix stage deletes this file
-# --------------------------------------------------------------------
-write_gate_shim() {
-  local path="$1"
-  cat > "$path" <<'SHIM'
-#!/usr/bin/env bash
-set -u
-STATE_DIR="${SHIM_STATE_DIR:?}"
-mkdir -p "$STATE_DIR"
-prompt=""
-prev=""
-for a in "$@"; do
-  if [ "$prev" = "-i" ]; then prompt="$a"; fi
-  prev="$a"
-done
-stage="$(basename "$prompt" | sed 's/_prompt.*//')"
-echo "$stage" >> "$STATE_DIR/stages"
-cp .loop-run/DIFF.txt "$STATE_DIR/diff_seen_$(wc -l < "$STATE_DIR/stages" | tr -d ' ')_$stage.txt" 2>/dev/null || true
-case "$stage" in
-  plan)
-    printf '1. [ ] do the thing\n' > PLAN.md
-    printf '# Handoff: test\nUpdated: now - State: in progress\n' > HANDOFF.md
-    ;;
-  execute)
-    echo "new code" > new_a.txt
-    echo "new code" > new_b.txt
-    printf '1. [x] do the thing\n' > PLAN.md
-    printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
-    ;;
-  simplify)  printf 'no findings\n' > SIMPLIFY.md ;;
-  security)  printf 'no findings\n' > SECURITY.md ;;
-  review)
-    if [ -n "${REVIEW_SKIP_FIRST:-}" ] && [ ! -f "$STATE_DIR/review_skipped" ]; then
-      touch "$STATE_DIR/review_skipped"
-      echo "I looked at the diff and it seems fine." # prose, no file written
-    elif [ -n "${GATE_REVIEW_OUT:-}" ]; then
-      printf '%b\n' "$GATE_REVIEW_OUT" > REVIEW.md
-    fi
-    ;;
-  fix)
-    cp FINDINGS.md "$STATE_DIR/findings_seen_$(wc -l < "$STATE_DIR/stages" | tr -d ' ').md"
-    if [ -n "${FIX_DELETES:-}" ]; then rm -f "$FIX_DELETES"; fi
-    printf '# Handoff: test\nUpdated: now - State: fixed\n' > HANDOFF.md
-    ;;
-  *) echo "gate shim: unrecognized stage '$stage' from $prompt" >&2; exit 1 ;;
-esac
-exit 0
-SHIM
-  chmod +x "$path"
-}
-
-run_gate_case() { # $1 = case name; remaining args passed to run_loop.sh
-  local name="$1"; shift
-  local dest="$SCRATCH/$name/taskrepo" shimdir="$SCRATCH/shim-$name"
-  bash "$RESET_TASK" --dest "$dest" >/dev/null
-  mkdir -p "$shimdir"
-  write_gate_shim "$shimdir/goose"
-  PATH="$shimdir:$PATH" SHIM_STATE_DIR="$SCRATCH/state-$name" \
-    bash "$RUN_LOOP" "$dest" "$TASK_PROMPT" "$@" > "$SCRATCH/$name.out" 2>&1
-  echo "$?" > "$SCRATCH/$name.rc"
-  cat "$SCRATCH/$name.out"
-}
-wt_of() { find "$SCRATCH/$1/taskrepo/.loop" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n1; }
-stages_of() { tr '\n' ' ' < "$SCRATCH/state-$1/stages" | sed 's/ $//'; }
 
 # --------------------------------------------------------------------
 # 13. Gate order: simplify, security, review after execute+test; a gate
