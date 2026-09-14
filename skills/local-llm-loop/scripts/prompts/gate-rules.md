@@ -6,5 +6,8 @@ sentence):
 
     - path/to/file.py:LINE: one sentence
 
+No headings, no bold, no prose before or after the lines. A line that
+does not start with path:LINE is discarded by the driver.
+
 If there is nothing to report, write exactly "no findings" plus a
 one-line reason.
