@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Tests for run_loop.sh. Runs entirely without a live model: a dry-run
-# against the bundled taskrepo fixture, and several `goose`/harness
-# shims on PATH (happy path, a 500-then-succeed retry path, a
-# non-goose harness, and a two-iteration review-diff path) — no live
-# model required.
+# against the bundled taskrepo fixture, and one shared `goose`/harness
+# shim on PATH driven by env knobs (happy path, a 500-then-succeed
+# retry path, a non-goose harness, gate order, findings filter, delete
+# guard, convergence cap, nudged retry, per-file split) plus two
+# specialized shims (a two-iteration review-diff path and an argv
+# quoting probe) — no live model required.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,6 +23,17 @@ trap cleanup EXIT
 export OPENAI_HOST="${OPENAI_HOST:-http://127.0.0.1:8080}"
 export OPENAI_API_KEY="${OPENAI_API_KEY:-sk-local}"
 export GOOSE_MODEL="${GOOSE_MODEL:-test-model}"
+
+# Outer test-harness timeout bound. Stock macOS ships no `timeout`, so
+# use the same fallback chain run_loop.sh itself uses.
+# Resolved to an absolute path now, so a test that narrows PATH later
+# (case 10 hides timeout/gtimeout on purpose) still gets its outer bound.
+TMO_BIN="$(command -v timeout || command -v gtimeout || true)"
+if [ -n "$TMO_BIN" ]; then
+  tmo() { "$TMO_BIN" "$@"; }
+else
+  tmo() { perl -e 'alarm shift; exec @ARGV' -- "$@"; }
+fi
 
 # --------------------------------------------------------------------
 # Assert vocabulary — same shape as scripts/test-install.sh, so both
@@ -105,7 +118,7 @@ git -C "$DEST2" worktree list 2>/dev/null | grep -q 'loop/'
 assert_eq "$?" "0" "dry-run registered a loop/<timestamp> branch worktree"
 
 assert_true "stage prompt files exist under scripts/prompts" bash -c '
-  [ -f "$1/plan.md" ] && [ -f "$1/execute.md" ] && [ -f "$1/review.md" ] && [ -f "$1/fix.md" ] && [ -f "$1/common-rules.md" ]
+  [ -f "$1/plan.md" ] && [ -f "$1/execute.md" ] && [ -f "$1/simplify.md" ] && [ -f "$1/security.md" ] && [ -f "$1/review.md" ] && [ -f "$1/fix.md" ] && [ -f "$1/common-rules.md" ] && [ -f "$1/gate-rules.md" ]
 ' _ "$SCRIPT_DIR/prompts"
 
 assert_true "dry-run seeded an isolated goose config from the bundled example" bash -c '[ -n "$1" ] && [ -f "$1/.loop-run/goose-config/goose/config.yaml" ]' _ "$WT2"
@@ -115,65 +128,111 @@ assert_true "dry-run's mechanical test stage actually ran the fixture's real tes
 ' _ "$WT2"
 
 # --------------------------------------------------------------------
-# Shared fake-goose shim body. Reads the -i <prompt file> argument to
-# tell which stage it's simulating (from the prompt filename) and
-# writes that stage's expected output file(s) into the cwd (the
-# worktree, since invoke_goose cd's there first). If FAIL_FIRST_CALL is
-# set and SHIM_STATE_DIR/called_once does not yet exist, it emits a
-# format-rejection message and fails instead, so run_loop.sh's retry
-# path is exercised exactly once, on its very first goose call. Every
-# stage prompt now has common-rules.md appended, so matching is still
-# by the stage prompt's basename, not exact content.
+# The shared fake-goose shim. Reads the -i <prompt file> argument to
+# tell which stage it is simulating (from the prompt filename; the
+# stage prompt has common-rules.md appended and a retry is named
+# *_prompt_retry.md, so matching is on the basename prefix) and writes
+# that stage's expected output file(s) into the cwd (the worktree).
+# Records every stage it is called for, in order, in
+# $SHIM_STATE_DIR/stages (default: .loop-run/shim-state in the
+# worktree, gitignored). Env knobs:
+#   FAIL_FIRST_CALL   emit a format-rejection and exit 1 on the very
+#                     first call only, to exercise the retry path once
+#   GATE_REVIEW_OUT   text the review gate writes to REVIEW.md; unset
+#                     means "no findings"; set but empty means write
+#                     nothing at all (prose instead of a call)
+#   REVIEW_SKIP_FIRST when set, the review gate writes nothing on its
+#                     first call only, then behaves normally
+#   FIX_DELETES       when set, the fix stage deletes this file
+#   FIX_RENAMES       when set, the fix stage moves this file to moved_<name>
+#   REVIEW_SKIP_FILE  the review gate writes nothing when DIFF.txt mentions it
+#   EXECUTE_EXTRA_FILE  execute also writes this file (e.g. a non-ASCII name)
+#   EXECUTE_BREAKS_TESTS  execute adds a failing tests/test_broken.py; the
+#                     fix stage repairs it only when FINDINGS.md points at
+#                     TEST_OUTPUT.txt
 # --------------------------------------------------------------------
-write_shim() {
+write_gate_shim() {
   local path="$1"
   cat > "$path" <<'SHIM'
 #!/usr/bin/env bash
 set -u
+STATE_DIR="${SHIM_STATE_DIR:-.loop-run/shim-state}"
+mkdir -p "$STATE_DIR"
 
-if [ -n "${FAIL_FIRST_CALL:-}" ] && [ -n "${SHIM_STATE_DIR:-}" ]; then
-  marker="$SHIM_STATE_DIR/called_once"
-  if [ ! -f "$marker" ]; then
-    mkdir -p "$SHIM_STATE_DIR"
-    touch "$marker"
-    echo "goose: request failed: HTTP 500 - does not match the expected peg-native format"
-    exit 1
-  fi
+if [ -n "${FAIL_FIRST_CALL:-}" ] && [ ! -f "$STATE_DIR/called_once" ]; then
+  touch "$STATE_DIR/called_once"
+  echo "goose: request failed: HTTP 500 - does not match the expected peg-native format"
+  exit 1
 fi
-
 prompt=""
 prev=""
 for a in "$@"; do
-  if [ "$prev" = "-i" ]; then
-    prompt="$a"
-  fi
+  if [ "$prev" = "-i" ]; then prompt="$a"; fi
   prev="$a"
 done
-
-case "$prompt" in
-  */plan_prompt.md)
+stage="$(basename "$prompt" | sed 's/_prompt.*//')"
+echo "$stage" >> "$STATE_DIR/stages"
+# A harness that reads stdin must not be able to drain the driver's
+# own input (a here-string of file names, say).
+cat > /dev/null
+cp .loop-run/DIFF.txt "$STATE_DIR/diff_seen_$(wc -l < "$STATE_DIR/stages" | tr -d ' ')_$stage.txt" 2>/dev/null || true
+case "$stage" in
+  plan)
     printf '1. [ ] do the thing\n' > PLAN.md
     printf '# Handoff: test\nUpdated: now - State: in progress\n' > HANDOFF.md
     ;;
-  */execute_prompt.md)
+  execute)
+    echo "new code" > new_a.txt
+    echo "new code" > new_b.txt
+    if [ -n "${EXECUTE_EXTRA_FILE:-}" ]; then echo "new code" > "$EXECUTE_EXTRA_FILE"; fi
+    if [ -n "${EXECUTE_BREAKS_TESTS:-}" ]; then
+      printf 'import unittest\nclass T(unittest.TestCase):\n    def test_broken(self):\n        self.fail("broken by execute")\n' > tests/test_broken.py
+    fi
     printf '1. [x] do the thing\n' > PLAN.md
     printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
     ;;
-  */review_prompt.md)
-    printf 'no findings\n' > REVIEW.md
+  simplify)  printf 'no findings\n' > SIMPLIFY.md ;;
+  security)  printf 'no findings\n' > SECURITY.md ;;
+  review)
+    if [ -n "${REVIEW_SKIP_FIRST:-}" ] && [ ! -f "$STATE_DIR/review_skipped" ]; then
+      touch "$STATE_DIR/review_skipped"
+      echo "I looked at the diff and it seems fine." # prose, no file written
+    elif [ -n "${REVIEW_SKIP_FILE:-}" ] && grep -q "$REVIEW_SKIP_FILE" .loop-run/DIFF.txt; then
+      echo "prose instead of a file, for this chunk only"
+    elif [ -n "${GATE_REVIEW_OUT-no findings}" ]; then
+      # Unset: a clean review. Set but empty: write nothing at all.
+      printf '%b\n' "${GATE_REVIEW_OUT-no findings\nclean}" > REVIEW.md
+    fi
     ;;
-  */fix_prompt.md)
-    printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
+  fix)
+    cp FINDINGS.md "$STATE_DIR/findings_seen_$(wc -l < "$STATE_DIR/stages" | tr -d ' ').md"
+    if [ -n "${FIX_DELETES:-}" ]; then rm -f "$FIX_DELETES"; fi
+    if [ -n "${FIX_RENAMES:-}" ]; then mv "$FIX_RENAMES" "moved_$FIX_RENAMES"; fi
+    if grep -q 'TEST_OUTPUT.txt:1' FINDINGS.md 2>/dev/null && [ -f tests/test_broken.py ]; then
+      printf 'import unittest\nclass T(unittest.TestCase):\n    def test_broken(self):\n        pass\n' > tests/test_broken.py
+    fi
+    printf '# Handoff: test\nUpdated: now - State: fixed\n' > HANDOFF.md
     ;;
-  *)
-    echo "shim goose: unrecognized prompt file: $prompt" >&2
-    exit 1
-    ;;
+  *) echo "gate shim: unrecognized stage '$stage' from $prompt" >&2; exit 1 ;;
 esac
 exit 0
 SHIM
   chmod +x "$path"
 }
+
+run_gate_case() { # $1 = case name; remaining args passed to run_loop.sh
+  local name="$1"; shift
+  local dest="$SCRATCH/$name/taskrepo" shimdir="$SCRATCH/shim-$name"
+  bash "$RESET_TASK" --dest "$dest" >/dev/null
+  mkdir -p "$shimdir"
+  write_gate_shim "$shimdir/goose"
+  PATH="$shimdir:$PATH" SHIM_STATE_DIR="$SCRATCH/state-$name" \
+    bash "$RUN_LOOP" "$dest" "$TASK_PROMPT" "$@" > "$SCRATCH/$name.out" 2>&1
+  echo "$?" > "$SCRATCH/$name.rc"
+  cat "$SCRATCH/$name.out"
+}
+wt_of() { find "$SCRATCH/$1/taskrepo/.loop" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n1; }
+stages_of() { tr '\n' ' ' < "$SCRATCH/state-$1/stages" | sed 's/ $//'; }
 
 # --------------------------------------------------------------------
 # 3. Fake-goose happy path.
@@ -184,7 +243,7 @@ DEST3="$SCRATCH/shimok/taskrepo"
 bash "$RESET_TASK" --dest "$DEST3" >/dev/null
 SHIMDIR3="$SCRATCH/shim-ok"
 mkdir -p "$SHIMDIR3"
-write_shim "$SHIMDIR3/goose"
+write_gate_shim "$SHIMDIR3/goose"
 
 PATH="$SHIMDIR3:$PATH" bash "$RUN_LOOP" "$DEST3" "$TASK_PROMPT" --max-iterations 1 \
   > "$SCRATCH/shim_ok.out" 2>&1
@@ -216,7 +275,7 @@ DEST4="$SCRATCH/shimretry/taskrepo"
 bash "$RESET_TASK" --dest "$DEST4" >/dev/null
 SHIMDIR4="$SCRATCH/shim-retry"
 mkdir -p "$SHIMDIR4"
-write_shim "$SHIMDIR4/goose"
+write_gate_shim "$SHIMDIR4/goose"
 STATE4="$SCRATCH/shim-retry-state"
 
 PATH="$SHIMDIR4:$PATH" FAIL_FIRST_CALL=1 SHIM_STATE_DIR="$STATE4" \
@@ -243,7 +302,7 @@ echo
 echo "===== (5) --max-iterations with no value errors, does not hang ====="
 DEST5="$SCRATCH/badargs/taskrepo"
 bash "$RESET_TASK" --dest "$DEST5" >/dev/null
-timeout 10 bash "$RUN_LOOP" "$DEST5" "$TASK_PROMPT" --max-iterations \
+tmo 10 bash "$RUN_LOOP" "$DEST5" "$TASK_PROMPT" --max-iterations \
   > "$SCRATCH/badargs.out" 2>&1
 RC5=$?
 cat "$SCRATCH/badargs.out"
@@ -305,7 +364,7 @@ DEST8="$SCRATCH/harness/taskrepo"
 bash "$RESET_TASK" --dest "$DEST8" >/dev/null
 SHIMDIR8="$SCRATCH/shim-harness"
 mkdir -p "$SHIMDIR8"
-write_shim "$SHIMDIR8/custom-harness"
+write_gate_shim "$SHIMDIR8/custom-harness"
 
 LOOP_HARNESS_CMD="$SHIMDIR8/custom-harness -i {prompt}" \
   bash "$RUN_LOOP" "$DEST8" "$TASK_PROMPT" --max-iterations 1 \
@@ -346,11 +405,11 @@ for a in "$@"; do
 done
 
 case "$prompt" in
-  */plan_prompt.md)
+  */plan_prompt*.md)
     printf '1. [ ] step one\n2. [ ] step two\n' > PLAN.md
     printf '# Handoff: test\nUpdated: now - State: in progress\n' > HANDOFF.md
     ;;
-  */execute_prompt.md)
+  */execute_prompt*.md)
     n=0
     [ -f "$COUNTER_FILE" ] && n="$(cat "$COUNTER_FILE")"
     n=$((n + 1))
@@ -364,7 +423,13 @@ case "$prompt" in
     fi
     printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
     ;;
-  */review_prompt.md)
+  */simplify_prompt*.md)
+    printf 'no findings\n' > SIMPLIFY.md
+    ;;
+  */security_prompt*.md)
+    printf 'no findings\n' > SECURITY.md
+    ;;
+  */review_prompt*.md)
     # Snapshot what this review actually saw, tagged by the execute
     # counter, so the test can compare iteration 1's delta against
     # iteration 2's once the run has moved on and overwritten the live
@@ -374,7 +439,7 @@ case "$prompt" in
     cp .loop-run/DIFF.txt "$STATE_DIR/diff_seen_${n}.txt" 2>/dev/null || true
     printf 'no findings\n' > REVIEW.md
     ;;
-  */fix_prompt.md)
+  */fix_prompt*.md)
     printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
     ;;
   *)
@@ -415,7 +480,6 @@ assert_true "FULL_DIFF.txt covers both file1.txt and file2.txt" bash -c '
 # --------------------------------------------------------------------
 echo
 echo "===== (10) perl-alarm fallback when timeout/gtimeout are both absent ====="
-REAL_TIMEOUT="$(command -v timeout)" # captured before PATH is narrowed, for the outer test-harness bound below
 NOTIMEOUT_PATH="$SCRATCH/path-no-timeout"
 build_path_without "$NOTIMEOUT_PATH" timeout gtimeout
 PATH="$NOTIMEOUT_PATH" bash -c 'command -v timeout >/dev/null 2>&1'
@@ -431,7 +495,7 @@ DEST10A="$SCRATCH/notimeout-ok/taskrepo"
 bash "$RESET_TASK" --dest "$DEST10A" >/dev/null
 SHIMDIR10A="$SCRATCH/shim-notimeout-ok"
 mkdir -p "$SHIMDIR10A"
-write_shim "$SHIMDIR10A/goose"
+write_gate_shim "$SHIMDIR10A/goose"
 
 PATH="$SHIMDIR10A:$NOTIMEOUT_PATH" bash "$RUN_LOOP" "$DEST10A" "$TASK_PROMPT" --max-iterations 1 \
   > "$SCRATCH/notimeout_ok.out" 2>&1
@@ -456,7 +520,7 @@ chmod +x "$SHIMDIR10B/goose"
 
 START10B=$(date +%s)
 PATH="$SHIMDIR10B:$NOTIMEOUT_PATH" LOOP_STAGE_TIMEOUT=1 \
-  "$REAL_TIMEOUT" 20 bash "$RUN_LOOP" "$DEST10B" "$TASK_PROMPT" --max-iterations 1 \
+  tmo 20 bash "$RUN_LOOP" "$DEST10B" "$TASK_PROMPT" --max-iterations 1 \
   > "$SCRATCH/notimeout_slow.out" 2>&1
 END10B=$(date +%s)
 cat "$SCRATCH/notimeout_slow.out"
@@ -519,18 +583,24 @@ done
 prompt=""
 for a in "$@"; do prompt="$a"; done
 case "$prompt" in
-  */plan_prompt.md)
+  */plan_prompt*.md)
     printf '1. [ ] do the thing\n' > PLAN.md
     printf '# Handoff: test\nUpdated: now - State: in progress\n' > HANDOFF.md
     ;;
-  */execute_prompt.md)
+  */execute_prompt*.md)
     printf '1. [x] do the thing\n' > PLAN.md
     printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
     ;;
-  */review_prompt.md)
+  */simplify_prompt*.md)
+    printf 'no findings\n' > SIMPLIFY.md
+    ;;
+  */security_prompt*.md)
+    printf 'no findings\n' > SECURITY.md
+    ;;
+  */review_prompt*.md)
     printf 'no findings\n' > REVIEW.md
     ;;
-  */fix_prompt.md)
+  */fix_prompt*.md)
     printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
     ;;
 esac
@@ -551,6 +621,218 @@ assert_true "argv[1] is --flag" bash -c 'sed -n "1p" "$1" | grep -qx -- "--flag"
 assert_true "argv[2] is the quoted value as one entry, unsplit" bash -c 'sed -n "2p" "$1" | grep -qx -- "quoted value"' _ "$ARGV_DUMP"
 assert_true "argv[3] is the substituted prompt file path" bash -c 'sed -n "3p" "$1" | grep -q -- "_prompt.md$"' _ "$ARGV_DUMP"
 assert_eq "$RC12" "0" "LOOP_HARNESS_CMD quoting run exits 0"
+
+# --------------------------------------------------------------------
+# 13. Gate order: simplify, security, review after execute+test; a gate
+#     with "no findings" runs no fix stage; the stages the harness saw
+#     are exactly plan, execute, simplify, security, review.
+# --------------------------------------------------------------------
+echo
+echo "===== (13) gates run in order and skip fix on no findings ====="
+GATE_REVIEW_OUT='no findings\nnothing in the diff is wrong' run_gate_case gates-order --max-iterations 1
+assert_eq "$(cat "$SCRATCH/gates-order.rc")" "0" "all-clean gate run exits 0"
+assert_eq "$(stages_of gates-order)" "plan execute simplify security review" "stage order is plan, execute, simplify, security, review with no fix"
+WT13="$(wt_of gates-order)"
+assert_true "LOOP_SUMMARY.md lists the three gates" file_has "$WT13/LOOP_SUMMARY.md" "Gates: simplify security review"
+assert_true "LOOP_SUMMARY.md gate log shows 0 findings kept for review" file_has "$WT13/LOOP_SUMMARY.md" "gate review, round 0: 0 finding(s) kept"
+
+# --------------------------------------------------------------------
+# 14. Findings filter: a real path:line finding reaches FINDINGS.md and
+#     triggers a fix + test; a finding citing a file that does not exist
+#     is rejected into .loop-run/REJECTED_FINDINGS.md and never fixed.
+#     The second review round (on the fix) says no findings, so the
+#     gate converges and the run passes.
+# --------------------------------------------------------------------
+echo
+echo "===== (14) findings filter keeps real paths, rejects invented ones ====="
+GATE_REVIEW_OUT='- new_a.txt:1: says "new code" but should say hello\n- ghost/nowhere.py:7: this file was hallucinated' \
+  run_gate_case gates-filter --max-iterations 1
+# The shim writes the same REVIEW.md every time, so the gate would never
+# converge; expect exit 1 with "not converged" -- covered in (16). Here
+# check the filter itself on the first round's FINDINGS.md.
+STATE14="$SCRATCH/state-gates-filter"
+FIRST_FIX_FINDINGS="$(ls "$STATE14"/findings_seen_*.md | head -n1)"
+assert_true "a finding citing an existing file reached FINDINGS.md" file_has "$FIRST_FIX_FINDINGS" "new_a.txt:1"
+assert_true "a finding citing a missing file was kept out of FINDINGS.md" file_lacks "$FIRST_FIX_FINDINGS" "nowhere.py"
+WT14="$(wt_of gates-filter)"
+assert_true "the rejected finding was logged with its gate name" file_has "$WT14/.loop-run/REJECTED_FINDINGS.md" "review: - ghost/nowhere.py:7"
+assert_true "a fix stage ran after the review gate found something" bash -c 'grep -q "^fix$" "$1"' _ "$STATE14/stages"
+assert_true "a test stage commit directly follows the first fix stage commit" bash -c '
+  git -C "$1" log --reverse --format=%s | grep -A1 "^loop: fix" | sed -n 2p | grep -q "^loop: test"
+' _ "$WT14"
+
+# A finding whose sentence contains the phrase "no findings" is still a
+# finding: the phrase skip applies only to lines that are not findings.
+echo
+echo "----- (14b) a finding mentioning 'no findings' in its sentence is kept -----"
+GATE_REVIEW_OUT='- new_a.txt:1: returns no findings for an empty list instead of raising' \
+  run_gate_case gates-phrase --max-iterations 1
+STATE14B="$SCRATCH/state-gates-phrase"
+FIRST14B="$(ls "$STATE14B"/findings_seen_*.md 2>/dev/null | head -n1)"
+assert_true "the finding reached FINDINGS.md and a fix stage ran" bash -c '[ -n "$1" ] && file_has "$1" "new_a.txt:1"' _ "$FIRST14B"
+
+# --------------------------------------------------------------------
+# 15. Delete guard: a fix stage that deletes a file has its commit
+#     reverted, the file is back, and NEEDS_HUMAN.md names it.
+# --------------------------------------------------------------------
+echo
+echo "===== (15) a fix stage that deletes a file is reverted ====="
+GATE_REVIEW_OUT='- new_b.txt:1: remove this file' FIX_DELETES=new_b.txt \
+  run_gate_case gates-delete --max-iterations 1
+WT15="$(wt_of gates-delete)"
+assert_true "the deleted file is back after the restore" [ -f "$WT15/new_b.txt" ]
+assert_true "the driver logged the restore" file_has "$SCRATCH/gates-delete.out" "restoring them"
+assert_true "the fix stage's other work survived (HANDOFF.md still says fixed)" file_has "$WT15/HANDOFF.md" "State: fixed"
+assert_true "NEEDS_HUMAN.md names the deleted file" file_has "$WT15/NEEDS_HUMAN.md" "new_b.txt"
+assert_true "the restore has its own checkpoint commit" bash -c 'git -C "$1" log --format=%s | grep -q "^loop: restore"' _ "$WT15"
+assert_true "LOOP_SUMMARY.md counts the restored fix" file_has "$WT15/LOOP_SUMMARY.md" "Fix stages that deleted files (restored): [1-9]"
+
+echo
+echo "----- (15b) a fix stage that moves a file is caught as a delete -----"
+GATE_REVIEW_OUT='- new_a.txt:1: rename this' FIX_RENAMES=new_a.txt run_gate_case gates-rename --max-iterations 1
+WT15B="$(wt_of gates-rename)"
+assert_true "the moved file is restored at its old path" [ -f "$WT15B/new_a.txt" ]
+assert_true "NEEDS_HUMAN.md names the moved file" file_has "$WT15B/NEEDS_HUMAN.md" "new_a.txt"
+
+# --------------------------------------------------------------------
+# 16. Two-round cap: a gate that reports the same finding after two fix
+#     rounds stops the loop as "not converged", exit 1, even with more
+#     iterations allowed.
+# --------------------------------------------------------------------
+echo
+echo "===== (16) a gate that never converges stops after two fix rounds ====="
+GATE_REVIEW_OUT='- new_a.txt:1: still wrong' run_gate_case gates-cap --max-iterations 3
+assert_eq "$(cat "$SCRATCH/gates-cap.rc")" "1" "non-converging run exits 1"
+assert_eq "$(stages_of gates-cap)" "plan execute simplify security review fix simplify security review fix simplify security review" "every fix is re-gated by all three gates; two fix rounds, then stop"
+WT16="$(wt_of gates-cap)"
+assert_true "LOOP_SUMMARY.md names the gate that did not converge" file_has "$WT16/LOOP_SUMMARY.md" "Not converged: review"
+assert_true "the driver said why it stopped" file_has "$SCRATCH/gates-cap.out" "stopping as not converged"
+
+# --------------------------------------------------------------------
+# 17. Missing output: a gate that answers in prose without writing its
+#     file is retried once with a write reminder appended; the retry
+#     prompt is a different file from the first. A gate that writes
+#     nothing twice fails closed: the run cannot pass.
+# --------------------------------------------------------------------
+echo
+echo "===== (17) a gate that writes nothing is nudged once, then fails closed ====="
+GATE_REVIEW_OUT='no findings\nclean' REVIEW_SKIP_FIRST=1 run_gate_case gates-nudge --max-iterations 1
+assert_eq "$(cat "$SCRATCH/gates-nudge.rc")" "0" "prose-then-file review passes after the nudged retry"
+assert_true "the driver logged the write reminder retry" file_has "$SCRATCH/gates-nudge.out" "did not write REVIEW.md; retrying with a write reminder"
+WT17="$(wt_of gates-nudge)"
+assert_true "the retry prompt carries the reminder line" file_has "$WT17/.loop-run/logs/review_prompt_retry.md" "previous attempt ended without writing REVIEW.md"
+assert_eq "$(stages_of gates-nudge)" "plan execute simplify security review review" "review ran twice: the prose attempt and the nudged retry"
+
+GATE_REVIEW_OUT='' run_gate_case gates-noout --max-iterations 3
+assert_eq "$(cat "$SCRATCH/gates-noout.rc")" "1" "a gate that never writes its file makes the run fail"
+WT17B="$(wt_of gates-noout)"
+assert_true "LOOP_SUMMARY.md lists the gate that failed closed" file_has "$WT17B/LOOP_SUMMARY.md" "Gates with no output (failed closed): review"
+assert_eq "$(stages_of gates-noout)" "plan execute simplify security review review" "a failed-closed gate stops the loop; no further iterations run"
+
+# --------------------------------------------------------------------
+# 18. Per-file split: with LOOP_DIFF_SPLIT_BYTES=1 and two changed
+#     files, each gate runs once per file and each run's DIFF.txt holds
+#     only that file.
+# --------------------------------------------------------------------
+echo
+echo "===== (18) a large diff runs each gate once per changed file ====="
+GATE_REVIEW_OUT='no findings\nclean' LOOP_DIFF_SPLIT_BYTES=1 EXECUTE_EXTRA_FILE='café.txt' \
+  run_gate_case gates-split --max-iterations 1 --gates review
+assert_eq "$(cat "$SCRATCH/gates-split.rc")" "0" "split run exits 0"
+assert_eq "$(stages_of gates-split)" "plan execute review review review" "review ran once per changed file (three files)"
+STATE18="$SCRATCH/state-gates-split"
+assert_true "the café.txt chunk carried a real diff, not an empty one" bash -c '
+  for d in "$1"/diff_seen_*_review.txt; do
+    if grep -q "caf" "$d" && grep -q "^+new code" "$d"; then exit 0; fi
+  done; exit 1' _ "$STATE18"
+assert_true "the new_a.txt chunk saw only new_a.txt" bash -c '
+  for d in "$1"/diff_seen_*_review.txt; do
+    if file_has "$d" "new_a.txt" && file_lacks "$d" "new_b.txt" && file_lacks "$d" "caf"; then exit 0; fi
+  done; exit 1' _ "$STATE18"
+assert_true "the driver announced the split" file_has "$SCRATCH/gates-split.out" "running once per file"
+
+echo
+echo "----- (18b) a per-file chunk that writes nothing fails the gate closed -----"
+GATE_REVIEW_OUT='no findings\nclean' LOOP_DIFF_SPLIT_BYTES=1 REVIEW_SKIP_FILE=new_b.txt \
+  run_gate_case gates-splitfail --max-iterations 1 --gates review
+assert_eq "$(cat "$SCRATCH/gates-splitfail.rc")" "1" "a split gate with one unreviewed file makes the run fail"
+WT18B="$(wt_of gates-splitfail)"
+assert_true "LOOP_SUMMARY.md lists the gate that failed closed" file_has "$WT18B/LOOP_SUMMARY.md" "Gates with no output (failed closed): review"
+
+# --------------------------------------------------------------------
+# 19. --gates validation and --gates none.
+# --------------------------------------------------------------------
+echo
+echo "===== (19) --gates rejects unknown names; none skips every gate ====="
+GATE_REVIEW_OUT='no findings\nclean' run_gate_case gates-none --max-iterations 1 --gates none
+assert_eq "$(cat "$SCRATCH/gates-none.rc")" "0" "--gates none run exits 0"
+assert_eq "$(stages_of gates-none)" "plan execute" "--gates none runs no gate and no fix"
+DEST19="$SCRATCH/gates-bad/taskrepo"
+bash "$RESET_TASK" --dest "$DEST19" >/dev/null
+bash "$RUN_LOOP" "$DEST19" "$TASK_PROMPT" --gates simplify,bogus > "$SCRATCH/gates-bad.out" 2>&1
+assert_eq "$?" "1" "an unknown gate name exits 1"
+assert_true "the unknown gate name is reported" file_has "$SCRATCH/gates-bad.out" "unknown gate 'bogus'"
+
+# --------------------------------------------------------------------
+# 19b. Findings filter edge cases: a "b/" diff-header prefix is kept
+#      (stripped); a path that escapes the worktree or points into
+#      .loop-run/ is rejected even though the file exists.
+# --------------------------------------------------------------------
+echo
+echo "===== (19b) b/ prefix kept; traversal and driver-internal paths rejected ====="
+GATE_REVIEW_OUT='- b/new_a.txt:1: diff-header spelling\n- ../../README.md:1: escapes the worktree\n- .loop-run/logs/plan_1.log:1: driver internal' \
+  run_gate_case gates-paths --max-iterations 1
+STATE19B="$SCRATCH/state-gates-paths"
+FIRST19B="$(ls "$STATE19B"/findings_seen_*.md 2>/dev/null | head -n1)"
+assert_true "b/new_a.txt was kept as new_a.txt" bash -c '[ -n "$1" ] && file_has "$1" "b/new_a.txt:1"' _ "$FIRST19B"
+assert_true "the traversal path was kept out of FINDINGS.md" bash -c '[ -n "$1" ] && file_lacks "$1" "README.md"' _ "$FIRST19B"
+assert_true "the .loop-run path was kept out of FINDINGS.md" bash -c '[ -n "$1" ] && file_lacks "$1" "plan_1.log"' _ "$FIRST19B"
+WT19B="$(wt_of gates-paths)"
+assert_true "both rejected lines are on record" bash -c 'file_has "$1" "README.md" && file_has "$1" "plan_1.log"' _ "$WT19B/.loop-run/REJECTED_FINDINGS.md"
+assert_true "stage numbers increment (no two logs share a number)" bash -c '
+  ls "$1/.loop-run/logs" | grep -c "_1.log$" | grep -qx 1' _ "$WT19B"
+assert_true "LOOP_SUMMARY.md counts more than one stage" bash -c 'grep -q "^Stages run: [2-9]" "$1/LOOP_SUMMARY.md" || grep -q "^Stages run: [1-9][0-9]" "$1/LOOP_SUMMARY.md"' _ "$WT19B"
+
+echo
+echo "----- (19c) bad env knobs and empty --gates are refused -----"
+DEST19C="$SCRATCH/badknobs/taskrepo"
+bash "$RESET_TASK" --dest "$DEST19C" >/dev/null
+LOOP_GATE_ROUNDS=two bash "$RUN_LOOP" "$DEST19C" "$TASK_PROMPT" > "$SCRATCH/badknobs.out" 2>&1
+assert_eq "$?" "1" "LOOP_GATE_ROUNDS=two exits 1"
+assert_true "the bad knob is named" file_has "$SCRATCH/badknobs.out" "LOOP_GATE_ROUNDS must be a non-negative integer"
+bash "$RUN_LOOP" "$DEST19C" "$TASK_PROMPT" --gates "" > "$SCRATCH/emptygates.out" 2>&1
+assert_eq "$?" "1" "--gates '' exits 1"
+assert_true "--gates '' is reported, not an unbound-variable crash" file_has "$SCRATCH/emptygates.out" "empty list"
+bash "$RUN_LOOP" "$DEST19C" "$TASK_PROMPT" --gates , > "$SCRATCH/commagates.out" 2>&1
+assert_eq "$?" "1" "--gates , exits 1"
+assert_true "no worktree was created for the refused runs" [ ! -d "$DEST19C/.loop" ]
+
+# --------------------------------------------------------------------
+# 20. A target repo that tracks a bookkeeping name at its root is
+#     refused before any worktree is created.
+# --------------------------------------------------------------------
+echo
+echo "===== (20) a repo tracking SECURITY.md at its root is refused ====="
+DEST20="$SCRATCH/tracked/taskrepo"
+bash "$RESET_TASK" --dest "$DEST20" >/dev/null
+echo "policy" > "$DEST20/SECURITY.md"
+git -C "$DEST20" add SECURITY.md >/dev/null && git -C "$DEST20" commit -q -m "security policy"
+bash "$RUN_LOOP" "$DEST20" "$TASK_PROMPT" --max-iterations 1 > "$SCRATCH/tracked.out" 2>&1
+assert_eq "$?" "1" "the run is refused"
+assert_true "the refusal names the file" file_has "$SCRATCH/tracked.out" "tracks SECURITY.md"
+assert_true "no worktree was created" [ ! -d "$DEST20/.loop" ]
+
+# --------------------------------------------------------------------
+# 21. Tests that fail with no gate finding still reach a fix stage.
+# --------------------------------------------------------------------
+echo
+echo "===== (21) failing tests with no gate finding get a fix stage ====="
+EXECUTE_BREAKS_TESTS=1 run_gate_case gates-testfix --max-iterations 1
+assert_eq "$(cat "$SCRATCH/gates-testfix.rc")" "0" "the run passes after the test-driven fix"
+assert_eq "$(stages_of gates-testfix)" "plan execute simplify security review fix simplify security review" "a fix stage ran after clean gates because tests failed, and the gates re-ran on that fix"
+assert_true "the driver said why the fix ran" file_has "$SCRATCH/gates-testfix.out" "tests fail with no gate finding"
+STATE21="$SCRATCH/state-gates-testfix"
+assert_true "the fix stage was pointed at TEST_OUTPUT.txt" bash -c 'file_has "$(ls "$1"/findings_seen_*.md | head -n1)" "TEST_OUTPUT.txt:1"' _ "$STATE21"
 
 # --------------------------------------------------------------------
 echo

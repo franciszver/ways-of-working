@@ -20,14 +20,21 @@ bash scripts/run_loop.sh <repo> plan.md --test-cmd "python3 -m unittest discover
 ```
 
 `run_loop.sh` drives Goose through a fresh-context plan stage, then
-execute/test/review/fix cycles, each stage checkpointed with its own
+execute/test/gates/fix cycles, each stage checkpointed with its own
 commit on a disposable git worktree branch at
 `<repo>/.loop/<timestamp>/`. Inside that worktree: `PLAN.md` (the step
 checklist), `NEXT_STEP.md` (the one step execute.md works on),
-`HANDOFF.md` (updated every stage), `.loop-run/DIFF.txt` and
-`REVIEW.md` (each iteration's review pass, scoped to the delta since
-the last review), `TEST_OUTPUT.txt`, and on completion `LOOP_SUMMARY.md`
-plus a `LOOP_DONE` marker. Run
+`HANDOFF.md` (updated every stage), `.loop-run/DIFF.txt` (the diff each
+gate reviews), `SIMPLIFY.md`, `SECURITY.md`, and `REVIEW.md` (one per
+gate, written fresh each round), `FINDINGS.md` (the gate findings that
+cite a real file, the only input fix.md reads),
+`.loop-run/REJECTED_FINDINGS.md` (findings the driver filtered out
+because they cite no real file), `TEST_OUTPUT.txt`, `NEEDS_HUMAN.md`
+(files a reverted fix commit deleted), and on completion
+`LOOP_SUMMARY.md` plus a `LOOP_DONE` marker. `--gates LIST` selects
+which of the three gates run, in their fixed order
+simplify,security,review (the default); `--gates none` skips them and
+`--gates review` reproduces the old single-review behavior. Run
 `bash scripts/run_loop.sh <repo> plan.md --dry-run` first — it exercises
 the worktree, prompts, and mechanical test stage for real without
 calling the model, so plumbing problems surface before spending an
@@ -39,6 +46,15 @@ is never added to that repo's top-level `.gitignore` automatically — add
 `.loop/` to `<repo>/.gitignore` yourself, or delete `.loop/<timestamp>/`
 worktrees by hand (`git -C <repo> worktree remove .loop/<timestamp>`)
 once you're done with a run, so `git status` in `<repo>` stays clean.
+
+## Three gates
+
+The three gates map `apply-working-process`'s "Three gates before anything merges" (simplify → security review → code review) onto a local model with no subagents: each gate runs as its own fresh-context Goose stage instead of a fresh subagent, in the same fixed order, each finding fixed and tests re-run green after. A fix is new code the other gates have not seen, so any fix restarts the pass over all three gates; fix rounds per iteration are capped at `LOOP_GATE_ROUNDS` (default 2) before the loop reports "not converged". The local security gate is a prefilter, not the real check — run `/security-review` in Claude Code on the loop branch before merging.
+
+- A finding is kept only if it cites a file that exists in the worktree; rejected lines go to `.loop-run/REJECTED_FINDINGS.md` instead of `FINDINGS.md`.
+- A gate that writes no output file is retried once with a write reminder, then fails closed if still missing, and the loop stops. Tests that fail with no gate finding still get a fix stage pointed at `TEST_OUTPUT.txt`.
+- A fix stage that deletes or moves any file has those files restored in a checkpoint of their own, the rest of its work kept, and the files listed in `NEEDS_HUMAN.md`; a repo that already tracks a bookkeeping name such as `SECURITY.md` at its root is refused up front.
+- A diff over `LOOP_DIFF_SPLIT_BYTES` (default 32768 bytes) that touches more than one file runs each gate once per changed file, on that file's diff alone.
 
 ## The loop
 
