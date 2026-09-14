@@ -536,7 +536,7 @@ log_has_retry_trigger() {
 # a malformed call or a missing output file would replay the same path.
 # One appended line changes the prefix and gives the model the reason.
 RETRY_NUDGE_FORMAT='Note: the previous attempt produced a malformed tool call. Keep every tool call small, under 300 tokens, one file per call.'
-RETRY_NUDGE_MISSING='Note: the previous attempt ended without writing %s. Write %s now, in one call, then stop.'
+RETRY_NUDGE_MISSING='Note: the previous attempt ended without writing %s. Write %s at the root of the current directory now, in one call, then stop.'
 
 # Runs one fresh-context goose stage, retrying once on a format
 # rejection (HTTP 500, or llama.cpp's fallback message) or on a missing
