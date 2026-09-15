@@ -998,6 +998,26 @@ assert_true "no gate prompt tells the model to read DIFF.txt" bash -c '
   exit 0' _ "$(wt_of gatediff)"
 
 echo
+echo "----- (19o) a config whose available_tools cannot be cut to write is refused -----"
+DEST19O="$SCRATCH/flowcfg/taskrepo"
+bash "$RESET_TASK" --dest "$DEST19O" >/dev/null
+FLOWCFG="$SCRATCH/flowcfg-home"
+mkdir -p "$FLOWCFG/goose"
+# Same meaning, different shape: a flow-style list a line-deleting edit
+# would silently leave untouched, handing gates the full tool set.
+sed 's/^    available_tools:$/    available_tools: [shell, edit, write, tree]/' \
+  "$SCRIPT_DIR/goose-config.example.yaml" | grep -vE '^      - (shell|edit|write|tree)$' \
+  > "$FLOWCFG/goose/config.yaml"
+XDG_CONFIG_HOME="$FLOWCFG" bash "$RUN_LOOP" "$DEST19O" "$TASK_PROMPT" --max-iterations 1 \
+  > "$SCRATCH/flowcfg.out" 2>&1
+RC19O=$?
+assert_eq "$RC19O" "1" "a flow-style available_tools list is refused, not passed through"
+assert_true "the refusal says what it could not do" file_has "$SCRATCH/flowcfg.out" "could not cut the gate tool set down to 'write' alone"
+assert_true "no gate ever ran under that config" bash -c '
+  WT="$(find "$1/.loop" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n1)"
+  [ -z "$WT" ] || [ ! -f "$WT/.loop-run/logs/simplify_prompt.md" ]' _ "$DEST19O"
+
+echo
 echo "----- (19n) under the per-file split each chunk prompt carries only that file -----"
 : > "$PROMPT_DUMP"
 SHIM_PROMPT_DUMP="$PROMPT_DUMP" LOOP_DIFF_SPLIT_BYTES=1 \

@@ -2,10 +2,6 @@
 
 Work only in the current directory (a git worktree set up for this task).
 
-The diff under review is at the end of this prompt, with the latest
-mechanical test run after it. You cannot read files: `write` is your
-only tool. Judge the diff as given.
-
 Look only for defects in the changed lines:
 - logic that gives the wrong result for a reachable input
 - an error path that is not handled

@@ -2,9 +2,6 @@
 
 Work only in the current directory (a git worktree set up for this task).
 
-The diff under review is at the end of this prompt. You cannot read
-files: `write` is your only tool. Judge the diff as given.
-
 Look only for places where the changed lines let untrusted input reach a
 dangerous operation:
 - a shell command or subprocess built from input

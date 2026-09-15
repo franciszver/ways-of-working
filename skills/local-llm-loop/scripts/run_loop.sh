@@ -422,15 +422,42 @@ else
   cp "$BUNDLED_GOOSE_CONFIG" "$GOOSE_CONFIG_DIR/goose/config.yaml"
 fi
 
-# The gate config is the stage config with available_tools cut to write.
-# Derived, not a second tracked file, so a provider or telemetry change
-# in the operator's config reaches the gates too.
-awk '
-  /^      - (shell|edit|tree)$/ { next }
-  { print }
-' "$GOOSE_CONFIG_DIR/goose/config.yaml" > "$GATE_CONFIG_DIR/goose/config.yaml"
-if ! grep -q '^      - write$' "$GATE_CONFIG_DIR/goose/config.yaml"; then
-  echo "run_loop.sh: the Goose config's developer extension does not list 'write' under available_tools; gates need it" >&2
+# The gate config is the stage config with the developer extension's
+# available_tools cut to `write`. Derived rather than tracked separately,
+# so a provider or telemetry change in the operator's config reaches the
+# gates too.
+#
+# The edit is scoped to the developer block's available_tools list, and
+# the result is then verified to expose exactly `write`. A config whose
+# list is written in another shape (flow style, a different indent) is
+# refused rather than passed through: silently leaving `shell` in a gate
+# would defeat the whole point of the gate config.
+derive_gate_tools() {
+  awk '
+    # Track the developer extension block and its available_tools list.
+    /^  [a-zA-Z_]+:/          { in_dev = ($0 ~ /^  developer:/); in_list = 0 }
+    in_dev && /^    [a-zA-Z_]+:/ { in_list = ($0 ~ /^    available_tools:/) }
+    in_list && /^      - /    { if ($0 != "      - write") next }
+    in_list && !/^      - / && !/^    available_tools:/ { in_list = 0 }
+    { print }
+  ' "$1"
+}
+
+# gate_tools <config>: the developer extension's available_tools, one per
+# line, or nothing when the list is not in the expected block shape.
+gate_tools() {
+  awk '
+    /^  [a-zA-Z_]+:/          { in_dev = ($0 ~ /^  developer:/); in_list = 0 }
+    in_dev && /^    [a-zA-Z_]+:/ { in_list = ($0 ~ /^    available_tools:/) }
+    in_list && /^      - /    { print substr($0, 9) }
+  ' "$1"
+}
+
+derive_gate_tools "$GOOSE_CONFIG_DIR/goose/config.yaml" > "$GATE_CONFIG_DIR/goose/config.yaml"
+GATE_TOOLS="$(gate_tools "$GATE_CONFIG_DIR/goose/config.yaml" | tr '\n' ',' | sed 's/,$//')"
+if [ "$GATE_TOOLS" != "write" ]; then
+  echo "run_loop.sh: could not cut the gate tool set down to 'write' alone (got '${GATE_TOOLS:-nothing}')." >&2
+  echo "run_loop.sh: the Goose config's developer extension must list available_tools as one '      - <tool>' line each, including write. See references/setup.md." >&2
   exit 1
 fi
 
