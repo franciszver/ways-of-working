@@ -2,7 +2,8 @@
 
 Work only in the current directory (a git worktree set up for this task).
 
-Read .loop-run/DIFF.txt (the diff under review) here.
+The diff under review is at the end of this prompt. You cannot read
+files: `write` is your only tool. Judge the diff as given.
 
 Look only for places where the changed lines let untrusted input reach a
 dangerous operation:
@@ -14,7 +15,7 @@ dangerous operation:
 - data deserialized from outside without validation
 
 Report a finding only when you can name the untrusted input and the line
-it reaches. Read the file at the cited line to confirm it.
+it reaches, both visible in the diff.
 
 Write SECURITY.md, in the findings format below. On each line say which input reaches which operation.
 

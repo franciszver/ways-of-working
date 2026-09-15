@@ -1,9 +1,7 @@
 ## Findings format (all gates)
 
-Read only the lines around each place you want to cite, not whole
-files: use `sed -n 'A,Bp' path` for at most 40 lines per call. Never
-print a file's contents in your reply. The diff is the scope; a large
-read costs more than it tells.
+Your only tool is `write`. Call it once, with the findings file, and
+stop. Never print the diff or any file's contents back in your reply.
 
 Write one finding per line, at most 10 lines, each in this exact shape
 (path relative to this directory, then the line number, then one
