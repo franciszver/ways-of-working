@@ -950,7 +950,7 @@ NOT_CONVERGED=""     # the gate that still had findings after GATE_ROUNDS fixes
 DELETES_REVERTED=0   # fix stages whose deleted files the driver restored
 LAST_STAGE_LOG=""    # the log of the most recent model attempt
 GATE_RECOVERED=""    # set when a gate verdict was read from the reply
-GATE_RECOVERED_KIND="" # "findings" or "clean", for the recovered verdict
+GATE_RECOVERED_FINDINGS=false # a recovered reply stated findings, this gate
 DIFF_TRUNCATED_TO=0  # bytes the last gate diff would have been, when truncated
 GATE_KEPT=0          # findings kept by the last filter_findings call
 GATE_DROPPED=0       # findings dropped by the last filter_findings call
@@ -984,9 +984,10 @@ gate_diff() {
 
 # is_no_findings_line <line>: the one test for a clean verdict, used
 # both on a findings file and on a reply read back from a gate's log.
-# mentions_no_findings <line>: loose, and only used to skip noise in a
-# findings file. A gate that writes "There are no findings here" has not
-# cited anything, so the line is dropped rather than rejected.
+# mentions_no_findings <line>: loose, and used only on a findings file,
+# to skip a line that cites nothing. A gate that writes "There are no
+# findings here" has made no claim, so the line is dropped rather than
+# counted as a rejected finding.
 mentions_no_findings() {
   case "$1" in
     *[Nn][Oo]\ [Ff][Ii][Nn][Dd][Ii][Nn][Gg][Ss]*) return 0 ;;
@@ -994,19 +995,43 @@ mentions_no_findings() {
   esac
 }
 
-# is_no_findings_line <line>: strict, and used to decide that a reply is
-# a clean verdict. A substring test would read "this is NOT a no findings
-# case" as clean, turning a gate that never answered into a pass, so the
-# verdict has to open the line. gate-rules.md asks for exactly that shape.
-is_no_findings_line() {
+# strip_list_marker <line>: the line without leading space, an optional
+# list marker, and surrounding bold. Numbered markers are accepted here
+# because FINDING_RE accepts them too; the two parsers must agree on what
+# a marker is.
+strip_list_marker() {
   local line="$1"
-  # Strip an optional list marker and leading space.
   line="${line#"${line%%[![:space:]]*}"}"
   case "$line" in
-    -\ *|\*\ *) line="${line#* }" ;;
+    -\ *|\*\ *|+\ *) line="${line#* }" ;;
+    [0-9].\ *|[0-9][0-9].\ *) line="${line#*. }" ;;
   esac
-  case "$line" in
-    [Nn][Oo]\ [Ff][Ii][Nn][Dd][Ii][Nn][Gg][Ss]*) return 0 ;;
+  line="${line#"${line%%[![:space:]]*}"}"
+  line="${line#\*\*}"
+  printf '%s' "$line"
+}
+
+# is_no_findings_line <line>: strict, and used to decide that a reply is
+# a clean verdict. Two ways a looser test goes wrong, both of which turn
+# a gate that never answered into a pass: "this is NOT a no findings
+# case" mentions the phrase mid-sentence, and "No findings file was
+# written because I could not call the tool" opens with the words but
+# uses them as a noun phrase. So the phrase must open the line and must
+# end the clause, not continue into one.
+is_no_findings_line() {
+  local line lower rest
+  line="$(strip_list_marker "$1")"
+  lower="$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')"
+  case "$lower" in
+    "no findings"*) rest="${lower#no findings}" ;;
+    *) return 1 ;;
+  esac
+  rest="${rest#\*\*}"
+  rest="${rest#"${rest%%[![:space:]]*}"}"
+  # The phrase has to end the clause. Anything else continues it, as in
+  # "no findings file was written because ...", which is not a verdict.
+  case "$rest" in
+    ''|:*|.*|,*|\;*|-*|!*|\)*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -1090,7 +1115,7 @@ filter_findings() {
 # word for anything the driver would not have taken from the file.
 # filter_findings still checks every cited path afterwards.
 recover_gate_verdict() {
-  local gate="$1" out="$2" body kind line
+  local gate="$1" out="$2" body kind line head_lines
   [ -n "$LAST_STAGE_LOG" ] && [ -f "$LAST_STAGE_LOG" ] || return 1
   # Drop goose's banner, when there is one, and blank lines; keep what
   # the model said. The range delete is guarded: with no banner to match,
@@ -1099,11 +1124,21 @@ recover_gate_verdict() {
   # quote the marker, and an unanchored range delete would then discard
   # the verdict stated above the quote. Verified against a real log,
   # where the marker sits on line 4.
-  if head -n 6 "$LAST_STAGE_LOG" 2>/dev/null | grep -q 'goose is ready'; then
-    body="$(sed -e '1,/goose is ready/d' "$LAST_STAGE_LOG")"
+  # awk, not sed: `sed '1,/re/d'` starts looking for the end of the range
+  # at line 2, so a marker on line 1 deletes through the next match, or
+  # to the end of the file when there is none. The head output goes into
+  # a variable first, because `head | grep -q` can trip pipefail when
+  # grep exits early and head takes SIGPIPE.
+  head_lines="$(head -n 6 "$LAST_STAGE_LOG" 2>/dev/null || true)"
+  if printf '%s\n' "$head_lines" | grep -q 'goose is ready'; then
+    body="$(awk 'past { print } /goose is ready/ { past = 1 }' "$LAST_STAGE_LOG")"
   else
     body="$(cat "$LAST_STAGE_LOG")"
   fi
+  # F7: a reply that echoed the diff must not have its diff body parsed
+  # as findings. A removed line such as "-  src/app.py:42: ..." otherwise
+  # reads as a list-marked finding against a file that really exists.
+  body="$(printf '%s\n' "$body" | grep -vE '^(diff --git |index |--- |\+\+\+ |@@|\+)' | grep -vE '^-[^ ]|^-[[:space:]]{2,}')"
   body="$(printf '%s\n' "$body" | grep -v '^[[:space:]]*$')"
   [ -n "$body" ] || return 1
   # Does the reply contain an answer at all? Only that question is
@@ -1123,7 +1158,10 @@ EOF
   unlink_if_symlink "$WORKTREE/$out"
   printf '%s\n' "$body" > "$WORKTREE/$out"
   GATE_RECOVERED="$gate"
-  GATE_RECOVERED_KIND="$kind"
+  # Only ever set, never cleared within a gate: under the per-file split
+  # this is called once per chunk, and a later clean chunk must not erase
+  # an earlier chunk whose findings cited nothing real.
+  [ "$kind" = findings ] && GATE_RECOVERED_FINDINGS=true
   echo "run_loop.sh: gate '$gate' never called write; its $kind verdict was read from its reply" >&2
   return 0
 }
@@ -1138,6 +1176,7 @@ run_gate() {
   local gate="$1" out prompt files nfiles diff_bytes acc f
   out="$(gate_output_file "$gate")"
   prompt="$PROMPTS_DIR/$gate.md"
+  GATE_RECOVERED_FINDINGS=false
   local -a files
   local chunk_missing=false
   unlink_if_symlink "$WORKTREE/.loop-run/DIFF.txt"
@@ -1199,7 +1238,7 @@ run_gate() {
   if filter_findings "$gate"; then
     return 0
   fi
-  if [ "$GATE_RECOVERED" = "$gate" ] && [ "$GATE_RECOVERED_KIND" = findings ] && [ "$GATE_KEPT" -eq 0 ]; then
+  if [ "$GATE_RECOVERED" = "$gate" ] && $GATE_RECOVERED_FINDINGS && [ "$GATE_KEPT" -eq 0 ]; then
     # The reply stated findings, but not one cited path survived. That is
     # a gate that did not review, not a gate that found nothing. A
     # recovered *clean* verdict is a real answer and is left alone.
@@ -1277,7 +1316,11 @@ run_gates_for_iteration() {
         run_gate "$gate"
         grc=$?
         if [ "$grc" -eq 3 ]; then
-          echo "run_loop.sh: WARNING gate '$gate' produced no $(gate_output_file "$gate") -- the gate did not run; the loop cannot pass" >&2
+          if [ -f "$WORKTREE/$(gate_output_file "$gate")" ]; then
+            echo "run_loop.sh: WARNING gate '$gate' left a $(gate_output_file "$gate") that cites nothing real -- the gate did not review; the loop cannot pass" >&2
+          else
+            echo "run_loop.sh: WARNING gate '$gate' produced no $(gate_output_file "$gate") -- the gate did not run; the loop cannot pass" >&2
+          fi
           GATES_FAILED+=("$gate")
           GATE_LOG+=("iteration $ITER, gate $gate, round $rounds: no output (failed closed)")
           return 0
