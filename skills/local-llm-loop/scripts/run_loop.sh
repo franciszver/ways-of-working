@@ -462,13 +462,23 @@ unlink_if_symlink() {
   return 0
 }
 
+# derive_gate_tools <config>: the stage config with the developer
+# extension's available_tools cut to `write`, and every other extension
+# forced off. Disabling them here, rather than refusing a config that
+# enables one, keeps a legitimate operator setup working: the extension
+# stays on for plan, execute and fix, and only the gates lose it.
 derive_gate_tools() {
   awk '
-    # Track the developer extension block and its available_tools list.
-    /^  [a-zA-Z_]+:/          { in_dev = ($0 ~ /^  developer:/); in_list = 0 }
+    # Track the current extension block and its available_tools list.
+    /^  [a-zA-Z0-9_-]+:/ {
+      name = $0; sub(/^  /, "", name); sub(/:.*$/, "", name)
+      in_dev = (name == "developer"); in_list = 0
+    }
     in_dev && /^    [a-zA-Z_]+:/ { in_list = ($0 ~ /^    available_tools:/) }
     in_list && /^      - /    { if ($0 != "      - write") next }
     in_list && !/^      - / && !/^    available_tools:/ { in_list = 0 }
+    # Any other extension brings its own tools; a gate gets none of them.
+    !in_dev && /^    enabled: true[[:space:]]*$/ { sub(/true/, "false") }
     { print }
   ' "$1"
 }
@@ -518,12 +528,12 @@ ensure_gate_config() {
     echo "run_loop.sh: the Goose config's developer extension must list available_tools as one '      - <tool>' line each, including write. See references/setup.md." >&2
     return 1
   fi
-  # available_tools only covers the developer extension. Any other
-  # enabled extension brings its own tools, and several of them read
-  # files, which is exactly what a gate must not be able to do.
+  # available_tools only covers the developer extension, so verify the
+  # derivation actually turned every other extension off: several of
+  # them read files, which is what a gate must not be able to do.
   extras="$(enabled_extensions "$GATE_CONFIG_DIR/goose/config.yaml" | grep -v '^developer$' | tr '\n' ',' | sed 's/,$//')"
   if [ -n "$extras" ]; then
-    echo "run_loop.sh: the Goose config enables extensions besides developer ($extras); a gate would get their tools. Set them 'enabled: false'. See references/setup.md." >&2
+    echo "run_loop.sh: could not disable extensions besides developer in the gate config ($extras); a gate would get their tools. See references/setup.md." >&2
     return 1
   fi
 }

@@ -1037,7 +1037,7 @@ assert_true "the fence is longer than the longest backtick run in the diff" bash
   [ "${#open}" -ge 3 ] && [ "${#open}" -ge "$body_max" ]' _ "$WT19S"
 
 echo
-echo "----- (19t) a config enabling another extension is refused -----"
+echo "----- (19t) another enabled extension is switched off for gates only -----"
 DEST19T="$SCRATCH/extracfg/taskrepo"
 bash "$RESET_TASK" --dest "$DEST19T" >/dev/null
 EXTRACFG="$SCRATCH/extracfg-home"
@@ -1046,10 +1046,17 @@ mkdir -p "$EXTRACFG/goose"
 # while available_tools still says write.
 awk '/^  analyze:/{a=1} a && /^    enabled: false$/{sub("false","true"); a=0} {print}' \
   "$SCRIPT_DIR/goose-config.example.yaml" > "$EXTRACFG/goose/config.yaml"
-XDG_CONFIG_HOME="$EXTRACFG" bash "$RUN_LOOP" "$DEST19T" "$TASK_PROMPT" --max-iterations 1 \
-  > "$SCRATCH/extracfg.out" 2>&1
-assert_eq "$?" "1" "a config enabling another extension is refused"
-assert_true "the refusal names the extension" file_has "$SCRATCH/extracfg.out" "enables extensions besides developer (analyze)"
+SHIMDIR19T="$SCRATCH/shim-extracfg"
+mkdir -p "$SHIMDIR19T"
+write_gate_shim "$SHIMDIR19T/goose"
+PATH="$SHIMDIR19T:$PATH" SHIM_STATE_DIR="$SCRATCH/state-extracfg" XDG_CONFIG_HOME="$EXTRACFG" \
+  bash "$RUN_LOOP" "$DEST19T" "$TASK_PROMPT" --max-iterations 1 > "$SCRATCH/extracfg.out" 2>&1
+assert_eq "$?" "0" "a config enabling another extension still runs"
+WT19T="$(find "$DEST19T/.loop" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+assert_true "analyze is on for the file-writing stages" bash -c '
+  awk "/^  analyze:/{a=1} a&&/^    enabled:/{print \$2; exit}" "$1/.loop-run/goose-config/goose/config.yaml" | grep -qx true' _ "$WT19T"
+assert_true "analyze is off in the gate config" bash -c '
+  awk "/^  analyze:/{a=1} a&&/^    enabled:/{print \$2; exit}" "$1/.loop-run/goose-config-gate/goose/config.yaml" | grep -qx false' _ "$WT19T"
 
 echo
 echo "----- (19p) a stage that restores cut tools cannot re-arm a later gate -----"
