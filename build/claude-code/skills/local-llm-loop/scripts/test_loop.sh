@@ -195,6 +195,15 @@ echo "$stage" >> "$STATE_DIR/stages"
 if [ -n "${SHIM_ENV_DUMP:-}" ]; then
   printf '%s GOOSE_MAX_TOKENS=%s\n' "$stage" "${GOOSE_MAX_TOKENS:-unset}" >> "$SHIM_ENV_DUMP"
 fi
+if [ -n "${SHIM_PROMPT_DUMP:-}" ]; then
+  # What this stage was actually handed: the tools its config exposes,
+  # and whether its prompt already carried the diff.
+  tools="$(sed -n '/available_tools:/,/^  [a-z]/p' "$XDG_CONFIG_HOME/goose/config.yaml" 2>/dev/null \
+           | sed -n 's/^      - //p' | tr '\n' ',' | sed 's/,$//')"
+  carried=no
+  grep -q '^diff --git' "$prompt" 2>/dev/null && carried=yes
+  printf '%s tools=%s diff_in_prompt=%s\n' "$stage" "${tools:-none}" "$carried" >> "$SHIM_PROMPT_DUMP"
+fi
 # A harness that reads stdin must not be able to drain the driver's
 # own input (a here-string of file names, say).
 cat > /dev/null
@@ -962,6 +971,46 @@ assert_true "the print shows every exported name, with the key redacted" bash -c
     grep -q "$v=" "$1" || exit 1
   done
   grep -q "OPENAI_API_KEY=\*\*\*" "$1"' _ "$SCRATCH/envparity.out"
+
+# --------------------------------------------------------------------
+# 19m. Gates read the diff from their prompt, not the filesystem (#43):
+#      a gate's built prompt carries the diff text, and a gate stage runs
+#      under a config exposing only `write`, while the file-writing
+#      stages keep the full tool set.
+# --------------------------------------------------------------------
+echo
+echo "===== (19m) the diff reaches gates in the prompt; gates get write only ====="
+PROMPT_DUMP="$SCRATCH/gate_prompt_dump.txt"
+: > "$PROMPT_DUMP"
+SHIM_PROMPT_DUMP="$PROMPT_DUMP" run_gate_case gatediff --max-iterations 1
+assert_eq "$(cat "$SCRATCH/gatediff.rc")" "0" "the run passes"
+assert_true "every gate stage was handed the diff in its prompt" bash -c '
+  g="$(grep -E "^(simplify|security|review) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "diff_in_prompt=yes"' _ "$PROMPT_DUMP"
+assert_true "every gate stage ran with write as its only tool" bash -c '
+  g="$(grep -E "^(simplify|security|review) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "tools=write "' _ "$PROMPT_DUMP"
+assert_true "plan, execute and fix keep the full tool set" bash -c '
+  g="$(grep -E "^(plan|execute|fix) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "tools=shell,edit,write,tree "' _ "$PROMPT_DUMP"
+assert_true "no gate prompt tells the model to read DIFF.txt" bash -c '
+  for f in "$1"/.loop-run/logs/simplify_prompt.md "$1"/.loop-run/logs/security_prompt.md "$1"/.loop-run/logs/review_prompt.md; do
+    [ -f "$f" ] || continue
+    grep -q "Read .loop-run/DIFF.txt" "$f" && exit 1
+  done
+  exit 0' _ "$(wt_of gatediff)"
+
+echo
+echo "----- (19n) under the per-file split each chunk prompt carries only that file -----"
+: > "$PROMPT_DUMP"
+SHIM_PROMPT_DUMP="$PROMPT_DUMP" LOOP_DIFF_SPLIT_BYTES=1 \
+  run_gate_case gatesplitdiff --max-iterations 1 --gates review
+WT19N="$(wt_of gatesplitdiff)"
+assert_true "each per-file review prompt carried exactly one file's diff" bash -c '
+  n=0
+  for f in "$1"/.loop-run/logs/review_prompt*.md; do
+    [ -f "$f" ] || continue
+    c=$(grep -c "^diff --git" "$f"); [ "$c" -eq 1 ] || exit 1
+    n=$((n+1))
+  done
+  [ "$n" -ge 1 ]' _ "$WT19N"
 
 # --------------------------------------------------------------------
 # 20. A target repo that tracks a bookkeeping name at its root is

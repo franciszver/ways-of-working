@@ -400,7 +400,12 @@ echo "run_loop.sh: created worktree $WORKTREE on branch $BRANCH"
 BASE_COMMIT="$(git -C "$WORKTREE" rev-parse HEAD)"
 LOG_DIR="$WORKTREE/.loop-run/logs"
 GOOSE_CONFIG_DIR="$WORKTREE/.loop-run/goose-config"
-mkdir -p "$LOG_DIR" "$GOOSE_CONFIG_DIR/goose"
+# Gates run under their own config, exposing `write` and nothing else.
+# A gate is handed the diff in its prompt, so it needs no tool that can
+# read: removing them is what stops a gate listing source into its reply
+# until the output cap or the gate timeout stops it (issues #40, #42).
+GATE_CONFIG_DIR="$WORKTREE/.loop-run/goose-config-gate"
+mkdir -p "$LOG_DIR" "$GOOSE_CONFIG_DIR/goose" "$GATE_CONFIG_DIR/goose"
 
 # Tracks the commit the review stage last saw, so each review's DIFF.txt
 # covers only the delta since then, not the whole run. Starts at
@@ -415,6 +420,18 @@ if [ -n "${XDG_CONFIG_HOME:-}" ] && [ -f "$XDG_CONFIG_HOME/goose/config.yaml" ];
   cp "$XDG_CONFIG_HOME/goose/config.yaml" "$GOOSE_CONFIG_DIR/goose/config.yaml"
 else
   cp "$BUNDLED_GOOSE_CONFIG" "$GOOSE_CONFIG_DIR/goose/config.yaml"
+fi
+
+# The gate config is the stage config with available_tools cut to write.
+# Derived, not a second tracked file, so a provider or telemetry change
+# in the operator's config reaches the gates too.
+awk '
+  /^      - (shell|edit|tree)$/ { next }
+  { print }
+' "$GOOSE_CONFIG_DIR/goose/config.yaml" > "$GATE_CONFIG_DIR/goose/config.yaml"
+if ! grep -q '^      - write$' "$GATE_CONFIG_DIR/goose/config.yaml"; then
+  echo "run_loop.sh: the Goose config's developer extension does not list 'write' under available_tools; gates need it" >&2
+  exit 1
 fi
 
 cp "$PLAN_FILE_ABS" "$WORKTREE/PLAN_INPUT.md"
@@ -509,12 +526,29 @@ commit_or_warn() {
 # (small steps, one file per write, test after each write, no delete/git
 # beyond status+diff) live in exactly one file instead of being retyped
 # in every stage prompt.
-# Gate stages additionally get gate-rules.md: the one copy of the
-# findings-file format that filter_findings' FINDING_RE parses.
+# Gate stages additionally get gate-rules.md (the one copy of the
+# findings-file format that filter_findings' FINDING_RE parses) and the
+# diff itself, pasted in. A gate has no tool that can read a file, so
+# the prompt is the only way the diff can reach it.
 build_stage_prompt() {
   local base_prompt="$1" out="$2" name="$3"
   if is_gate "$name"; then
     cat "$base_prompt" "$GATE_RULES_FILE" "$COMMON_RULES_FILE" > "$out"
+    {
+      printf '\n## The diff under review\n\n'
+      if [ -s "$WORKTREE/.loop-run/DIFF.txt" ]; then
+        printf '```diff\n'
+        cat "$WORKTREE/.loop-run/DIFF.txt"
+        printf '```\n'
+      else
+        printf '(empty: nothing changed since the last review)\n'
+      fi
+      if [ -s "$WORKTREE/TEST_OUTPUT.txt" ]; then
+        printf '\n## Latest test run\n\n```\n'
+        tail -n 40 "$WORKTREE/TEST_OUTPUT.txt"
+        printf '```\n'
+      fi
+    } >> "$out"
   else
     cat "$base_prompt" "$COMMON_RULES_FILE" > "$out"
   fi
@@ -524,7 +558,7 @@ build_stage_prompt() {
 # required so a call site can never silently fall back to the long
 # budget for a gate.
 invoke_goose() {
-  local prompt_file="$1" log_file="$2" stage_timeout="${3:?invoke_goose: timeout required}" max_tokens="${4:?invoke_goose: max_tokens required}"
+  local prompt_file="$1" log_file="$2" stage_timeout="${3:?invoke_goose: timeout required}" max_tokens="${4:?invoke_goose: max_tokens required}" config_dir="${5:?invoke_goose: config dir required}"
   local cmd=() quoted_prompt template
   # LOOP_HARNESS_CMD is parsed with normal shell word/quoting rules, not
   # naive whitespace splitting, so a quoted multi-word argument in the
@@ -543,7 +577,7 @@ invoke_goose() {
   # for this stage: a runaway generation stops at the server after it
   # instead of running to the stage timeout.
   local -a stage_env=(
-    "XDG_CONFIG_HOME=$GOOSE_CONFIG_DIR"
+    "XDG_CONFIG_HOME=$config_dir"
     "OPENAI_HOST=$OPENAI_HOST"
     "OPENAI_API_KEY=$OPENAI_API_KEY"
     "GOOSE_PROVIDER=openai"
@@ -630,14 +664,16 @@ RETRY_NUDGE_MISSING='Note: the previous attempt ended without writing %s. Write 
 #   retry is the caller's problem (gates fail closed on it).
 run_model_stage() {
   local name="$1" prompt_file="$2" expected="${3:-}"
-  local n log_file goose_rc attempt built_prompt retry_prompt nudge stage_timeout max_tokens trigger
+  local n log_file goose_rc attempt built_prompt retry_prompt nudge stage_timeout max_tokens trigger config_dir
   STAGES_RUN+=("$name")
   if is_gate "$name"; then
     stage_timeout="$GATE_TIMEOUT"
     max_tokens="$MAX_TOKENS"
+    config_dir="$GATE_CONFIG_DIR"
   else
     stage_timeout="$STAGE_TIMEOUT"
     max_tokens="$STAGE_MAX_TOKENS"
+    config_dir="$GOOSE_CONFIG_DIR"
   fi
 
   built_prompt="$LOG_DIR/${name}_prompt.md"
@@ -651,11 +687,11 @@ run_model_stage() {
     [ -n "$expected" ] && rm -f "$WORKTREE/$expected"
     if [ "$attempt" -eq 1 ]; then
       log_file="$LOG_DIR/${name}_${n}.log"
-      invoke_goose "$built_prompt" "$log_file" "$stage_timeout" "$max_tokens"
+      invoke_goose "$built_prompt" "$log_file" "$stage_timeout" "$max_tokens" "$config_dir"
     else
       log_file="$LOG_DIR/${name}_${n}_retry.log"
       { cat "$built_prompt"; printf '\n%s\n' "$nudge"; } > "$retry_prompt"
-      invoke_goose "$retry_prompt" "$log_file" "$stage_timeout" "$max_tokens"
+      invoke_goose "$retry_prompt" "$log_file" "$stage_timeout" "$max_tokens" "$config_dir"
     fi
     goose_rc=$?
 

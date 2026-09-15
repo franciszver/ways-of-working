@@ -97,6 +97,26 @@ the three gate stages, and is never set above `LOOP_STAGE_TIMEOUT`. A
 gate writes at most ten lines, so a gate still running at this limit is
 a runaway generation, not slow work.
 
+## Gate config and the prompt-carried diff
+
+A gate stage does not run under the same Goose config as plan, execute,
+and fix. At run start, `run_loop.sh` derives `.loop-run/goose-config-gate/`
+from the stage config by removing `shell`, `edit`, and `tree` from the
+developer extension's `available_tools`, leaving `write` alone. The
+driver exits with an error if `write` is not present in the result, so
+a hand-edited stage config can't silently strip a gate down to nothing.
+
+With no `shell` or `edit` tool, a gate has no way to read a file. The
+diff under review, and the last 40 lines of `TEST_OUTPUT.txt`, are
+appended to the gate's built prompt instead, under the headings "## The
+diff under review" and "## Latest test run"; an empty diff is stated as
+such rather than omitted. This removes the cause behind two failure
+modes seen across live runs: a gate listing source into its reply until
+the output cap or gate timeout cut it off, and a gate stating a correct
+"no findings" verdict in prose without calling `write`. Both trace to
+the gate having the `shell` tool; taking the tool away removes the
+cause instead of adding more prompt wording.
+
 ## Installing Goose
 
 Official installer:
