@@ -373,6 +373,15 @@ for f in PLAN.md PLAN_INPUT.md HANDOFF.md NEXT_STEP.md TEST_OUTPUT.txt \
   fi
 done
 
+# Nothing under .loop-run/ may be tracked. git checks those files out
+# into every new worktree, so a tracked symlink there would be waiting
+# at a path the driver writes, and would redirect that write out of the
+# worktree. The driver owns that directory; the repo must not.
+if [ -n "$(git -C "$REPO_PATH" ls-files -- '.loop-run' 2>/dev/null)" ]; then
+  echo "run_loop.sh: $REPO_PATH tracks files under .loop-run/, a directory the loop driver owns and writes; remove them from the index or run the loop on a copy" >&2
+  exit 1
+fi
+
 TS0="$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$REPO_PATH/.loop"
 # Two runs in the same second (a dry run right after a real one, or two
@@ -432,6 +441,13 @@ fi
 # list is written in another shape (flow style, a different indent) is
 # refused rather than passed through: silently leaving `shell` in a gate
 # would defeat the whole point of the gate config.
+# Removes a symlink at a path the driver is about to write, so a
+# planted link can never redirect a driver write.
+unlink_if_symlink() {
+  [ -L "$1" ] && rm -f "$1"
+  return 0
+}
+
 derive_gate_tools() {
   awk '
     # Track the developer extension block and its available_tools list.
@@ -453,13 +469,24 @@ gate_tools() {
   ' "$1"
 }
 
-derive_gate_tools "$GOOSE_CONFIG_DIR/goose/config.yaml" > "$GATE_CONFIG_DIR/goose/config.yaml"
-GATE_TOOLS="$(gate_tools "$GATE_CONFIG_DIR/goose/config.yaml" | tr '\n' ',' | sed 's/,$//')"
-if [ "$GATE_TOOLS" != "write" ]; then
-  echo "run_loop.sh: could not cut the gate tool set down to 'write' alone (got '${GATE_TOOLS:-nothing}')." >&2
-  echo "run_loop.sh: the Goose config's developer extension must list available_tools as one '      - <tool>' line each, including write. See references/setup.md." >&2
-  exit 1
-fi
+# ensure_gate_config: rebuild the gate config from the stage config and
+# verify it exposes exactly `write`. Called at setup and again before
+# every gate stage: the gate config lives inside the worktree, which a
+# stage holding `shell` can write, so deriving it once would let an
+# earlier stage put `shell` back for every later gate.
+ensure_gate_config() {
+  local tools
+  unlink_if_symlink "$GATE_CONFIG_DIR/goose/config.yaml"
+  derive_gate_tools "$GOOSE_CONFIG_DIR/goose/config.yaml" > "$GATE_CONFIG_DIR/goose/config.yaml"
+  tools="$(gate_tools "$GATE_CONFIG_DIR/goose/config.yaml" | tr '\n' ',' | sed 's/,$//')"
+  if [ "$tools" != "write" ]; then
+    echo "run_loop.sh: could not cut the gate tool set down to 'write' alone (got '${tools:-nothing}')." >&2
+    echo "run_loop.sh: the Goose config's developer extension must list available_tools as one '      - <tool>' line each, including write. See references/setup.md." >&2
+    exit 1
+  fi
+}
+
+ensure_gate_config
 
 cp "$PLAN_FILE_ABS" "$WORKTREE/PLAN_INPUT.md"
 
@@ -500,12 +527,7 @@ next_step_n() {
   STEP_N=$((STEP_N + 1))
 }
 
-# Removes a symlink at a path the driver is about to write, so a
-# model-planted link can never redirect a driver write.
-unlink_if_symlink() {
-  [ -L "$1" ] && rm -f "$1"
-  return 0
-}
+
 
 plan_has_unchecked() {
   # Fail closed: no PLAN.md yet (goose crashed, never ran, or wrote
@@ -697,6 +719,7 @@ run_model_stage() {
     stage_timeout="$GATE_TIMEOUT"
     max_tokens="$MAX_TOKENS"
     config_dir="$GATE_CONFIG_DIR"
+    ensure_gate_config
   else
     stage_timeout="$STAGE_TIMEOUT"
     max_tokens="$STAGE_MAX_TOKENS"
@@ -704,8 +727,10 @@ run_model_stage() {
   fi
 
   built_prompt="$LOG_DIR/${name}_prompt.md"
-  build_stage_prompt "$prompt_file" "$built_prompt" "$name"
   retry_prompt="$LOG_DIR/${name}_prompt_retry.md"
+  unlink_if_symlink "$built_prompt"
+  unlink_if_symlink "$retry_prompt"
+  build_stage_prompt "$prompt_file" "$built_prompt" "$name"
 
   for attempt in 1 2; do
     next_step_n; n="$STEP_N"
