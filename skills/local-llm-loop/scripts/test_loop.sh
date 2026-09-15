@@ -1215,6 +1215,22 @@ assert_true "the prose finding reached FINDINGS.md and a fix stage ran" bash -c 
   [ -n "$1" ] && file_has "$1" "new_a.txt:1"' _ "$FIRST19Y"
 
 echo
+echo "----- (19y2) a split gate recovers per chunk, not only on the last -----"
+PROSE_ONLY=1 LOOP_DIFF_SPLIT_BYTES=1 run_gate_case prosesplit --max-iterations 1 --gates simplify
+assert_eq "$(cat "$SCRATCH/prosesplit.rc")" "0" "the split run passes on prose verdicts"
+WT19Y2="$(wt_of prosesplit)"
+assert_true "each chunk's verdict was recovered, not just the last" bash -c '
+  [ "$(grep -c "never called write" "$1")" -ge 2 ]' _ "$SCRATCH/prosesplit.out"
+assert_true "no gate failed closed in the split run" bash -c '
+  file_has "$1/LOOP_SUMMARY.md" "Gates with no output (failed closed): none"' _ "$WT19Y2"
+
+echo
+echo "----- (19y3) an upper-case NO FINDINGS reply is read the same way -----"
+PROSE_ONLY=1 PROSE_ONLY_TEXT='NO FINDINGS. The diff is clean.' \
+  run_gate_case prosecase --max-iterations 1 --gates simplify
+assert_eq "$(cat "$SCRATCH/prosecase.rc")" "0" "a differently cased verdict is still read"
+
+echo
 echo "----- (19z) an unparseable prose reply still fails closed -----"
 PROSE_ONLY=1 PROSE_ONLY_TEXT='I had a look and it seems broadly reasonable overall.' \
   run_gate_case prosejunk --max-iterations 1 --gates simplify

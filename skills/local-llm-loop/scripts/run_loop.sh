@@ -981,6 +981,15 @@ gate_diff() {
   fi
 }
 
+# is_no_findings_line <line>: the one test for a clean verdict, used
+# both on a findings file and on a reply read back from a gate's log.
+is_no_findings_line() {
+  case "$1" in
+    *[Nn][Oo]\ [Ff][Ii][Nn][Dd][Ii][Nn][Gg][Ss]*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # A cited path must stay inside the worktree and outside the driver's
 # own state: no absolute path, no ".." segment, nothing under .loop-run/.
 path_is_inside_worktree() {
@@ -1038,9 +1047,7 @@ filter_findings() {
       # A "no findings" line (from the gate, or from one per-file chunk)
       # is skipped only when the line is not a finding: a finding whose
       # sentence happens to contain the phrase is still a finding.
-      case "$line" in
-        *[Nn][Oo]\ [Ff][Ii][Nn][Dd][Ii][Nn][Gg][Ss]*) continue ;;
-      esac
+      is_no_findings_line "$line" && continue
     fi
     printf '%s: %s\n' "$gate" "$line" >> "$rejected"
     GATE_DROPPED=$((GATE_DROPPED + 1))
@@ -1062,7 +1069,7 @@ filter_findings() {
 # word for anything the driver would not have taken from the file.
 # filter_findings still checks every cited path afterwards.
 recover_gate_verdict() {
-  local gate="$1" out="$2" body kept
+  local gate="$1" out="$2" body kind line
   [ -n "$LAST_STAGE_LOG" ] && [ -f "$LAST_STAGE_LOG" ] || return 1
   # Drop goose's banner, when there is one, and blank lines; keep what
   # the model said. The range delete is guarded: with no banner to match,
@@ -1074,24 +1081,22 @@ recover_gate_verdict() {
   fi
   body="$(printf '%s\n' "$body" | grep -v '^[[:space:]]*$')"
   [ -n "$body" ] || return 1
-  kept="$(printf '%s\n' "$body" | while IFS= read -r line; do
-    if [[ "$line" =~ $FINDING_RE ]]; then printf '%s\n' "$line"; fi
-  done)"
-  if [ -n "$kept" ]; then
-    unlink_if_symlink "$WORKTREE/$out"
-    printf '%s\n' "$kept" > "$WORKTREE/$out"
-    GATE_RECOVERED="$gate"
-    echo "run_loop.sh: gate '$gate' never called write; its findings were read from its reply" >&2
-    return 0
-  fi
-  if printf '%s\n' "$body" | grep -qE '(^|[^[:alnum:]])[Nn]o findings([^[:alnum:]]|$)'; then
-    unlink_if_symlink "$WORKTREE/$out"
-    printf '%s\n' "$body" | grep -E '(^|[^[:alnum:]])[Nn]o findings([^[:alnum:]]|$)' | head -n1 > "$WORKTREE/$out"
-    GATE_RECOVERED="$gate"
-    echo "run_loop.sh: gate '$gate' never called write; its no-findings verdict was read from its reply" >&2
-    return 0
-  fi
-  return 1
+  # Does the reply contain an answer at all? Only that question is
+  # decided here. What counts as a finding, and whether a cited path is
+  # real, stays with filter_findings, the one place that judges content.
+  kind=""
+  while IFS= read -r line; do
+    if [[ "$line" =~ $FINDING_RE ]]; then kind=findings; break; fi
+    if is_no_findings_line "$line"; then kind=clean; fi
+  done <<EOF
+$body
+EOF
+  [ -n "$kind" ] || return 1
+  unlink_if_symlink "$WORKTREE/$out"
+  printf '%s\n' "$body" > "$WORKTREE/$out"
+  GATE_RECOVERED="$gate"
+  echo "run_loop.sh: gate '$gate' never called write; its $kind verdict was read from its reply" >&2
+  return 0
 }
 
 # run_gate <gate>: runs one gate on the iteration's diff so far (from
@@ -1131,6 +1136,12 @@ run_gate() {
       gate_diff "$f" > "$WORKTREE/.loop-run/DIFF.txt" || true
       rm -f "$WORKTREE/$out"
       stage_or_abort "$gate" "$prompt" "$out"
+      if [ ! -f "$WORKTREE/$out" ] && ! $DRY_RUN; then
+        # Per chunk, not after the loop: LAST_STAGE_LOG only ever holds
+        # the most recent chunk's reply, and a merged $out exists as
+        # soon as any one chunk succeeded.
+        recover_gate_verdict "$gate" "$out" || true
+      fi
       if [ -f "$WORKTREE/$out" ]; then
         { printf '## %s\n' "$f"; cat "$WORKTREE/$out"; echo; } >> "$acc"
       else

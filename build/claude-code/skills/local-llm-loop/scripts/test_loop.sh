@@ -148,6 +148,9 @@ assert_true "dry-run's mechanical test stage actually ran the fixture's real tes
 #   REVIEW_SKIP_FILE  the review gate writes nothing when DIFF.txt mentions it
 #   EXECUTE_EXTRA_FILE  execute also writes this file (e.g. a non-ASCII name)
 #   EXECUTE_FENCE_FILE  execute writes a Markdown file containing a code fence
+#   PROSE_ONLY        a gate states PROSE_ONLY_TEXT in its reply and never
+#                     calls write, on every attempt
+#   PROSE_ONLY_TEXT   what such a gate says (default: a no-findings line)
 #   TRUNCATE_FIRST_CALL  the very first call reports a tool call cut at
 #                     the output cap and exits 1
 #   REVIEW_TRUNCATES_ONCE  the review gate's first call prints goose's
@@ -225,8 +228,14 @@ case "$stage" in
     printf '1. [x] do the thing\n' > PLAN.md
     printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
     ;;
-  simplify)  printf 'no findings\n' > SIMPLIFY.md ;;
-  security)  printf 'no findings\n' > SECURITY.md ;;
+  simplify|security)
+    if [ -n "${PROSE_ONLY:-}" ]; then
+      printf '%b\n' "${PROSE_ONLY_TEXT:-no findings: nothing in the diff to change.}"
+      exit 0
+    fi
+    if [ "$stage" = simplify ]; then printf 'no findings\n' > SIMPLIFY.md
+    else printf 'no findings\n' > SECURITY.md; fi
+    ;;
   review)
     if [ -n "${REVIEW_SLEEP:-}" ]; then sleep "$REVIEW_SLEEP"; fi   # a runaway gate
     if [ -n "${REVIEW_QUOTES_TRIGGER:-}" ]; then
@@ -1178,6 +1187,57 @@ assert_true "every chunk prompt was kept and carried exactly one file's diff" ba
     n=$((n+1))
   done
   [ "$n" -ge 2 ]' _ "$WT19N"
+
+# --------------------------------------------------------------------
+# 19x. A gate that states its verdict in prose and never calls write
+#      (#42): the driver reads the answer it actually gave, through the
+#      same parser the file goes through, and records that it did.
+# --------------------------------------------------------------------
+echo
+echo "===== (19x) a prose no-findings verdict is read from the reply ====="
+PROSE_ONLY=1 run_gate_case prose --max-iterations 1 --gates simplify
+assert_eq "$(cat "$SCRATCH/prose.rc")" "0" "the run passes on a prose verdict"
+WT19X="$(wt_of prose)"
+assert_true "SIMPLIFY.md holds the verdict the gate stated" bash -c '
+  file_has "$1/SIMPLIFY.md" "nothing in the diff to change"' _ "$WT19X"
+assert_true "LOOP_SUMMARY.md records that the verdict came from the reply" bash -c '
+  file_has "$1/LOOP_SUMMARY.md" "recovered from the reply"' _ "$WT19X"
+assert_true "no gate is reported as having failed closed" bash -c '
+  file_has "$1/LOOP_SUMMARY.md" "Gates with no output (failed closed): none"' _ "$WT19X"
+
+echo
+echo "----- (19y) a prose finding is parsed and fixed like a written one -----"
+PROSE_ONLY=1 PROSE_ONLY_TEXT='- new_a.txt:1: says new code but should say hello' \
+  run_gate_case prosefind --max-iterations 1 --gates simplify
+STATE19Y="$SCRATCH/state-prosefind"
+FIRST19Y="$(ls "$STATE19Y"/findings_seen_*.md 2>/dev/null | head -n1)"
+assert_true "the prose finding reached FINDINGS.md and a fix stage ran" bash -c '
+  [ -n "$1" ] && file_has "$1" "new_a.txt:1"' _ "$FIRST19Y"
+
+echo
+echo "----- (19y2) a split gate recovers per chunk, not only on the last -----"
+PROSE_ONLY=1 LOOP_DIFF_SPLIT_BYTES=1 run_gate_case prosesplit --max-iterations 1 --gates simplify
+assert_eq "$(cat "$SCRATCH/prosesplit.rc")" "0" "the split run passes on prose verdicts"
+WT19Y2="$(wt_of prosesplit)"
+assert_true "each chunk's verdict was recovered, not just the last" bash -c '
+  [ "$(grep -c "never called write" "$1")" -ge 2 ]' _ "$SCRATCH/prosesplit.out"
+assert_true "no gate failed closed in the split run" bash -c '
+  file_has "$1/LOOP_SUMMARY.md" "Gates with no output (failed closed): none"' _ "$WT19Y2"
+
+echo
+echo "----- (19y3) an upper-case NO FINDINGS reply is read the same way -----"
+PROSE_ONLY=1 PROSE_ONLY_TEXT='NO FINDINGS. The diff is clean.' \
+  run_gate_case prosecase --max-iterations 1 --gates simplify
+assert_eq "$(cat "$SCRATCH/prosecase.rc")" "0" "a differently cased verdict is still read"
+
+echo
+echo "----- (19z) an unparseable prose reply still fails closed -----"
+PROSE_ONLY=1 PROSE_ONLY_TEXT='I had a look and it seems broadly reasonable overall.' \
+  run_gate_case prosejunk --max-iterations 1 --gates simplify
+assert_eq "$(cat "$SCRATCH/prosejunk.rc")" "1" "an unparseable reply fails the run"
+WT19Z="$(wt_of prosejunk)"
+assert_true "LOOP_SUMMARY.md still lists the gate as failed closed" bash -c '
+  file_has "$1/LOOP_SUMMARY.md" "Gates with no output (failed closed): simplify"' _ "$WT19Z"
 
 # --------------------------------------------------------------------
 # 20. A target repo that tracks a bookkeeping name at its root is

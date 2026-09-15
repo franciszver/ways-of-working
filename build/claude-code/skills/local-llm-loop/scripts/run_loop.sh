@@ -851,9 +851,11 @@ run_model_stage() {
     [ -n "$expected" ] && rm -f "$WORKTREE/$expected"
     if [ "$attempt" -eq 1 ]; then
       log_file="$LOG_DIR/${name}_${n}.log"
+      LAST_STAGE_LOG="$log_file"
       invoke_goose "$built_prompt" "$log_file" "$stage_timeout" "$max_tokens" "$config_dir"
     else
       log_file="$LOG_DIR/${name}_${n}_retry.log"
+      LAST_STAGE_LOG="$log_file"
       { cat "$built_prompt"; printf '\n%s\n' "$nudge"; } > "$retry_prompt"
       invoke_goose "$retry_prompt" "$log_file" "$stage_timeout" "$max_tokens" "$config_dir"
     fi
@@ -946,6 +948,8 @@ GATE_LOG=()          # one line per gate run, for LOOP_SUMMARY.md
 GATES_FAILED=()      # gates that wrote no output even after the retry
 NOT_CONVERGED=""     # the gate that still had findings after GATE_ROUNDS fixes
 DELETES_REVERTED=0   # fix stages whose deleted files the driver restored
+LAST_STAGE_LOG=""    # the log of the most recent model attempt
+GATE_RECOVERED=""    # set when a gate verdict was read from the reply
 DIFF_TRUNCATED_TO=0  # bytes the last gate diff would have been, when truncated
 GATE_KEPT=0          # findings kept by the last filter_findings call
 GATE_DROPPED=0       # findings dropped by the last filter_findings call
@@ -975,6 +979,15 @@ gate_diff() {
   else
     git -C "$WORKTREE" diff "$ITER_BASE" HEAD -- . "${GATE_DIFF_EXCLUDES[@]}" 2>&1
   fi
+}
+
+# is_no_findings_line <line>: the one test for a clean verdict, used
+# both on a findings file and on a reply read back from a gate's log.
+is_no_findings_line() {
+  case "$1" in
+    *[Nn][Oo]\ [Ff][Ii][Nn][Dd][Ii][Nn][Gg][Ss]*) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 # A cited path must stay inside the worktree and outside the driver's
@@ -1034,9 +1047,7 @@ filter_findings() {
       # A "no findings" line (from the gate, or from one per-file chunk)
       # is skipped only when the line is not a finding: a finding whose
       # sentence happens to contain the phrase is still a finding.
-      case "$line" in
-        *[Nn][Oo]\ [Ff][Ii][Nn][Dd][Ii][Nn][Gg][Ss]*) continue ;;
-      esac
+      is_no_findings_line "$line" && continue
     fi
     printf '%s: %s\n' "$gate" "$line" >> "$rejected"
     GATE_DROPPED=$((GATE_DROPPED + 1))
@@ -1045,6 +1056,46 @@ filter_findings() {
     echo "no findings" > "$WORKTREE/FINDINGS.md"
     return 1
   fi
+  return 0
+}
+
+# recover_gate_verdict <gate> <out>: a gate that never called `write`
+# but stated a parseable verdict in its reply has that verdict written
+# to its findings file. The reply goes through the same rules the file
+# would: a line starting path:LINE is a finding, a bare "no findings"
+# line is a clean verdict, anything else is not an answer.
+#
+# This reads the answer the model gave; it does not take the model's
+# word for anything the driver would not have taken from the file.
+# filter_findings still checks every cited path afterwards.
+recover_gate_verdict() {
+  local gate="$1" out="$2" body kind line
+  [ -n "$LAST_STAGE_LOG" ] && [ -f "$LAST_STAGE_LOG" ] || return 1
+  # Drop goose's banner, when there is one, and blank lines; keep what
+  # the model said. The range delete is guarded: with no banner to match,
+  # sed would delete the whole file.
+  if grep -q 'goose is ready' "$LAST_STAGE_LOG" 2>/dev/null; then
+    body="$(sed -e '1,/goose is ready/d' "$LAST_STAGE_LOG")"
+  else
+    body="$(cat "$LAST_STAGE_LOG")"
+  fi
+  body="$(printf '%s\n' "$body" | grep -v '^[[:space:]]*$')"
+  [ -n "$body" ] || return 1
+  # Does the reply contain an answer at all? Only that question is
+  # decided here. What counts as a finding, and whether a cited path is
+  # real, stays with filter_findings, the one place that judges content.
+  kind=""
+  while IFS= read -r line; do
+    if [[ "$line" =~ $FINDING_RE ]]; then kind=findings; break; fi
+    if is_no_findings_line "$line"; then kind=clean; fi
+  done <<EOF
+$body
+EOF
+  [ -n "$kind" ] || return 1
+  unlink_if_symlink "$WORKTREE/$out"
+  printf '%s\n' "$body" > "$WORKTREE/$out"
+  GATE_RECOVERED="$gate"
+  echo "run_loop.sh: gate '$gate' never called write; its $kind verdict was read from its reply" >&2
   return 0
 }
 
@@ -1085,6 +1136,12 @@ run_gate() {
       gate_diff "$f" > "$WORKTREE/.loop-run/DIFF.txt" || true
       rm -f "$WORKTREE/$out"
       stage_or_abort "$gate" "$prompt" "$out"
+      if [ ! -f "$WORKTREE/$out" ] && ! $DRY_RUN; then
+        # Per chunk, not after the loop: LAST_STAGE_LOG only ever holds
+        # the most recent chunk's reply, and a merged $out exists as
+        # soon as any one chunk succeeded.
+        recover_gate_verdict "$gate" "$out" || true
+      fi
       if [ -f "$WORKTREE/$out" ]; then
         { printf '## %s\n' "$f"; cat "$WORKTREE/$out"; echo; } >> "$acc"
       else
@@ -1102,6 +1159,11 @@ run_gate() {
     stage_or_abort "$gate" "$prompt" "$out"
   fi
 
+  if ! $DRY_RUN && [ ! -f "$WORKTREE/$out" ] && ! $chunk_missing; then
+    # Last resort before failing closed: the model may have stated its
+    # verdict in the reply instead of calling write.
+    recover_gate_verdict "$gate" "$out" || true
+  fi
   if ! $DRY_RUN && { [ ! -f "$WORKTREE/$out" ] || $chunk_missing; }; then
     return 3
   fi
@@ -1184,7 +1246,8 @@ run_gates_for_iteration() {
           GATE_LOG+=("iteration $ITER, gate $gate, round $rounds: no output (failed closed)")
           return 0
         fi
-        GATE_LOG+=("iteration $ITER, gate $gate, round $rounds: $GATE_KEPT finding(s) kept, $GATE_DROPPED rejected$([ "$DIFF_TRUNCATED_TO" -gt 0 ] && echo ", diff truncated to $GATE_DIFF_BYTES of $DIFF_TRUNCATED_TO bytes")")
+        GATE_LOG+=("iteration $ITER, gate $gate, round $rounds: $GATE_KEPT finding(s) kept, $GATE_DROPPED rejected$([ "$DIFF_TRUNCATED_TO" -gt 0 ] && echo ", diff truncated to $GATE_DIFF_BYTES of $DIFF_TRUNCATED_TO bytes")$([ "$GATE_RECOVERED" = "$gate" ] && echo ", verdict recovered from the reply")")
+        GATE_RECOVERED=""
         if [ "$GATE_KEPT" -eq 0 ] && [ "$GATE_DROPPED" -gt 0 ]; then
           echo "run_loop.sh: gate '$gate' wrote $GATE_DROPPED line(s) the driver rejected and kept none; see .loop-run/REJECTED_FINDINGS.md" >&2
         fi
