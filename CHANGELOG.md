@@ -5,6 +5,33 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-09-14
+
+- **`local-llm-loop`: a gate verdict stated in prose, not written, is
+  read from the reply** (#42): when a gate ends without calling
+  `write`, `run_loop.sh` re-reads the stage's log, strips goose's
+  banner when it appears in the first six lines, and looks for an
+  answer — a line matching the findings format (`path:LINE`) is
+  findings, a line beginning "no findings" is clean. Anything else is
+  not an answer and the gate still fails closed. Recovery runs per
+  chunk under the per-file split, not only once after it.
+
+- **A recovered answer goes through the same checks a written file
+  gets.** The reply is written whole to the gate's findings file, and
+  `filter_findings` checks every cited path exists, stays inside the
+  worktree, and is not under `.loop-run/`. Findings recovered this way
+  that cite no surviving path are treated as not run, since a reply
+  citing nothing real is not a review; a recovered clean verdict is a
+  real answer and passes. `LOOP_SUMMARY.md` marks the affected gate's
+  line with ", verdict recovered from the reply".
+
+- **Why:** with gates holding only `write` (#43), a gate stating its
+  verdict in prose instead of calling the tool was the one remaining
+  failure of the loop, seen in 2 of 4 live acceptance runs of that
+  change. Two attempts at prompt wording did not fix it. This reads
+  the answer the model already gave, through the same rules the file
+  would get.
+
 ## [0.14.0] - 2026-09-14
 
 - **`local-llm-loop`: gates read the diff from their prompt, not the

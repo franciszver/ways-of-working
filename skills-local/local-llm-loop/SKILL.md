@@ -3,7 +3,7 @@ name: local-llm-loop
 description: "Runs the working loop for a coding agent backed by a local, small-active-parameter model (~3B active MoE) on consumer hardware — short steps, a mechanical check after every write, tolerant of format-rejection retries and prose-instead-of-a-call. Use when Claude Code or any agent runs against a local server (ANTHROPIC_BASE_URL, llama.cpp, Ollama, LM Studio), or when tuning that server's inference flags."
 ---
 
-<!-- local: derived-from: skills/local-llm-loop/SKILL.md@bcf527accf77 -->
+<!-- local: derived-from: skills/local-llm-loop/SKILL.md@1230052e3737 -->
 
 # Local LLM Loop
 
@@ -15,7 +15,7 @@ You are a local model. Work in small, checked steps — this is a measured const
 2. After every write: parse it, load it, check for errors — before starting the next step. Never queue write N+1 before write N's check has actually returned.
 3. Keep every tool call small — target under ~700 tokens per call.
 4. If a call is rejected as malformed (HTTP 500, a message about the expected format), that is not a crash: retry the same step once.
-5. If your reply is cut off at the output limit, you printed too much. Never print file contents in a reply; as a gate, you have no read tool and the diff is already in your prompt, so write your findings file first. Otherwise read at most 40 lines per call, write the file you were asked for first, then stop.
+5. If your reply is cut off at the output limit, you printed too much. Never print file contents in a reply; as a gate, you have no read tool and the diff is already in your prompt, so write your findings file first. Otherwise read at most 40 lines per call, write the file you were asked for first, then stop. As a gate, a verdict stated only in your reply, never written, may not be read — call `write`.
 6. If the harness reports "Resource not found" (HTTP 404), stop — the endpoint is misconfigured, not you. Do not keep retrying.
 7. A prose answer or a clarifying question is a normal outcome, not a failure — `tool_choice: required` is not guaranteed to force a structured call on this stack. If you're unsure a tool call is needed, ask in prose rather than emitting a malformed call.
 8. When recovering from a missing file or wrong path, keep exploring toward the right name (list the directory, check nearby paths) rather than giving up after one failed lookup.
