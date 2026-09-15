@@ -69,10 +69,14 @@ Environment (see env.example):
                         lines, so a gate still running at this limit is a
                         runaway generation, not slow work.
   LOOP_MAX_TOKENS      Optional. Output-token cap for the gate stages, sent
-                        to the harness as GOOSE_MAX_TOKENS (default 3072, the
-                        benchmark's recommended client cap for tool-calling
-                        tasks). Bounds a runaway at the server instead of
-                        waiting for the stage timeout.
+                        to the harness as GOOSE_MAX_TOKENS (default 8192).
+                        A gate holds only the write tool, so the tool set
+                        bounds a runaway and this only has to fit one
+                        findings file.
+  LOOP_GATE_DIFF_BYTES Optional. Bytes of diff a gate prompt may carry
+                        (default 32768). Separate from the split
+                        threshold: one oversized file is capped even when
+                        no split happened.
   LOOP_STAGE_MAX_TOKENS
                        Optional. The same cap for plan, execute and fix
                         stages, which write files (default 8192). A write
@@ -211,8 +215,17 @@ STAGE_TIMEOUT="${LOOP_STAGE_TIMEOUT:-1800}"
 DIFF_SPLIT_BYTES="${LOOP_DIFF_SPLIT_BYTES:-32768}"
 GATE_ROUNDS="${LOOP_GATE_ROUNDS:-2}"
 GATE_TIMEOUT="${LOOP_GATE_TIMEOUT:-300}"
-MAX_TOKENS="${LOOP_MAX_TOKENS:-3072}"
+# 8192, not the 3072 tool-calling figure: a gate holds only `write`, so
+# the tool set stops a runaway at the source and the cap only has to be
+# large enough for one findings file. Measured at 3072 the same gate
+# prompt was cut mid tool call in 1 of 2 live attempts.
+MAX_TOKENS="${LOOP_MAX_TOKENS:-8192}"
 STAGE_MAX_TOKENS="${LOOP_STAGE_MAX_TOKENS:-8192}"
+# How much diff text a gate prompt may carry. Separate from the split
+# threshold on purpose: the threshold decides when to review file by
+# file, this decides how much of whatever is left gets pasted, and one
+# oversized single file must be capped even when no split happened.
+GATE_DIFF_BYTES="${LOOP_GATE_DIFF_BYTES:-32768}"
 # require_int <name> <value> <min>: the one numeric check for every knob.
 # Timeouts and token caps take min 1: 0 means "no limit" to GNU timeout
 # and to perl's alarm, and goose rejects a 0 cap, so 0 is refused here
@@ -235,6 +248,7 @@ require_int LOOP_STAGE_TIMEOUT "$STAGE_TIMEOUT" 1
 require_int LOOP_GATE_TIMEOUT "$GATE_TIMEOUT" 1
 require_int LOOP_MAX_TOKENS "$MAX_TOKENS" 1
 require_int LOOP_STAGE_MAX_TOKENS "$STAGE_MAX_TOKENS" 1
+require_int LOOP_GATE_DIFF_BYTES "$GATE_DIFF_BYTES" 1
 # A gate never gets a longer timeout than an ordinary stage.
 if [ "$GATE_TIMEOUT" -gt "$STAGE_TIMEOUT" ]; then
   echo "run_loop.sh: LOOP_GATE_TIMEOUT=$GATE_TIMEOUT is above LOOP_STAGE_TIMEOUT=$STAGE_TIMEOUT; using $STAGE_TIMEOUT for the gates" >&2
@@ -474,19 +488,47 @@ gate_tools() {
 # every gate stage: the gate config lives inside the worktree, which a
 # stage holding `shell` can write, so deriving it once would let an
 # earlier stage put `shell` back for every later gate.
+# enabled_extensions <config>: the name of every extension block whose
+# body sets `enabled: true`.
+enabled_extensions() {
+  awk '
+    /^  [a-zA-Z0-9_-]+:/ { name = $0; sub(/^  /, "", name); sub(/:.*$/, "", name) }
+    /^    enabled: true[[:space:]]*$/ { if (name != "") print name }
+  ' "$1"
+}
+
+# ensure_gate_config: rebuild the gate config from the stage config and
+# verify it leaves a gate with the write tool and nothing else. Returns
+# 1 rather than exiting, so the caller decides how to fail.
+#
+# Called at setup and again before every gate stage: the gate config
+# lives inside the worktree, which a stage holding `shell` can write, so
+# deriving it once would let an earlier stage put the tools back for
+# every later gate.
 ensure_gate_config() {
-  local tools
+  local tools extras
+  unlink_if_symlink "$GATE_CONFIG_DIR/goose"
+  unlink_if_symlink "$GATE_CONFIG_DIR"
+  mkdir -p "$GATE_CONFIG_DIR/goose"
   unlink_if_symlink "$GATE_CONFIG_DIR/goose/config.yaml"
   derive_gate_tools "$GOOSE_CONFIG_DIR/goose/config.yaml" > "$GATE_CONFIG_DIR/goose/config.yaml"
   tools="$(gate_tools "$GATE_CONFIG_DIR/goose/config.yaml" | tr '\n' ',' | sed 's/,$//')"
   if [ "$tools" != "write" ]; then
     echo "run_loop.sh: could not cut the gate tool set down to 'write' alone (got '${tools:-nothing}')." >&2
     echo "run_loop.sh: the Goose config's developer extension must list available_tools as one '      - <tool>' line each, including write. See references/setup.md." >&2
-    exit 1
+    return 1
+  fi
+  # available_tools only covers the developer extension. Any other
+  # enabled extension brings its own tools, and several of them read
+  # files, which is exactly what a gate must not be able to do.
+  extras="$(enabled_extensions "$GATE_CONFIG_DIR/goose/config.yaml" | grep -v '^developer$' | tr '\n' ',' | sed 's/,$//')"
+  if [ -n "$extras" ]; then
+    echo "run_loop.sh: the Goose config enables extensions besides developer ($extras); a gate would get their tools. Set them 'enabled: false'. See references/setup.md." >&2
+    return 1
   fi
 }
 
-ensure_gate_config
+ensure_gate_config || exit 1
 
 cp "$PLAN_FILE_ABS" "$WORKTREE/PLAN_INPUT.md"
 
@@ -518,6 +560,7 @@ fi
 # Helpers
 # --------------------------------------------------------------------
 STEP_N=0
+PROMPT_SEQ=0
 STAGES_RUN=()
 
 # Increments STEP_N in the calling shell; read $STEP_N afterwards.
@@ -575,6 +618,18 @@ commit_or_warn() {
 # (small steps, one file per write, test after each write, no delete/git
 # beyond status+diff) live in exactly one file instead of being retyped
 # in every stage prompt.
+# longest_fence <file...>: a backtick fence at least three long and
+# longer than any backtick run in the given files.
+longest_fence() {
+  local n
+  n="$(cat "$@" 2>/dev/null | grep -o '`\{1,\}' | awk '
+    { if (length($0) > m) m = length($0) }
+    END { print (m < 3 ? 3 : m + 1) }
+  ')"
+  [ -n "$n" ] || n=3
+  printf '%*s' "$n" '' | tr ' ' '`'
+}
+
 # Gate stages additionally get gate-rules.md (the one copy of the
 # findings-file format that filter_findings' FINDING_RE parses) and the
 # diff itself, pasted in. A gate has no tool that can read a file, so
@@ -582,20 +637,33 @@ commit_or_warn() {
 build_stage_prompt() {
   local base_prompt="$1" out="$2" name="$3"
   if is_gate "$name"; then
-    cat "$base_prompt" "$GATE_RULES_FILE" "$COMMON_RULES_FILE" > "$out"
+    # Not common-rules.md: it tells the model to run the test command and
+    # git, tools a gate does not have. gate-rules.md is the gate's own
+    # shared text.
+    cat "$base_prompt" "$GATE_RULES_FILE" > "$out"
+    local diff_file="$WORKTREE/.loop-run/DIFF.txt" fence
+    # A fence longer than the longest backtick run in the pasted text, so
+    # a diff that touches a Markdown file cannot close the block early
+    # and turn the rest of the diff into apparent instructions.
+    fence="$(longest_fence "$diff_file" "$WORKTREE/TEST_OUTPUT.txt")"
     {
       printf '\n## The diff under review\n\n'
-      if [ -s "$WORKTREE/.loop-run/DIFF.txt" ]; then
-        printf '```diff\n'
-        cat "$WORKTREE/.loop-run/DIFF.txt"
-        printf '```\n'
+      if [ -s "$diff_file" ]; then
+        printf '%s diff\n' "$fence"
+        # Capped even when the per-file split did not trigger: one
+        # oversized file would otherwise paste its whole diff here.
+        head -c "$GATE_DIFF_BYTES" "$diff_file"
+        if [ "$(wc -c < "$diff_file")" -gt "$GATE_DIFF_BYTES" ]; then
+          printf '\n[truncated at %s bytes; review what is shown]\n' "$GATE_DIFF_BYTES"
+        fi
+        printf '\n%s\n' "$fence"
       else
         printf '(empty: nothing changed since the last review)\n'
       fi
       if [ -s "$WORKTREE/TEST_OUTPUT.txt" ]; then
-        printf '\n## Latest test run\n\n```\n'
+        printf '\n## Latest test run\n\n%s\n' "$fence"
         tail -n 40 "$WORKTREE/TEST_OUTPUT.txt"
-        printf '```\n'
+        printf '%s\n' "$fence"
       fi
     } >> "$out"
   else
@@ -719,15 +787,16 @@ run_model_stage() {
     stage_timeout="$GATE_TIMEOUT"
     max_tokens="$MAX_TOKENS"
     config_dir="$GATE_CONFIG_DIR"
-    ensure_gate_config
+    ensure_gate_config || abort_run "gate config no longer safe"
   else
     stage_timeout="$STAGE_TIMEOUT"
     max_tokens="$STAGE_MAX_TOKENS"
     config_dir="$GOOSE_CONFIG_DIR"
   fi
 
-  built_prompt="$LOG_DIR/${name}_prompt.md"
-  retry_prompt="$LOG_DIR/${name}_prompt_retry.md"
+  PROMPT_SEQ=$((PROMPT_SEQ + 1))
+  built_prompt="$LOG_DIR/${name}_prompt_${PROMPT_SEQ}.md"
+  retry_prompt="$LOG_DIR/${name}_prompt_${PROMPT_SEQ}_retry.md"
   unlink_if_symlink "$built_prompt"
   unlink_if_symlink "$retry_prompt"
   build_stage_prompt "$prompt_file" "$built_prompt" "$name"
@@ -1103,19 +1172,25 @@ run_gates_for_iteration() {
   done
 }
 
-abort_misconfigured() {
-  echo "run_loop.sh: endpoint misconfigured (Resource not found in a goose log under $LOG_DIR)" >&2
+# abort_run <reason>: stop mid-run, leaving a summary that says why.
+abort_run() {
+  echo "run_loop.sh: aborting: $1" >&2
+  unlink_if_symlink "$WORKTREE/LOOP_SUMMARY.md"
   {
     echo "# LOOP_SUMMARY (aborted)"
     echo
     echo "Repo: $REPO_PATH"
     echo "Worktree: $WORKTREE"
     echo "Branch: $BRANCH"
-    echo "Aborted: endpoint misconfigured"
+    echo "Aborted: $1"
     echo "Stages run: $STEP_N"
-    echo "Stages: ${STAGES_RUN[*]}"
+    echo "Stages: ${STAGES_RUN[*]:-none}"
   } > "$WORKTREE/LOOP_SUMMARY.md"
   exit 2
+}
+
+abort_misconfigured() {
+  abort_run "endpoint misconfigured (Resource not found in a goose log under $LOG_DIR)"
 }
 
 finalize() {

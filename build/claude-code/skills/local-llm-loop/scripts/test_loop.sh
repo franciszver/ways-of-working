@@ -147,6 +147,7 @@ assert_true "dry-run's mechanical test stage actually ran the fixture's real tes
 #   FIX_RENAMES       when set, the fix stage moves this file to moved_<name>
 #   REVIEW_SKIP_FILE  the review gate writes nothing when DIFF.txt mentions it
 #   EXECUTE_EXTRA_FILE  execute also writes this file (e.g. a non-ASCII name)
+#   EXECUTE_FENCE_FILE  execute writes a Markdown file containing a code fence
 #   TRUNCATE_FIRST_CALL  the very first call reports a tool call cut at
 #                     the output cap and exits 1
 #   REVIEW_TRUNCATES_ONCE  the review gate's first call prints goose's
@@ -217,6 +218,7 @@ case "$stage" in
     echo "new code" > new_a.txt
     echo "new code" > new_b.txt
     if [ -n "${EXECUTE_EXTRA_FILE:-}" ]; then echo "new code" > "$EXECUTE_EXTRA_FILE"; fi
+    if [ -n "${EXECUTE_FENCE_FILE:-}" ]; then printf 'text\n````\nfenced\n````\n' > fenced.md; fi
     if [ -n "${EXECUTE_BREAKS_TESTS:-}" ]; then
       printf 'import unittest\nclass T(unittest.TestCase):\n    def test_broken(self):\n        self.fail("broken by execute")\n' > tests/test_broken.py
     fi
@@ -282,6 +284,9 @@ run_gate_case() { # $1 = case name; remaining args passed to run_loop.sh
   echo "$?" > "$SCRATCH/$name.rc"
   cat "$SCRATCH/$name.out"
 }
+# The built prompt is named per build, so a split keeps every chunk's.
+newest_prompt() { ls -t "$1"/.loop-run/logs/$2 2>/dev/null | head -n1; }
+export -f newest_prompt   # defined here, so export after, not with the pair above
 wt_of() { find "$SCRATCH/$1/taskrepo/.loop" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n1; }
 stages_of() { tr '\n' ' ' < "$SCRATCH/state-$1/stages" | sed 's/ $//'; }
 
@@ -670,7 +675,7 @@ ARGC12=$(wc -l < "$ARGV_DUMP" | tr -d ' ')
 assert_eq "$ARGC12" "3" "the harness saw exactly three argv entries"
 assert_true "argv[1] is --flag" bash -c 'sed -n "1p" "$1" | grep -qx -- "--flag"' _ "$ARGV_DUMP"
 assert_true "argv[2] is the quoted value as one entry, unsplit" bash -c 'sed -n "2p" "$1" | grep -qx -- "quoted value"' _ "$ARGV_DUMP"
-assert_true "argv[3] is the substituted prompt file path" bash -c 'sed -n "3p" "$1" | grep -q -- "_prompt.md$"' _ "$ARGV_DUMP"
+assert_true "argv[3] is the substituted prompt file path" bash -c 'sed -n "3p" "$1" | grep -q -- "_prompt_[0-9]*.md$"' _ "$ARGV_DUMP"
 assert_eq "$RC12" "0" "LOOP_HARNESS_CMD quoting run exits 0"
 
 # --------------------------------------------------------------------
@@ -771,7 +776,7 @@ GATE_REVIEW_OUT='no findings\nclean' REVIEW_SKIP_FIRST=1 run_gate_case gates-nud
 assert_eq "$(cat "$SCRATCH/gates-nudge.rc")" "0" "prose-then-file review passes after the nudged retry"
 assert_true "the driver logged the write reminder retry" file_has "$SCRATCH/gates-nudge.out" "did not write REVIEW.md; retrying with a write reminder"
 WT17="$(wt_of gates-nudge)"
-assert_true "the retry prompt carries the reminder line" file_has "$WT17/.loop-run/logs/review_prompt_retry.md" "previous attempt ended without writing REVIEW.md"
+assert_true "the retry prompt carries the reminder line" file_has "$(newest_prompt "$WT17" "review_prompt_*_retry.md")" "previous attempt ended without writing REVIEW.md"
 assert_eq "$(stages_of gates-nudge)" "plan execute simplify security review review" "review ran twice: the prose attempt and the nudged retry"
 
 GATE_REVIEW_OUT='' run_gate_case gates-noout --max-iterations 3
@@ -873,8 +878,8 @@ SHIM_ENV_DUMP="$ENV_DUMP19D" REVIEW_SLEEP=30 LOOP_STAGE_TIMEOUT=60 LOOP_GATE_TIM
   run_gate_case maxtok --max-iterations 1
 END19D=$(date +%s)
 ELAPSED19D=$((END19D - START19D))
-assert_true "every gate call carried the gate cap and nothing else (3072)" bash -c '
-  g="$(grep -E "^(simplify|security|review) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "GOOSE_MAX_TOKENS=3072$"' _ "$ENV_DUMP19D"
+assert_true "every gate call carried the gate cap and nothing else (8192)" bash -c '
+  g="$(grep -E "^(simplify|security|review) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "GOOSE_MAX_TOKENS=8192$"' _ "$ENV_DUMP19D"
 assert_true "every file-writing call carried the stage cap and nothing else (8192)" bash -c '
   g="$(grep -E "^(plan|execute|fix) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "GOOSE_MAX_TOKENS=8192$"' _ "$ENV_DUMP19D"
 assert_true "no call ran without a cap" file_lacks "$ENV_DUMP19D" "unset"
@@ -889,7 +894,7 @@ assert_true "LOOP_MAX_TOKENS and LOOP_STAGE_MAX_TOKENS override the caps" bash -
 DEST19E="$SCRATCH/maxtok2/taskrepo"
 bash "$RUN_LOOP" "$DEST19E" "$TASK_PROMPT" --dry-run --max-iterations 1 > "$SCRATCH/maxtok_dry.out" 2>&1
 assert_true "the dry-run print shows the caps so an operator can see them" bash -c '
-  file_has "$1" "GOOSE_MAX_TOKENS=3072" && file_has "$1" "GOOSE_MAX_TOKENS=8192"' _ "$SCRATCH/maxtok_dry.out"
+  [ "$(grep -c "GOOSE_MAX_TOKENS=8192" "$1")" -ge 2 ]' _ "$SCRATCH/maxtok_dry.out"
 
 echo
 echo "----- (19e) 0 and non-integers are refused for timeouts and caps; the clamp is announced -----"
@@ -924,7 +929,7 @@ assert_eq "$(cat "$SCRATCH/truncated.rc")" "0" "the run passes after the split-r
 assert_true "the driver named the cut and retried once" file_has "$SCRATCH/truncated.out" "cut at the output cap; retrying once with a split reminder"
 WT19G="$(wt_of truncated)"
 assert_true "the retry prompt of a file-writing stage says to split the write" bash -c '
-  file_has "$1/.loop-run/logs/plan_prompt_retry.md" "Split the work"' _ "$WT19G"
+  file_has "$(newest_prompt "$1" "plan_prompt_*_retry.md")" "Split the work"' _ "$WT19G"
 
 echo
 echo "----- (19h) a gate cut at the cap is told to stop printing file contents -----"
@@ -932,8 +937,8 @@ REVIEW_TRUNCATES_ONCE=1 run_gate_case truncgate --max-iterations 1
 assert_eq "$(cat "$SCRATCH/truncgate.rc")" "0" "the run passes after the gate's nudged retry"
 WT19H="$(wt_of truncgate)"
 assert_true "the gate retry prompt names the file and forbids printing contents" bash -c '
-  file_has "$1/.loop-run/logs/review_prompt_retry.md" "Do not print file contents" \
-  && file_has "$1/.loop-run/logs/review_prompt_retry.md" "Write REVIEW.md at the root"' _ "$WT19H"
+  file_has "$(newest_prompt "$1" "review_prompt_*_retry.md")" "Do not print file contents" \
+  && file_has "$(newest_prompt "$1" "review_prompt_*_retry.md")" "Write REVIEW.md at the root"' _ "$WT19H"
 assert_true "the driver logged the cut on the review stage" file_has "$SCRATCH/truncgate.out" "stage 'review' was cut at the output cap"
 
 echo
@@ -991,11 +996,60 @@ assert_true "every gate stage ran with write as its only tool" bash -c '
 assert_true "plan, execute and fix keep the full tool set" bash -c '
   g="$(grep -E "^(plan|execute|fix) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "tools=shell,edit,write,tree "' _ "$PROMPT_DUMP"
 assert_true "no gate prompt tells the model to read DIFF.txt" bash -c '
-  for f in "$1"/.loop-run/logs/simplify_prompt.md "$1"/.loop-run/logs/security_prompt.md "$1"/.loop-run/logs/review_prompt.md; do
+  for f in "$1"/.loop-run/logs/simplify_prompt_*.md "$1"/.loop-run/logs/security_prompt_*.md "$1"/.loop-run/logs/review_prompt_*.md; do
     [ -f "$f" ] || continue
     grep -q "Read .loop-run/DIFF.txt" "$f" && exit 1
   done
   exit 0' _ "$(wt_of gatediff)"
+
+echo
+echo "----- (19r) a gate prompt carries gate rules, not the shell/test rules -----"
+assert_true "no gate prompt tells the model to run tests or git" bash -c '
+  for f in "$1"/.loop-run/logs/simplify_prompt_*.md "$1"/.loop-run/logs/security_prompt_*.md "$1"/.loop-run/logs/review_prompt_*.md; do
+    [ -f "$f" ] || continue
+    grep -q "Run the project.s test command" "$f" && exit 1
+    grep -q "Never run git commands" "$f" && exit 1
+  done
+  exit 0' _ "$(wt_of gatediff)"
+assert_true "a non-gate prompt still carries them" bash -c '
+  f="$(ls -t "$1"/.loop-run/logs/execute_prompt_*.md 2>/dev/null | head -n1)"
+  [ -n "$f" ] && grep -q "Never run git commands" "$f"' _ "$(wt_of gatediff)"
+
+echo
+echo "----- (19s) a diff containing a code fence cannot close the pasted block -----"
+DEST19S="$SCRATCH/fence/taskrepo"
+bash "$RESET_TASK" --dest "$DEST19S" >/dev/null
+SHIMDIR19S="$SCRATCH/shim-fence"
+mkdir -p "$SHIMDIR19S"
+write_gate_shim "$SHIMDIR19S/goose"
+PROMPT_DUMP_S="$SCRATCH/fence_dump.txt"
+: > "$PROMPT_DUMP_S"
+PATH="$SHIMDIR19S:$PATH" SHIM_STATE_DIR="$SCRATCH/state-fence" SHIM_PROMPT_DUMP="$PROMPT_DUMP_S" \
+  EXECUTE_FENCE_FILE=1 bash "$RUN_LOOP" "$DEST19S" "$TASK_PROMPT" --max-iterations 1 \
+  > "$SCRATCH/fence.out" 2>&1
+WT19S="$(find "$DEST19S/.loop" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+assert_true "the fence is longer than the longest backtick run in the diff" bash -c '
+  f="$(ls -t "$1"/.loop-run/logs/simplify_prompt_*.md 2>/dev/null | head -n1)"
+  [ -n "$f" ] || exit 1
+  # The opening fence line must be longer than any backtick run inside the diff body.
+  open="$(grep -m1 -o "^\`\{3,\} diff$" "$f" | tr -d " diff")"
+  body_max="$(grep -o "\`\{1,\}" "$f" | awk "{ if (length(\$0)>m) m=length(\$0) } END { print m+0 }")"
+  [ "${#open}" -ge 3 ] && [ "${#open}" -ge "$body_max" ]' _ "$WT19S"
+
+echo
+echo "----- (19t) a config enabling another extension is refused -----"
+DEST19T="$SCRATCH/extracfg/taskrepo"
+bash "$RESET_TASK" --dest "$DEST19T" >/dev/null
+EXTRACFG="$SCRATCH/extracfg-home"
+mkdir -p "$EXTRACFG/goose"
+# analyze reads files; enabling it would hand every gate a read tool
+# while available_tools still says write.
+awk '/^  analyze:/{a=1} a && /^    enabled: false$/{sub("false","true"); a=0} {print}' \
+  "$SCRIPT_DIR/goose-config.example.yaml" > "$EXTRACFG/goose/config.yaml"
+XDG_CONFIG_HOME="$EXTRACFG" bash "$RUN_LOOP" "$DEST19T" "$TASK_PROMPT" --max-iterations 1 \
+  > "$SCRATCH/extracfg.out" 2>&1
+assert_eq "$?" "1" "a config enabling another extension is refused"
+assert_true "the refusal names the extension" file_has "$SCRATCH/extracfg.out" "enables extensions besides developer (analyze)"
 
 echo
 echo "----- (19p) a stage that restores cut tools cannot re-arm a later gate -----"
@@ -1067,14 +1121,15 @@ echo "----- (19n) under the per-file split each chunk prompt carries only that f
 SHIM_PROMPT_DUMP="$PROMPT_DUMP" LOOP_DIFF_SPLIT_BYTES=1 \
   run_gate_case gatesplitdiff --max-iterations 1 --gates review
 WT19N="$(wt_of gatesplitdiff)"
-assert_true "each per-file review prompt carried exactly one file's diff" bash -c '
+assert_true "every chunk prompt was kept and carried exactly one file's diff" bash -c '
   n=0
-  for f in "$1"/.loop-run/logs/review_prompt*.md; do
+  for f in "$1"/.loop-run/logs/review_prompt_*.md; do
     [ -f "$f" ] || continue
+    case "$f" in *_retry.md) continue ;; esac
     c=$(grep -c "^diff --git" "$f"); [ "$c" -eq 1 ] || exit 1
     n=$((n+1))
   done
-  [ "$n" -ge 1 ]' _ "$WT19N"
+  [ "$n" -ge 2 ]' _ "$WT19N"
 
 # --------------------------------------------------------------------
 # 20. A target repo that tracks a bookkeeping name at its root is
