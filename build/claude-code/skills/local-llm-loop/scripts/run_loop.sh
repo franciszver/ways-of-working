@@ -478,7 +478,14 @@ derive_gate_tools() {
     in_list && /^      - /    { if ($0 != "      - write") next }
     in_list && !/^      - / && !/^    available_tools:/ { in_list = 0 }
     # Any other extension brings its own tools; a gate gets none of them.
-    !in_dev && /^    enabled: true[[:space:]]*$/ { sub(/true/, "false") }
+    # The value is parsed rather than matched literally, so a trailing
+    # comment cannot leave an extension enabled.
+    !in_dev && /^    enabled:[[:space:]]*/ {
+      v = $0
+      sub(/^    enabled:[[:space:]]*/, "", v)
+      sub(/[[:space:]]*(#.*)?$/, "", v)
+      if (v == "true") sub(/true/, "false")
+    }
     { print }
   ' "$1"
 }
@@ -487,7 +494,10 @@ derive_gate_tools() {
 # line, or nothing when the list is not in the expected block shape.
 gate_tools() {
   awk '
-    /^  [a-zA-Z_]+:/          { in_dev = ($0 ~ /^  developer:/); in_list = 0 }
+    # Same block regex as derive_gate_tools: a narrower one here would
+    # attribute the tools of a later extension to developer and refuse a
+    # valid config.
+    /^  [a-zA-Z0-9_-]+:/      { in_dev = ($0 ~ /^  developer:/); in_list = 0 }
     in_dev && /^    [a-zA-Z_]+:/ { in_list = ($0 ~ /^    available_tools:/) }
     in_list && /^      - /    { print substr($0, 9) }
   ' "$1"
@@ -500,10 +510,18 @@ gate_tools() {
 # earlier stage put `shell` back for every later gate.
 # enabled_extensions <config>: the name of every extension block whose
 # body sets `enabled: true`.
+# Parses the value independently of the pattern derive_gate_tools
+# rewrites. If the two shared a regex, this could only confirm that the
+# substitution ran, never catch what it failed to match.
 enabled_extensions() {
   awk '
     /^  [a-zA-Z0-9_-]+:/ { name = $0; sub(/^  /, "", name); sub(/:.*$/, "", name) }
-    /^    enabled: true[[:space:]]*$/ { if (name != "") print name }
+    /^    enabled:[[:space:]]*/ {
+      v = $0
+      sub(/^    enabled:[[:space:]]*/, "", v)
+      sub(/[[:space:]]*(#.*)?$/, "", v)
+      if (v == "true" && name != "") print name
+    }
   ' "$1"
 }
 
@@ -517,8 +535,10 @@ enabled_extensions() {
 # every later gate.
 ensure_gate_config() {
   local tools extras
-  unlink_if_symlink "$GATE_CONFIG_DIR/goose"
+  # Outermost first: clearing the child through a symlinked parent
+  # would delete at the link's target instead.
   unlink_if_symlink "$GATE_CONFIG_DIR"
+  unlink_if_symlink "$GATE_CONFIG_DIR/goose"
   mkdir -p "$GATE_CONFIG_DIR/goose"
   unlink_if_symlink "$GATE_CONFIG_DIR/goose/config.yaml"
   derive_gate_tools "$GOOSE_CONFIG_DIR/goose/config.yaml" > "$GATE_CONFIG_DIR/goose/config.yaml"
@@ -651,7 +671,16 @@ build_stage_prompt() {
     # git, tools a gate does not have. gate-rules.md is the gate's own
     # shared text.
     cat "$base_prompt" "$GATE_RULES_FILE" > "$out"
-    local diff_file="$WORKTREE/.loop-run/DIFF.txt" fence
+    local diff_file="$WORKTREE/.loop-run/DIFF.txt" fence diff_bytes
+    # A gate that saw only part of the change must not read as a clean
+    # review, so the driver records the truncation too, not just the
+    # note inside the prompt.
+    DIFF_TRUNCATED_TO=0
+    diff_bytes="$(wc -c < "$diff_file" 2>/dev/null || echo 0)"
+    if [ "$diff_bytes" -gt "$GATE_DIFF_BYTES" ]; then
+      DIFF_TRUNCATED_TO="$diff_bytes"
+      echo "run_loop.sh: gate '$name' was shown $GATE_DIFF_BYTES of $diff_bytes diff bytes (LOOP_GATE_DIFF_BYTES)" >&2
+    fi
     # A fence longer than the longest backtick run in the pasted text, so
     # a diff that touches a Markdown file cannot close the block early
     # and turn the rest of the diff into apparent instructions.
@@ -663,8 +692,9 @@ build_stage_prompt() {
         # Capped even when the per-file split did not trigger: one
         # oversized file would otherwise paste its whole diff here.
         head -c "$GATE_DIFF_BYTES" "$diff_file"
-        if [ "$(wc -c < "$diff_file")" -gt "$GATE_DIFF_BYTES" ]; then
-          printf '\n[truncated at %s bytes; review what is shown]\n' "$GATE_DIFF_BYTES"
+        if [ "$DIFF_TRUNCATED_TO" -gt 0 ]; then
+          printf '\n[truncated at %s of %s bytes; review what is shown]\n' \
+            "$GATE_DIFF_BYTES" "$DIFF_TRUNCATED_TO"
         fi
         printf '\n%s\n' "$fence"
       else
@@ -673,7 +703,10 @@ build_stage_prompt() {
       if [ -s "$WORKTREE/TEST_OUTPUT.txt" ]; then
         printf '\n## Latest test run\n\n%s\n' "$fence"
         tail -n 40 "$WORKTREE/TEST_OUTPUT.txt"
-        printf '%s\n' "$fence"
+        # Leading newline: test output whose last line has none would
+        # otherwise leave the block unclosed, and a retry nudge appended
+        # after it would read as more test output.
+        printf '\n%s\n' "$fence"
       fi
     } >> "$out"
   else
@@ -913,6 +946,7 @@ GATE_LOG=()          # one line per gate run, for LOOP_SUMMARY.md
 GATES_FAILED=()      # gates that wrote no output even after the retry
 NOT_CONVERGED=""     # the gate that still had findings after GATE_ROUNDS fixes
 DELETES_REVERTED=0   # fix stages whose deleted files the driver restored
+DIFF_TRUNCATED_TO=0  # bytes the last gate diff would have been, when truncated
 GATE_KEPT=0          # findings kept by the last filter_findings call
 GATE_DROPPED=0       # findings dropped by the last filter_findings call
 
@@ -1150,7 +1184,7 @@ run_gates_for_iteration() {
           GATE_LOG+=("iteration $ITER, gate $gate, round $rounds: no output (failed closed)")
           return 0
         fi
-        GATE_LOG+=("iteration $ITER, gate $gate, round $rounds: $GATE_KEPT finding(s) kept, $GATE_DROPPED rejected")
+        GATE_LOG+=("iteration $ITER, gate $gate, round $rounds: $GATE_KEPT finding(s) kept, $GATE_DROPPED rejected$([ "$DIFF_TRUNCATED_TO" -gt 0 ] && echo ", diff truncated to $GATE_DIFF_BYTES of $DIFF_TRUNCATED_TO bytes")")
         if [ "$GATE_KEPT" -eq 0 ] && [ "$GATE_DROPPED" -gt 0 ]; then
           echo "run_loop.sh: gate '$gate' wrote $GATE_DROPPED line(s) the driver rejected and kept none; see .loop-run/REJECTED_FINDINGS.md" >&2
         fi

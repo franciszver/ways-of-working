@@ -1059,6 +1059,47 @@ assert_true "analyze is off in the gate config" bash -c '
   awk "/^  analyze:/{a=1} a&&/^    enabled:/{print \$2; exit}" "$1/.loop-run/goose-config-gate/goose/config.yaml" | grep -qx false' _ "$WT19T"
 
 echo
+echo "----- (19u) a trailing comment cannot leave an extension enabled for gates -----"
+DEST19U="$SCRATCH/cmtcfg/taskrepo"
+bash "$RESET_TASK" --dest "$DEST19U" >/dev/null
+CMTCFG="$SCRATCH/cmtcfg-home"
+mkdir -p "$CMTCFG/goose"
+awk '/^  analyze:/{a=1} a && /^    enabled: false$/{print "    enabled: true   # code map helps the executor"; a=0; next} {print}' \
+  "$SCRIPT_DIR/goose-config.example.yaml" > "$CMTCFG/goose/config.yaml"
+assert_true "fixture: the commented enable line was written" file_has "$CMTCFG/goose/config.yaml" "enabled: true   # code map"
+SHIMDIR19U="$SCRATCH/shim-cmtcfg"
+mkdir -p "$SHIMDIR19U"
+write_gate_shim "$SHIMDIR19U/goose"
+PATH="$SHIMDIR19U:$PATH" SHIM_STATE_DIR="$SCRATCH/state-cmtcfg" XDG_CONFIG_HOME="$CMTCFG" \
+  bash "$RUN_LOOP" "$DEST19U" "$TASK_PROMPT" --max-iterations 1 > "$SCRATCH/cmtcfg.out" 2>&1
+WT19U="$(find "$DEST19U/.loop" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+assert_true "analyze is off in the gate config despite the trailing comment" bash -c '
+  [ -n "$1" ] && awk "/^  analyze:/{a=1} a&&/^    enabled:/{print; exit}" \
+    "$1/.loop-run/goose-config-gate/goose/config.yaml" | grep -q "enabled: false"' _ "$WT19U"
+
+echo
+echo "----- (19v) an oversized diff is truncated and the truncation is recorded -----"
+DEST19V="$SCRATCH/bigdiff/taskrepo"
+bash "$RESET_TASK" --dest "$DEST19V" >/dev/null
+SHIMDIR19V="$SCRATCH/shim-bigdiff"
+mkdir -p "$SHIMDIR19V"
+write_gate_shim "$SHIMDIR19V/goose"
+PATH="$SHIMDIR19V:$PATH" SHIM_STATE_DIR="$SCRATCH/state-bigdiff" LOOP_GATE_DIFF_BYTES=200 \
+  bash "$RUN_LOOP" "$DEST19V" "$TASK_PROMPT" --max-iterations 1 > "$SCRATCH/bigdiff.out" 2>&1
+WT19V="$(find "$DEST19V/.loop" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+assert_true "the driver reported how much of the diff the gate saw" file_has "$SCRATCH/bigdiff.out" "diff bytes (LOOP_GATE_DIFF_BYTES)"
+assert_true "LOOP_SUMMARY.md records the truncation next to the gate verdict" file_has "$WT19V/LOOP_SUMMARY.md" "diff truncated to 200 of"
+assert_true "the prompt says it was truncated" bash -c '
+  f="$(newest_prompt "$1" "simplify_prompt_*.md")"; [ -n "$f" ] && file_has "$f" "truncated at 200 of"' _ "$WT19V"
+
+echo
+echo "----- (19w) the test-output block closes its fence on its own line -----"
+assert_true "a built gate prompt ends with a fence alone on its last line" bash -c '
+  f="$(newest_prompt "$1" "review_prompt_*.md")"; [ -n "$f" ] || exit 1
+  last="$(grep -v "^$" "$f" | tail -n1)"
+  case "$last" in *[!\`]*) exit 1 ;; "") exit 1 ;; *) exit 0 ;; esac' _ "$(wt_of gatediff)"
+
+echo
 echo "----- (19p) a stage that restores cut tools cannot re-arm a later gate -----"
 DEST19P="$SCRATCH/retamper/taskrepo"
 bash "$RESET_TASK" --dest "$DEST19P" >/dev/null
@@ -1120,7 +1161,7 @@ assert_eq "$RC19O" "1" "a flow-style available_tools list is refused, not passed
 assert_true "the refusal says what it could not do" file_has "$SCRATCH/flowcfg.out" "could not cut the gate tool set down to 'write' alone"
 assert_true "no gate ever ran under that config" bash -c '
   WT="$(find "$1/.loop" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n1)"
-  [ -z "$WT" ] || [ ! -f "$WT/.loop-run/logs/simplify_prompt.md" ]' _ "$DEST19O"
+  [ -z "$WT" ] || [ -z "$(ls "$WT"/.loop-run/logs/simplify_prompt_*.md 2>/dev/null)" ]' _ "$DEST19O"
 
 echo
 echo "----- (19n) under the per-file split each chunk prompt carries only that file -----"
