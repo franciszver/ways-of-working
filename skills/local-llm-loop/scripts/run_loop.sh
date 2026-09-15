@@ -851,9 +851,11 @@ run_model_stage() {
     [ -n "$expected" ] && rm -f "$WORKTREE/$expected"
     if [ "$attempt" -eq 1 ]; then
       log_file="$LOG_DIR/${name}_${n}.log"
+      LAST_STAGE_LOG="$log_file"
       invoke_goose "$built_prompt" "$log_file" "$stage_timeout" "$max_tokens" "$config_dir"
     else
       log_file="$LOG_DIR/${name}_${n}_retry.log"
+      LAST_STAGE_LOG="$log_file"
       { cat "$built_prompt"; printf '\n%s\n' "$nudge"; } > "$retry_prompt"
       invoke_goose "$retry_prompt" "$log_file" "$stage_timeout" "$max_tokens" "$config_dir"
     fi
@@ -946,6 +948,8 @@ GATE_LOG=()          # one line per gate run, for LOOP_SUMMARY.md
 GATES_FAILED=()      # gates that wrote no output even after the retry
 NOT_CONVERGED=""     # the gate that still had findings after GATE_ROUNDS fixes
 DELETES_REVERTED=0   # fix stages whose deleted files the driver restored
+LAST_STAGE_LOG=""    # the log of the most recent model attempt
+GATE_RECOVERED=""    # set when a gate verdict was read from the reply
 DIFF_TRUNCATED_TO=0  # bytes the last gate diff would have been, when truncated
 GATE_KEPT=0          # findings kept by the last filter_findings call
 GATE_DROPPED=0       # findings dropped by the last filter_findings call
@@ -1048,6 +1052,48 @@ filter_findings() {
   return 0
 }
 
+# recover_gate_verdict <gate> <out>: a gate that never called `write`
+# but stated a parseable verdict in its reply has that verdict written
+# to its findings file. The reply goes through the same rules the file
+# would: a line starting path:LINE is a finding, a bare "no findings"
+# line is a clean verdict, anything else is not an answer.
+#
+# This reads the answer the model gave; it does not take the model's
+# word for anything the driver would not have taken from the file.
+# filter_findings still checks every cited path afterwards.
+recover_gate_verdict() {
+  local gate="$1" out="$2" body kept
+  [ -n "$LAST_STAGE_LOG" ] && [ -f "$LAST_STAGE_LOG" ] || return 1
+  # Drop goose's banner, when there is one, and blank lines; keep what
+  # the model said. The range delete is guarded: with no banner to match,
+  # sed would delete the whole file.
+  if grep -q 'goose is ready' "$LAST_STAGE_LOG" 2>/dev/null; then
+    body="$(sed -e '1,/goose is ready/d' "$LAST_STAGE_LOG")"
+  else
+    body="$(cat "$LAST_STAGE_LOG")"
+  fi
+  body="$(printf '%s\n' "$body" | grep -v '^[[:space:]]*$')"
+  [ -n "$body" ] || return 1
+  kept="$(printf '%s\n' "$body" | while IFS= read -r line; do
+    if [[ "$line" =~ $FINDING_RE ]]; then printf '%s\n' "$line"; fi
+  done)"
+  if [ -n "$kept" ]; then
+    unlink_if_symlink "$WORKTREE/$out"
+    printf '%s\n' "$kept" > "$WORKTREE/$out"
+    GATE_RECOVERED="$gate"
+    echo "run_loop.sh: gate '$gate' never called write; its findings were read from its reply" >&2
+    return 0
+  fi
+  if printf '%s\n' "$body" | grep -qE '(^|[^[:alnum:]])[Nn]o findings([^[:alnum:]]|$)'; then
+    unlink_if_symlink "$WORKTREE/$out"
+    printf '%s\n' "$body" | grep -E '(^|[^[:alnum:]])[Nn]o findings([^[:alnum:]]|$)' | head -n1 > "$WORKTREE/$out"
+    GATE_RECOVERED="$gate"
+    echo "run_loop.sh: gate '$gate' never called write; its no-findings verdict was read from its reply" >&2
+    return 0
+  fi
+  return 1
+}
+
 # run_gate <gate>: runs one gate on the iteration's diff so far (from
 # ITER_BASE to HEAD, so a gate also sees the fixes earlier gates caused).
 # When the diff is over DIFF_SPLIT_BYTES and touches more than one file,
@@ -1102,6 +1148,11 @@ run_gate() {
     stage_or_abort "$gate" "$prompt" "$out"
   fi
 
+  if ! $DRY_RUN && [ ! -f "$WORKTREE/$out" ] && ! $chunk_missing; then
+    # Last resort before failing closed: the model may have stated its
+    # verdict in the reply instead of calling write.
+    recover_gate_verdict "$gate" "$out" || true
+  fi
   if ! $DRY_RUN && { [ ! -f "$WORKTREE/$out" ] || $chunk_missing; }; then
     return 3
   fi
@@ -1184,7 +1235,8 @@ run_gates_for_iteration() {
           GATE_LOG+=("iteration $ITER, gate $gate, round $rounds: no output (failed closed)")
           return 0
         fi
-        GATE_LOG+=("iteration $ITER, gate $gate, round $rounds: $GATE_KEPT finding(s) kept, $GATE_DROPPED rejected$([ "$DIFF_TRUNCATED_TO" -gt 0 ] && echo ", diff truncated to $GATE_DIFF_BYTES of $DIFF_TRUNCATED_TO bytes")")
+        GATE_LOG+=("iteration $ITER, gate $gate, round $rounds: $GATE_KEPT finding(s) kept, $GATE_DROPPED rejected$([ "$DIFF_TRUNCATED_TO" -gt 0 ] && echo ", diff truncated to $GATE_DIFF_BYTES of $DIFF_TRUNCATED_TO bytes")$([ "$GATE_RECOVERED" = "$gate" ] && echo ", verdict recovered from the reply")")
+        GATE_RECOVERED=""
         if [ "$GATE_KEPT" -eq 0 ] && [ "$GATE_DROPPED" -gt 0 ]; then
           echo "run_loop.sh: gate '$gate' wrote $GATE_DROPPED line(s) the driver rejected and kept none; see .loop-run/REJECTED_FINDINGS.md" >&2
         fi
