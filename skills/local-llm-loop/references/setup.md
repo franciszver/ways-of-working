@@ -117,6 +117,29 @@ the output cap or gate timeout cut it off, and a gate stating a correct
 the gate having the `shell` tool; taking the tool away removes the
 cause instead of adding more prompt wording.
 
+## Gate verdict recovery
+
+Even with only `write` left, a gate can still end its turn without
+calling it, stating its verdict in the reply instead. When that
+happens, `run_loop.sh` re-reads the stage's log — goose's banner is
+stripped when it appears in the first six lines — and looks for an
+answer: a line matching the findings format (`path:LINE`) means
+findings; otherwise a line that begins with "no findings" means a
+clean verdict. Anything else is not an answer, and the gate still
+fails closed. Recovery runs per chunk under the per-file split, not
+only once after it.
+
+A recovered answer is written to the gate's findings file whole, and
+`filter_findings` then applies its usual checks — each cited path must
+exist, be inside the worktree, and not be under `.loop-run/`. A
+recovered clean verdict is a real answer and passes; a recovered
+findings verdict that cites no path surviving those checks is treated
+as not run, since a reply citing nothing real is not a review.
+`LOOP_SUMMARY.md` marks an affected gate's line with ", verdict
+recovered from the reply". This reads the answer the model gave
+through the same rules the file would get; it does not trust the
+model further than the file path does.
+
 ## Installing Goose
 
 Official installer:

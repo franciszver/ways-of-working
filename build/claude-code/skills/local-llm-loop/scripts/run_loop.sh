@@ -851,9 +851,11 @@ run_model_stage() {
     [ -n "$expected" ] && rm -f "$WORKTREE/$expected"
     if [ "$attempt" -eq 1 ]; then
       log_file="$LOG_DIR/${name}_${n}.log"
+      LAST_STAGE_LOG="$log_file"
       invoke_goose "$built_prompt" "$log_file" "$stage_timeout" "$max_tokens" "$config_dir"
     else
       log_file="$LOG_DIR/${name}_${n}_retry.log"
+      LAST_STAGE_LOG="$log_file"
       { cat "$built_prompt"; printf '\n%s\n' "$nudge"; } > "$retry_prompt"
       invoke_goose "$retry_prompt" "$log_file" "$stage_timeout" "$max_tokens" "$config_dir"
     fi
@@ -946,6 +948,9 @@ GATE_LOG=()          # one line per gate run, for LOOP_SUMMARY.md
 GATES_FAILED=()      # gates that wrote no output even after the retry
 NOT_CONVERGED=""     # the gate that still had findings after GATE_ROUNDS fixes
 DELETES_REVERTED=0   # fix stages whose deleted files the driver restored
+LAST_STAGE_LOG=""    # the log of the most recent model attempt
+GATE_RECOVERED=""    # set when a gate verdict was read from the reply
+GATE_RECOVERED_FINDINGS=false # a recovered reply stated findings, this gate
 DIFF_TRUNCATED_TO=0  # bytes the last gate diff would have been, when truncated
 GATE_KEPT=0          # findings kept by the last filter_findings call
 GATE_DROPPED=0       # findings dropped by the last filter_findings call
@@ -975,6 +980,60 @@ gate_diff() {
   else
     git -C "$WORKTREE" diff "$ITER_BASE" HEAD -- . "${GATE_DIFF_EXCLUDES[@]}" 2>&1
   fi
+}
+
+# is_no_findings_line <line>: the one test for a clean verdict, used
+# both on a findings file and on a reply read back from a gate's log.
+# mentions_no_findings <line>: loose, and used only on a findings file,
+# to skip a line that cites nothing. A gate that writes "There are no
+# findings here" has made no claim, so the line is dropped rather than
+# counted as a rejected finding.
+mentions_no_findings() {
+  case "$1" in
+    *[Nn][Oo]\ [Ff][Ii][Nn][Dd][Ii][Nn][Gg][Ss]*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# strip_list_marker <line>: the line without leading space, an optional
+# list marker, and surrounding bold. Numbered markers are accepted here
+# because FINDING_RE accepts them too; the two parsers must agree on what
+# a marker is.
+strip_list_marker() {
+  local line="$1"
+  line="${line#"${line%%[![:space:]]*}"}"
+  case "$line" in
+    -\ *|\*\ *|+\ *) line="${line#* }" ;;
+    [0-9].\ *|[0-9][0-9].\ *) line="${line#*. }" ;;
+  esac
+  line="${line#"${line%%[![:space:]]*}"}"
+  line="${line#\*\*}"
+  printf '%s' "$line"
+}
+
+# is_no_findings_line <line>: strict, and used to decide that a reply is
+# a clean verdict. Two ways a looser test goes wrong, both of which turn
+# a gate that never answered into a pass: "this is NOT a no findings
+# case" mentions the phrase mid-sentence, and "No findings file was
+# written because I could not call the tool" opens with the words but
+# uses them as a noun phrase. So the phrase must open the line and must
+# end the clause, not continue into one.
+is_no_findings_line() {
+  local line lower rest
+  line="$(strip_list_marker "$1")"
+  lower="$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')"
+  case "$lower" in
+    "no findings"*) rest="${lower#no findings}" ;;
+    *) return 1 ;;
+  esac
+  rest="${rest#\*\*}"
+  rest="${rest#"${rest%%[![:space:]]*}"}"
+  # The phrase has to end the clause. Anything else continues it, as in
+  # "no findings file was written because ...", which is not a verdict.
+  case "$rest" in
+    ''|:*|.*|,*|\;*|-*|!*|\)*) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 # A cited path must stay inside the worktree and outside the driver's
@@ -1034,9 +1093,7 @@ filter_findings() {
       # A "no findings" line (from the gate, or from one per-file chunk)
       # is skipped only when the line is not a finding: a finding whose
       # sentence happens to contain the phrase is still a finding.
-      case "$line" in
-        *[Nn][Oo]\ [Ff][Ii][Nn][Dd][Ii][Nn][Gg][Ss]*) continue ;;
-      esac
+      mentions_no_findings "$line" && continue
     fi
     printf '%s: %s\n' "$gate" "$line" >> "$rejected"
     GATE_DROPPED=$((GATE_DROPPED + 1))
@@ -1045,6 +1102,67 @@ filter_findings() {
     echo "no findings" > "$WORKTREE/FINDINGS.md"
     return 1
   fi
+  return 0
+}
+
+# recover_gate_verdict <gate> <out>: a gate that never called `write`
+# but stated a parseable verdict in its reply has that verdict written
+# to its findings file. The reply goes through the same rules the file
+# would: a line starting path:LINE is a finding, a bare "no findings"
+# line is a clean verdict, anything else is not an answer.
+#
+# This reads the answer the model gave; it does not take the model's
+# word for anything the driver would not have taken from the file.
+# filter_findings still checks every cited path afterwards.
+recover_gate_verdict() {
+  local gate="$1" out="$2" body kind line head_lines
+  [ -n "$LAST_STAGE_LOG" ] && [ -f "$LAST_STAGE_LOG" ] || return 1
+  # Drop goose's banner, when there is one, and blank lines; keep what
+  # the model said. The range delete is guarded: with no banner to match,
+  # sed would delete the whole file.
+  # Anchored to the opening lines: a gate reviewing this very file can
+  # quote the marker, and an unanchored range delete would then discard
+  # the verdict stated above the quote. Verified against a real log,
+  # where the marker sits on line 4.
+  # awk, not sed: `sed '1,/re/d'` starts looking for the end of the range
+  # at line 2, so a marker on line 1 deletes through the next match, or
+  # to the end of the file when there is none. The head output goes into
+  # a variable first, because `head | grep -q` can trip pipefail when
+  # grep exits early and head takes SIGPIPE.
+  head_lines="$(head -n 6 "$LAST_STAGE_LOG" 2>/dev/null || true)"
+  if printf '%s\n' "$head_lines" | grep -q 'goose is ready'; then
+    body="$(awk 'past { print } /goose is ready/ { past = 1 }' "$LAST_STAGE_LOG")"
+  else
+    body="$(cat "$LAST_STAGE_LOG")"
+  fi
+  # F7: a reply that echoed the diff must not have its diff body parsed
+  # as findings. A removed line such as "-  src/app.py:42: ..." otherwise
+  # reads as a list-marked finding against a file that really exists.
+  body="$(printf '%s\n' "$body" | grep -vE '^(diff --git |index |--- |\+\+\+ |@@|\+)' | grep -vE '^-[^ ]|^-[[:space:]]{2,}')"
+  body="$(printf '%s\n' "$body" | grep -v '^[[:space:]]*$')"
+  [ -n "$body" ] || return 1
+  # Does the reply contain an answer at all? Only that question is
+  # decided here. What counts as a finding, and whether a cited path is
+  # real, stays with filter_findings, the one place that judges content.
+  kind=""
+  while IFS= read -r line; do
+    if [[ "$line" =~ $FINDING_RE ]]; then kind=findings; break; fi
+    # Any line may carry the verdict, since a reply often opens with a
+    # sentence. is_no_findings_line is what keeps a mention of the
+    # phrase from counting as one.
+    if is_no_findings_line "$line"; then kind=clean; fi
+  done <<EOF
+$body
+EOF
+  [ -n "$kind" ] || return 1
+  unlink_if_symlink "$WORKTREE/$out"
+  printf '%s\n' "$body" > "$WORKTREE/$out"
+  GATE_RECOVERED="$gate"
+  # Only ever set, never cleared within a gate: under the per-file split
+  # this is called once per chunk, and a later clean chunk must not erase
+  # an earlier chunk whose findings cited nothing real.
+  [ "$kind" = findings ] && GATE_RECOVERED_FINDINGS=true
+  echo "run_loop.sh: gate '$gate' never called write; its $kind verdict was read from its reply" >&2
   return 0
 }
 
@@ -1058,6 +1176,7 @@ run_gate() {
   local gate="$1" out prompt files nfiles diff_bytes acc f
   out="$(gate_output_file "$gate")"
   prompt="$PROMPTS_DIR/$gate.md"
+  GATE_RECOVERED_FINDINGS=false
   local -a files
   local chunk_missing=false
   unlink_if_symlink "$WORKTREE/.loop-run/DIFF.txt"
@@ -1085,6 +1204,12 @@ run_gate() {
       gate_diff "$f" > "$WORKTREE/.loop-run/DIFF.txt" || true
       rm -f "$WORKTREE/$out"
       stage_or_abort "$gate" "$prompt" "$out"
+      if [ ! -f "$WORKTREE/$out" ] && ! $DRY_RUN; then
+        # Per chunk, not after the loop: LAST_STAGE_LOG only ever holds
+        # the most recent chunk's reply, and a merged $out exists as
+        # soon as any one chunk succeeded.
+        recover_gate_verdict "$gate" "$out" || true
+      fi
       if [ -f "$WORKTREE/$out" ]; then
         { printf '## %s\n' "$f"; cat "$WORKTREE/$out"; echo; } >> "$acc"
       else
@@ -1102,11 +1227,23 @@ run_gate() {
     stage_or_abort "$gate" "$prompt" "$out"
   fi
 
+  if ! $DRY_RUN && [ ! -f "$WORKTREE/$out" ] && ! $chunk_missing; then
+    # Last resort before failing closed: the model may have stated its
+    # verdict in the reply instead of calling write.
+    recover_gate_verdict "$gate" "$out" || true
+  fi
   if ! $DRY_RUN && { [ ! -f "$WORKTREE/$out" ] || $chunk_missing; }; then
     return 3
   fi
   if filter_findings "$gate"; then
     return 0
+  fi
+  if [ "$GATE_RECOVERED" = "$gate" ] && $GATE_RECOVERED_FINDINGS && [ "$GATE_KEPT" -eq 0 ]; then
+    # The reply stated findings, but not one cited path survived. That is
+    # a gate that did not review, not a gate that found nothing. A
+    # recovered *clean* verdict is a real answer and is left alone.
+    echo "run_loop.sh: gate '$gate' stated findings in its reply but none of the paths it cited exist; treating it as not run" >&2
+    return 3
   fi
   return 1
 }
@@ -1179,12 +1316,17 @@ run_gates_for_iteration() {
         run_gate "$gate"
         grc=$?
         if [ "$grc" -eq 3 ]; then
-          echo "run_loop.sh: WARNING gate '$gate' produced no $(gate_output_file "$gate") -- the gate did not run; the loop cannot pass" >&2
+          if [ -f "$WORKTREE/$(gate_output_file "$gate")" ]; then
+            echo "run_loop.sh: WARNING gate '$gate' left a $(gate_output_file "$gate") that cites nothing real -- the gate did not review; the loop cannot pass" >&2
+          else
+            echo "run_loop.sh: WARNING gate '$gate' produced no $(gate_output_file "$gate") -- the gate did not run; the loop cannot pass" >&2
+          fi
           GATES_FAILED+=("$gate")
           GATE_LOG+=("iteration $ITER, gate $gate, round $rounds: no output (failed closed)")
           return 0
         fi
-        GATE_LOG+=("iteration $ITER, gate $gate, round $rounds: $GATE_KEPT finding(s) kept, $GATE_DROPPED rejected$([ "$DIFF_TRUNCATED_TO" -gt 0 ] && echo ", diff truncated to $GATE_DIFF_BYTES of $DIFF_TRUNCATED_TO bytes")")
+        GATE_LOG+=("iteration $ITER, gate $gate, round $rounds: $GATE_KEPT finding(s) kept, $GATE_DROPPED rejected$([ "$DIFF_TRUNCATED_TO" -gt 0 ] && echo ", diff truncated to $GATE_DIFF_BYTES of $DIFF_TRUNCATED_TO bytes")$([ "$GATE_RECOVERED" = "$gate" ] && echo ", verdict recovered from the reply")")
+        GATE_RECOVERED=""
         if [ "$GATE_KEPT" -eq 0 ] && [ "$GATE_DROPPED" -gt 0 ]; then
           echo "run_loop.sh: gate '$gate' wrote $GATE_DROPPED line(s) the driver rejected and kept none; see .loop-run/REJECTED_FINDINGS.md" >&2
         fi

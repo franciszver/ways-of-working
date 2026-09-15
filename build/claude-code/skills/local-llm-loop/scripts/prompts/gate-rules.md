@@ -5,9 +5,9 @@ mechanical test run after it. You cannot read files: `write` is your
 only tool. Judge the diff as given.
 
 Answer by calling the `write` tool once, with the findings file, and
-then stop. Only that file is read; the text of your reply is discarded,
-so a verdict stated in your reply alone counts as no answer at all.
-Never print the diff or any file's contents back in your reply.
+then stop. The file is what is read. A verdict left only in your reply
+may not be understood, so write the file. Never print the diff or any
+file's contents back in your reply.
 
 ## Findings format (all gates)
 
