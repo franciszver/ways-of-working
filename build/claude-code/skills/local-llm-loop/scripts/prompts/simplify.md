@@ -9,7 +9,7 @@ Look only for behavior-preserving cleanups inside the changed lines:
 - code at the wrong altitude: a low-level detail inside a high-level
   function, or the reverse
 
-Write SIMPLIFY.md, in the findings format below. On each line say what to change.
+Use the `write` tool to create SIMPLIFY.md, in the findings format below. On each line say what to change.
 
 Rules:
 - Do not edit any file besides SIMPLIFY.md.

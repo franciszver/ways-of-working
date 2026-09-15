@@ -14,7 +14,7 @@ dangerous operation:
 Report a finding only when you can name the untrusted input and the line
 it reaches, both visible in the diff.
 
-Write SECURITY.md, in the findings format below. On each line say which input reaches which operation.
+Use the `write` tool to create SECURITY.md, in the findings format below. On each line say which input reaches which operation.
 
 Rules:
 - Do not edit any file besides SECURITY.md.

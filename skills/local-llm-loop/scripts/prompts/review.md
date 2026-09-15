@@ -13,7 +13,7 @@ Look only for defects in the changed lines:
 
 A finding without path:LINE at the start of its line is discarded.
 
-Write REVIEW.md, in the findings format below. On each line say what is wrong.
+Use the `write` tool to create REVIEW.md, in the findings format below. On each line say what is wrong.
 
 Rules:
 - Do not edit any file besides REVIEW.md.
