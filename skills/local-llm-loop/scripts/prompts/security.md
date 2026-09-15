@@ -2,8 +2,6 @@
 
 Work only in the current directory (a git worktree set up for this task).
 
-Read .loop-run/DIFF.txt (the diff under review) here.
-
 Look only for places where the changed lines let untrusted input reach a
 dangerous operation:
 - a shell command or subprocess built from input
@@ -14,9 +12,9 @@ dangerous operation:
 - data deserialized from outside without validation
 
 Report a finding only when you can name the untrusted input and the line
-it reaches. Read the file at the cited line to confirm it.
+it reaches, both visible in the diff.
 
-Write SECURITY.md, in the findings format below. On each line say which input reaches which operation.
+Use the `write` tool to create SECURITY.md, in the findings format below. On each line say which input reaches which operation.
 
 Rules:
 - Do not edit any file besides SECURITY.md.

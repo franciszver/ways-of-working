@@ -5,6 +5,29 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-09-14
+
+- **`local-llm-loop`: gates read the diff from their prompt, not the
+  filesystem** (#43): a gate stage now runs under its own Goose config,
+  `.loop-run/goose-config-gate/`, derived from the stage config with
+  `shell`, `edit`, and `tree` removed from the developer extension's
+  `available_tools`; only `write` is left, and the driver fails fast if
+  `write` is not present.
+
+- **The diff and latest test output are pasted into the gate's prompt.**
+  The diff under review, and the last 40 lines of `TEST_OUTPUT.txt`,
+  are appended under "## The diff under review" and "## Latest test
+  run"; an empty diff is stated as such. Under the per-file split, each
+  chunk's prompt carries only that file's diff.
+
+- **Closes the shared cause behind #40 and #42.** With no tool that can
+  read a file, a gate can no longer list source into its reply until
+  the output cap or gate timeout stops it (#40), and its only action is
+  writing its findings file, so it can no longer state a correct
+  verdict in prose without calling `write` (#42). Plan, execute, and
+  fix stages are unchanged and keep `shell`, `edit`, `write`, and
+  `tree`.
+
 ## [0.13.0] - 2026-09-14
 
 - **`local-llm-loop`: output-token caps per stage** (#40): `run_loop.sh`
