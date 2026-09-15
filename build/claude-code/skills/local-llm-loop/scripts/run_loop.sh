@@ -950,6 +950,7 @@ NOT_CONVERGED=""     # the gate that still had findings after GATE_ROUNDS fixes
 DELETES_REVERTED=0   # fix stages whose deleted files the driver restored
 LAST_STAGE_LOG=""    # the log of the most recent model attempt
 GATE_RECOVERED=""    # set when a gate verdict was read from the reply
+GATE_RECOVERED_KIND="" # "findings" or "clean", for the recovered verdict
 DIFF_TRUNCATED_TO=0  # bytes the last gate diff would have been, when truncated
 GATE_KEPT=0          # findings kept by the last filter_findings call
 GATE_DROPPED=0       # findings dropped by the last filter_findings call
@@ -983,10 +984,20 @@ gate_diff() {
 
 # is_no_findings_line <line>: the one test for a clean verdict, used
 # both on a findings file and on a reply read back from a gate's log.
-# Anchored on purpose. A substring test would read "this is NOT a no
-# findings case" as a clean verdict, turning a gate that never answered
-# into a pass. gate-rules.md asks for "no findings" plus a one-line
-# reason, so the verdict opens the line.
+# mentions_no_findings <line>: loose, and only used to skip noise in a
+# findings file. A gate that writes "There are no findings here" has not
+# cited anything, so the line is dropped rather than rejected.
+mentions_no_findings() {
+  case "$1" in
+    *[Nn][Oo]\ [Ff][Ii][Nn][Dd][Ii][Nn][Gg][Ss]*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# is_no_findings_line <line>: strict, and used to decide that a reply is
+# a clean verdict. A substring test would read "this is NOT a no findings
+# case" as clean, turning a gate that never answered into a pass, so the
+# verdict has to open the line. gate-rules.md asks for exactly that shape.
 is_no_findings_line() {
   local line="$1"
   # Strip an optional list marker and leading space.
@@ -1057,7 +1068,7 @@ filter_findings() {
       # A "no findings" line (from the gate, or from one per-file chunk)
       # is skipped only when the line is not a finding: a finding whose
       # sentence happens to contain the phrase is still a finding.
-      is_no_findings_line "$line" && continue
+      mentions_no_findings "$line" && continue
     fi
     printf '%s: %s\n' "$gate" "$line" >> "$rejected"
     GATE_DROPPED=$((GATE_DROPPED + 1))
@@ -1079,12 +1090,16 @@ filter_findings() {
 # word for anything the driver would not have taken from the file.
 # filter_findings still checks every cited path afterwards.
 recover_gate_verdict() {
-  local gate="$1" out="$2" body kind line first
+  local gate="$1" out="$2" body kind line
   [ -n "$LAST_STAGE_LOG" ] && [ -f "$LAST_STAGE_LOG" ] || return 1
   # Drop goose's banner, when there is one, and blank lines; keep what
   # the model said. The range delete is guarded: with no banner to match,
   # sed would delete the whole file.
-  if grep -q 'goose is ready' "$LAST_STAGE_LOG" 2>/dev/null; then
+  # Anchored to the opening lines: a gate reviewing this very file can
+  # quote the marker, and an unanchored range delete would then discard
+  # the verdict stated above the quote. Verified against a real log,
+  # where the marker sits on line 4.
+  if head -n 6 "$LAST_STAGE_LOG" 2>/dev/null | grep -q 'goose is ready'; then
     body="$(sed -e '1,/goose is ready/d' "$LAST_STAGE_LOG")"
   else
     body="$(cat "$LAST_STAGE_LOG")"
@@ -1095,13 +1110,12 @@ recover_gate_verdict() {
   # decided here. What counts as a finding, and whether a cited path is
   # real, stays with filter_findings, the one place that judges content.
   kind=""
-  first=true
   while IFS= read -r line; do
     if [[ "$line" =~ $FINDING_RE ]]; then kind=findings; break; fi
-    # Only the opening line may carry a clean verdict: a reply that
-    # discusses findings and mentions the phrase later is not clean.
-    if $first && is_no_findings_line "$line"; then kind=clean; fi
-    first=false
+    # Any line may carry the verdict, since a reply often opens with a
+    # sentence. is_no_findings_line is what keeps a mention of the
+    # phrase from counting as one.
+    if is_no_findings_line "$line"; then kind=clean; fi
   done <<EOF
 $body
 EOF
@@ -1109,6 +1123,7 @@ EOF
   unlink_if_symlink "$WORKTREE/$out"
   printf '%s\n' "$body" > "$WORKTREE/$out"
   GATE_RECOVERED="$gate"
+  GATE_RECOVERED_KIND="$kind"
   echo "run_loop.sh: gate '$gate' never called write; its $kind verdict was read from its reply" >&2
   return 0
 }
@@ -1184,10 +1199,11 @@ run_gate() {
   if filter_findings "$gate"; then
     return 0
   fi
-  if [ "$GATE_RECOVERED" = "$gate" ] && [ "$GATE_KEPT" -eq 0 ] && [ "$GATE_DROPPED" -gt 0 ]; then
-    # The reply looked like findings, but not one cited path survived.
-    # That is a gate that did not review, not a gate that found nothing.
-    echo "run_loop.sh: gate '$gate' was recovered from its reply but none of its $GATE_DROPPED cited path(s) exist; treating it as not run" >&2
+  if [ "$GATE_RECOVERED" = "$gate" ] && [ "$GATE_RECOVERED_KIND" = findings ] && [ "$GATE_KEPT" -eq 0 ]; then
+    # The reply stated findings, but not one cited path survived. That is
+    # a gate that did not review, not a gate that found nothing. A
+    # recovered *clean* verdict is a real answer and is left alone.
+    echo "run_loop.sh: gate '$gate' stated findings in its reply but none of the paths it cited exist; treating it as not run" >&2
     return 3
   fi
   return 1

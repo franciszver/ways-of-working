@@ -148,6 +148,7 @@ assert_true "dry-run's mechanical test stage actually ran the fixture's real tes
 #   REVIEW_SKIP_FILE  the review gate writes nothing when DIFF.txt mentions it
 #   EXECUTE_EXTRA_FILE  execute also writes this file (e.g. a non-ASCII name)
 #   EXECUTE_FENCE_FILE  execute writes a Markdown file containing a code fence
+#   SHIM_BANNER       print goose's real four-line banner before replying
 #   PROSE_ONLY        a gate states PROSE_ONLY_TEXT in its reply and never
 #                     calls write, on every attempt
 #   PROSE_ONLY_TEXT   what such a gate says (default: a no-findings line)
@@ -196,6 +197,9 @@ for a in "$@"; do
 done
 stage="$(basename "$prompt" | sed 's/_prompt.*//')"
 echo "$stage" >> "$STATE_DIR/stages"
+if [ -n "${SHIM_BANNER:-}" ]; then
+  printf '\n    __( O)>  * new session * openai test-model\n   \\____)    20260915_1 * %s\n     L L     goose is ready\n\n' "$PWD"
+fi
 if [ -n "${SHIM_ENV_DUMP:-}" ]; then
   printf '%s GOOSE_MAX_TOKENS=%s\n' "$stage" "${GOOSE_MAX_TOKENS:-unset}" >> "$SHIM_ENV_DUMP"
 fi
@@ -1244,7 +1248,19 @@ echo "----- (19z3) a recovered reply citing no real path is not a clean pass ---
 PROSE_ONLY=1 PROSE_ONLY_TEXT='- ghost/nowhere.py:7: the token is logged here' \
   run_gate_case prosefake --max-iterations 1 --gates simplify
 assert_eq "$(cat "$SCRATCH/prosefake.rc")" "1" "a recovered reply whose paths do not exist fails closed"
-assert_true "the driver says why" file_has "$SCRATCH/prosefake.out" "none of its 1 cited path(s) exist"
+assert_true "the driver says why" file_has "$SCRATCH/prosefake.out" "none of the paths it cited exist"
+
+echo
+echo "----- (19z4) a clean verdict with a reason line, after a banner, is recovered -----"
+SHIM_BANNER=1 PROSE_ONLY=1 \
+  PROSE_ONLY_TEXT='I reviewed the diff.\nno findings: nothing in the diff to change.\nThe change only adds a parameter.' \
+  run_gate_case prosebanner --max-iterations 1 --gates simplify
+assert_eq "$(cat "$SCRATCH/prosebanner.rc")" "0" "a preamble, a verdict and a reason still recover"
+WT19Z4="$(wt_of prosebanner)"
+assert_true "no gate failed closed" bash -c '
+  file_has "$1/LOOP_SUMMARY.md" "Gates with no output (failed closed): none"' _ "$WT19Z4"
+assert_true "the banner was stripped, not the verdict" bash -c '
+  file_has "$1/SIMPLIFY.md" "no findings" && file_lacks "$1/SIMPLIFY.md" "goose is ready"' _ "$WT19Z4"
 
 echo
 echo "----- (19z) an unparseable prose reply still fails closed -----"
