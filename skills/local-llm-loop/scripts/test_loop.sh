@@ -1231,6 +1231,22 @@ PROSE_ONLY=1 PROSE_ONLY_TEXT='NO FINDINGS. The diff is clean.' \
 assert_eq "$(cat "$SCRATCH/prosecase.rc")" "0" "a differently cased verdict is still read"
 
 echo
+echo "----- (19z2) a reply that only mentions the phrase does not pass as clean -----"
+PROSE_ONLY=1 PROSE_ONLY_TEXT='I reviewed the diff and this is NOT a no findings case.\nThere are two real problems: the token is logged, and the temp file is world readable.\nI ran out of room before writing the file.' \
+  run_gate_case prosenot --max-iterations 1 --gates simplify
+assert_eq "$(cat "$SCRATCH/prosenot.rc")" "1" "a reply that denies being clean fails closed"
+WT19Z2="$(wt_of prosenot)"
+assert_true "the gate is listed as failed closed" bash -c '
+  file_has "$1/LOOP_SUMMARY.md" "Gates with no output (failed closed): simplify"' _ "$WT19Z2"
+
+echo
+echo "----- (19z3) a recovered reply citing no real path is not a clean pass -----"
+PROSE_ONLY=1 PROSE_ONLY_TEXT='- ghost/nowhere.py:7: the token is logged here' \
+  run_gate_case prosefake --max-iterations 1 --gates simplify
+assert_eq "$(cat "$SCRATCH/prosefake.rc")" "1" "a recovered reply whose paths do not exist fails closed"
+assert_true "the driver says why" file_has "$SCRATCH/prosefake.out" "none of its 1 cited path(s) exist"
+
+echo
 echo "----- (19z) an unparseable prose reply still fails closed -----"
 PROSE_ONLY=1 PROSE_ONLY_TEXT='I had a look and it seems broadly reasonable overall.' \
   run_gate_case prosejunk --max-iterations 1 --gates simplify

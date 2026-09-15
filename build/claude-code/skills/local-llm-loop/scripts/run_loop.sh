@@ -983,9 +983,19 @@ gate_diff() {
 
 # is_no_findings_line <line>: the one test for a clean verdict, used
 # both on a findings file and on a reply read back from a gate's log.
+# Anchored on purpose. A substring test would read "this is NOT a no
+# findings case" as a clean verdict, turning a gate that never answered
+# into a pass. gate-rules.md asks for "no findings" plus a one-line
+# reason, so the verdict opens the line.
 is_no_findings_line() {
-  case "$1" in
-    *[Nn][Oo]\ [Ff][Ii][Nn][Dd][Ii][Nn][Gg][Ss]*) return 0 ;;
+  local line="$1"
+  # Strip an optional list marker and leading space.
+  line="${line#"${line%%[![:space:]]*}"}"
+  case "$line" in
+    -\ *|\*\ *) line="${line#* }" ;;
+  esac
+  case "$line" in
+    [Nn][Oo]\ [Ff][Ii][Nn][Dd][Ii][Nn][Gg][Ss]*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -1069,7 +1079,7 @@ filter_findings() {
 # word for anything the driver would not have taken from the file.
 # filter_findings still checks every cited path afterwards.
 recover_gate_verdict() {
-  local gate="$1" out="$2" body kind line
+  local gate="$1" out="$2" body kind line first
   [ -n "$LAST_STAGE_LOG" ] && [ -f "$LAST_STAGE_LOG" ] || return 1
   # Drop goose's banner, when there is one, and blank lines; keep what
   # the model said. The range delete is guarded: with no banner to match,
@@ -1085,9 +1095,13 @@ recover_gate_verdict() {
   # decided here. What counts as a finding, and whether a cited path is
   # real, stays with filter_findings, the one place that judges content.
   kind=""
+  first=true
   while IFS= read -r line; do
     if [[ "$line" =~ $FINDING_RE ]]; then kind=findings; break; fi
-    if is_no_findings_line "$line"; then kind=clean; fi
+    # Only the opening line may carry a clean verdict: a reply that
+    # discusses findings and mentions the phrase later is not clean.
+    if $first && is_no_findings_line "$line"; then kind=clean; fi
+    first=false
   done <<EOF
 $body
 EOF
@@ -1169,6 +1183,12 @@ run_gate() {
   fi
   if filter_findings "$gate"; then
     return 0
+  fi
+  if [ "$GATE_RECOVERED" = "$gate" ] && [ "$GATE_KEPT" -eq 0 ] && [ "$GATE_DROPPED" -gt 0 ]; then
+    # The reply looked like findings, but not one cited path survived.
+    # That is a gate that did not review, not a gate that found nothing.
+    echo "run_loop.sh: gate '$gate' was recovered from its reply but none of its $GATE_DROPPED cited path(s) exist; treating it as not run" >&2
+    return 3
   fi
   return 1
 }
