@@ -7,7 +7,7 @@ The premise: most of the gap between a mediocre run and a frontier run is **proc
 ## Map
 
 ```
-skills/          35 canonical skills — source of truth, tuned for Opus/Sonnet
+skills/          36 canonical skills — source of truth, tuned for Opus/Sonnet
 skills-local/    compact imperative variants for local models (quality, iterate,
                  debug, deep-review, prove, + 26 more) — free tokens change the discipline
 agents/          Claude Code subagents: code-reviewer, verifier, researcher, architect
@@ -22,7 +22,7 @@ install.sh       one command per environment (run with --dry-run first)
 
 ## Install as a Claude Code plugin
 
-The headline path for Claude Code is the plugin, not `install.sh`. It installs the 35 canonical skills, the agents, and the hooks in one step:
+The headline path for Claude Code is the plugin, not `install.sh`. It installs the 36 canonical skills, the agents, and the hooks in one step:
 
 ```bash
 claude plugin marketplace add franciszver/ways-of-working
@@ -33,7 +33,7 @@ An alternative, `claude plugin install ways-of-working-claude-code@ways-of-worki
 installs the enhanced Claude Code profile instead: it adds argument hints and
 hides four owner-triggered skills (`incident`, `postmortem`, `release`,
 `demo-video`) from the per-turn listing. The portable `ways-of-working`
-plugin above lists all 35 skills.
+plugin above lists all 36 skills.
 
 `install.sh` still covers every other target: local/frontier profile switching, per-project installs, and the non-Claude-Code ports (Antigravity, Cursor, Gemini CLI, AGENTS.md, MCP). See the quickstarts below.
 
@@ -117,7 +117,7 @@ documentation — [Codex](https://learn.chatgpt.com/docs/build-skills),
 |---|---|---|
 | `sec-audit` — high-confidence vuln report | `perf` — profile-first optimization | `ci-triage` — red-build triage |
 | `migrate` — reversible upgrades & migrations | `api-design` — consumer-first interface design | `declutter` — cleanup-only pre-PR pass |
-| `frontend-design` — designed, not defaulted, UI | | |
+| `frontend-design` — designed, not defaulted, UI | `clean-code`: readability and maintainability heuristics | |
 
 **Ops & incidents**
 

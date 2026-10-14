@@ -225,6 +225,12 @@ _ROUTE_HINT_SOURCE: list[tuple[tuple[str, ...], str]] = [
         "signals cleanup pass → declutter skill (behavior-preserving only)",
     ),
     (
+        (
+            r"(?i)\b(readab|maintainab|clean.?code|code.?smell|naming|variable.?names?|meaningful.?names?)\w*\b",
+        ),
+        "signals readability/naming/code-smell work → clean-code skill (heuristics; use refactor to restructure, declutter to remove clutter)",
+    ),
+    (
         (r"(?i)\b(dataset|metric|dashboard|experiment|A/B|analyze.?data|SQL.?query)\w*\b",),
         "signals data analysis work → data-analysis skill",
     ),

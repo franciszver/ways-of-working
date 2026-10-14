@@ -37,6 +37,7 @@ Judgment-dense skills tuned for frontier models (Opus, Sonnet) in Claude Code. E
 | [`api-design`](api-design/) | Consumer-first interface design, full contract before v1 | Designing or reviewing an API, library surface, CLI, event schema |
 | [`frontend-design`](frontend-design/) | Designed, not defaulted — tokens, hierarchy, real states, verify by looking | Building or restyling any UI, or when it "looks off" |
 | [`declutter`](declutter/) | Cleanup-only pre-PR pass — no bug fixes, no redesign | Before opening a PR; simplifying AI-written code |
+| [`clean-code`](clean-code/) | Readability and maintainability heuristics: names, functions, comments, errors, tests, smells | Writing or reviewing code for readability |
 
 ### Ops & incidents
 
