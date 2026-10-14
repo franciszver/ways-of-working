@@ -9,7 +9,7 @@ The premise: most of the gap between a mediocre run and a frontier run is **proc
 ```
 skills/          36 canonical skills — source of truth, tuned for Opus/Sonnet
 skills-local/    compact imperative variants for local models (quality, iterate,
-                 debug, deep-review, prove, + 26 more) — free tokens change the discipline
+                 debug, deep-review, prove, + 28 more) — free tokens change the discipline
 agents/          Claude Code subagents: code-reviewer, verifier, researcher, architect
 claude-md/       always-on CLAUDE.md layers: global-frontier, global-local, project template
 playbooks/       ROUTING.md (which model for what) · HANDOFF.md (cross-tool continuity)
