@@ -844,7 +844,7 @@ echo "===== (18) a large diff runs each gate once per changed file ====="
 GATE_REVIEW_OUT='no findings\nclean' LOOP_DIFF_SPLIT_BYTES=1 EXECUTE_EXTRA_FILE='café.txt' \
   run_gate_case gates-split --max-iterations 1 --gates review
 assert_eq "$(cat "$SCRATCH/gates-split.rc")" "0" "split run exits 0"
-assert_eq "$(stages_of gates-split)" "plan red execute review review review" "review ran once per changed file (three files)"
+assert_eq "$(stages_of gates-split)" "plan red execute review review review review" "review ran once per changed file (the red test plus three files)"
 STATE18="$SCRATCH/state-gates-split"
 assert_true "the café.txt chunk carried a real diff, not an empty one" bash -c '
   for d in "$1"/diff_seen_*_review.txt; do
