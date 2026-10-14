@@ -13,6 +13,14 @@ RUN_LOOP="$SCRIPT_DIR/run_loop.sh"
 RESET_TASK="$SCRIPT_DIR/reset_task.sh"
 TASK_PROMPT="$SCRIPT_DIR/task_prompt.txt"
 
+# The suite makes many temp repos and each needs checkpoint commits. A
+# machine with no global git identity would fail all of them, so the
+# suite brings its own identity and reads nothing from the host.
+export GIT_AUTHOR_NAME="loop-test"
+export GIT_AUTHOR_EMAIL="loop-test@example.invalid"
+export GIT_COMMITTER_NAME="loop-test"
+export GIT_COMMITTER_EMAIL="loop-test@example.invalid"
+
 SCRATCH="$(mktemp -d)"
 cleanup() { rm -rf "$SCRATCH"; }
 trap cleanup EXIT
