@@ -5,6 +5,28 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-13
+
+- **`apply-working-process` has four gates** (#51): simplify, security
+  review, code review, then clean-code review. Run them before PR creation
+  and again before any PR update that changes the diff. A description-only
+  edit uses the prose checks instead. The clean-code review is one single
+  pass.
+- **Prose checks:** run `plain-language` and `ste-writing` on commit
+  messages, PR titles, and PR descriptions. Code comments that are added or
+  changed follow ASD-STE100 in spirit.
+- **`clean-code` applies during implementation** as well as review.
+- **Effort plan:** multi-step work keeps its live plan in
+  `docs/CURR-AGENT-EFFORT.md`, updated before implementation. This
+  replaces the `WORKPLAN.md` fallback.
+- **Decision log removed.** Rationale goes in an issue, the effort plan, a
+  design document, or the PR. Unverified vulnerability claims are still
+  never published.
+- **Named models:** use the newest version in the tier and verify it is
+  available.
+- New check: `scripts/check-working-process.py`, wired into CI and
+  CONTRIBUTING.md.
+
 ## [0.16.0] - 2026-10-13
 
 - **New skill: `clean-code`** (#50). Practical clean-code heuristics for

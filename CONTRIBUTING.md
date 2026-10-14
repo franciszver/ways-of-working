@@ -1,7 +1,7 @@
 # Contributing to ways-of-working
 
 This file explains how to change a canonical skill, what the frontmatter
-contract requires, how to run the checks, and the three gates every PR
+contract requires, how to run the checks, and the four gates every PR
 passes before merge.
 
 ## Propagating a canonical skill change
@@ -198,17 +198,23 @@ run `python3 scripts/build-profile.py .` (writes) first, commit
 
 All of these run in CI (`.github/workflows/ci.yml`) on every push and PR.
 
-## The three gates
+## The four gates
 
-Before any PR merges, run on the full diff, in order:
+Before a PR is created, and again before any PR update that changes the
+diff, run on the full diff, in order:
 
-1. **Simplify** (`/simplify` or the `declutter` skill) — cleanup only, no
+1. **Simplify** (`/simplify` or the `declutter` skill). Cleanup only, no
    redesign.
 2. **Security review** (`/security-review` or the `sec-audit` skill).
 3. **Code review** (`/code-review` or the `deep-review` skill).
+4. **Clean-code review** (the `clean-code` skill as the review lens). One
+   single pass.
 
-Fix every finding — do not defer a real defect to a follow-up issue. Re-run
-the test suite green after the fixes, including on docs-only PRs.
+Fix every finding. Do not defer a real defect to a follow-up issue. Re-run
+the test suite green after the fixes, including on docs-only PRs. A
+description-only edit uses `plain-language` and `ste-writing` instead of
+the code gates. Run both on commit messages, PR titles, and PR
+descriptions.
 
 ## Releasing
 
