@@ -99,7 +99,7 @@ a runaway generation, not slow work.
 
 ## Gate config and the prompt-carried diff
 
-A gate stage does not run under the same Goose config as plan, execute,
+A gate stage does not run under the same Goose config as plan, red, execute,
 and fix. At run start, `run_loop.sh` derives `.loop-run/goose-config-gate/`
 from the stage config by removing `shell`, `edit`, and `tree` from the
 developer extension's `available_tools`, leaving `write` alone. The

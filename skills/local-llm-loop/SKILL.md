@@ -20,11 +20,12 @@ bash scripts/run_loop.sh <repo> plan.md --test-cmd "python3 -m unittest discover
 ```
 
 `run_loop.sh` drives Goose through a fresh-context plan stage, then
-execute/test/gates/fix cycles, each stage checkpointed with its own
+red/execute/test/gates/fix cycles, each stage checkpointed with its own
 commit on a disposable git worktree branch at
 `<repo>/.loop/<timestamp>/`. Inside that worktree: `PLAN.md` (the step
 checklist), `NEXT_STEP.md` (the one step execute.md works on),
-`HANDOFF.md` (updated every stage), `.loop-run/DIFF.txt` (the diff each
+`HANDOFF.md` (updated every stage), `RED_OUTPUT.txt` (the failure the
+red stage produced, read by execute), `.loop-run/DIFF.txt` (the diff each
 gate reviews), `SIMPLIFY.md`, `SECURITY.md`, and `REVIEW.md` (one per
 gate, written fresh each round), `FINDINGS.md` (the gate findings that
 cite a real file, the only input fix.md reads),
@@ -34,7 +35,9 @@ because they cite no real file), `TEST_OUTPUT.txt`, `NEEDS_HUMAN.md`
 `LOOP_SUMMARY.md` plus a `LOOP_DONE` marker. `--gates LIST` selects
 which of the three gates run, in their fixed order
 simplify,security,review (the default); `--gates none` skips them and
-`--gates review` reproduces the old single-review behavior. Run
+`--gates review` reproduces the old single-review behavior.
+`--red-first on|off` (default `on`) controls the red stage, described
+under "Red first" below. Run
 `bash scripts/run_loop.sh <repo> plan.md --dry-run` first — it exercises
 the worktree, prompts, and mechanical test stage for real without
 calling the model, so plumbing problems surface before spending an
@@ -46,6 +49,39 @@ is never added to that repo's top-level `.gitignore` automatically — add
 `.loop/` to `<repo>/.gitignore` yourself, or delete `.loop/<timestamp>/`
 worktrees by hand (`git -C <repo> worktree remove .loop/<timestamp>`)
 once you're done with a run, so `git status` in `<repo>` stays clean.
+
+## Red first
+
+The stage order for each step is plan (once), then red, execute, test, and
+the gates. The red stage is the loop's version of the working process's
+first rule: the failing artifact exists, and is seen failing, before the
+code that satisfies it.
+
+- The red stage has its own prompt, `scripts/prompts/red.md`. It writes only
+  the failing test or check for the current step and touches nothing else.
+- The driver then runs the test command and asserts that it **fails**. A red
+  stage whose test command passes has not written a real test. The driver
+  treats it like a gate that wrote nothing: the run fails closed, the
+  message names the cause, and `LOOP_SUMMARY.md` records the iteration.
+- The red stage and the check each get a checkpoint commit (`loop: red N`,
+  `loop: red-check N`), so a branch shows the failing test before the code.
+  The failure text is kept in `RED_OUTPUT.txt`, and execute must make that
+  test pass without weakening it. The existing test stage must pass after.
+- The driver checks only that the command fails, not why. A test that fails
+  from a typo passes this check, so the gates and a human still read it. A
+  suite that already failed before the red stage also passes the check.
+- Opt-outs are always stated, never silent. `--red-first=off` gives the old
+  order exactly (plan, execute, test, gates). When no test command is
+  available, red is off for the run and the output and summary say so. A
+  plan step that ends in `| red: none` skips red for that step only, and
+  the summary logs the skip.
+- A plan step names its failing artifact by ending in `| red: <what>`, for
+  example `1. [ ] add parse_due() | red: tests/test_dates.py rejects
+  "tomorrow"`. The ending is optional. A step without it still runs red,
+  and the red stage picks the smallest test that proves the step. Plans
+  written before this shape existed keep working.
+- A dry run calls no model, so it runs the test command and reports the
+  result but does not assert on it.
 
 ## Three gates
 

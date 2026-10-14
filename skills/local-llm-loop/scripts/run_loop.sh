@@ -88,7 +88,7 @@ Environment (see env.example):
                         threshold: one oversized file is capped even when
                         no split happened.
   LOOP_STAGE_MAX_TOKENS
-                       Optional. The same cap for plan, execute and fix
+                       Optional. The same cap for plan, red, execute and fix
                         stages, which write files (default 8192). A write
                         cut at the cap is retried once with a reminder to
                         split it.
@@ -500,7 +500,7 @@ unlink_if_symlink() {
 # extension's available_tools cut to `write`, and every other extension
 # forced off. Disabling them here, rather than refusing a config that
 # enables one, keeps a legitimate operator setup working: the extension
-# stays on for plan, execute and fix, and only the gates lose it.
+# stays on for plan, red, execute and fix, and only the gates lose it.
 derive_gate_tools() {
   awk '
     # Track the current extension block and its available_tools list.
