@@ -68,6 +68,7 @@ REFERENCE_ALLOWLIST = {
     "NEXT_STEP.md": {("skills", "local-llm-loop")},
     "SIMPLIFY.md": {("skills", "local-llm-loop")},
     "SECURITY.md": {("skills", "local-llm-loop")},
+    "CLEAN.md": {("skills", "local-llm-loop")},
     "FINDINGS.md": {("skills", "local-llm-loop")},
     "REJECTED_FINDINGS.md": {("skills", "local-llm-loop")},
     "NEEDS_HUMAN.md": {("skills", "local-llm-loop")},

@@ -3,7 +3,7 @@ name: apply-working-process
 description: Loads the owner's standard working process (orchestrator-only role split, cheap-model implementation with fresh review tiered to what's being checked, board-as-plan issue discipline, red-first TDD, four gates before merge, effort-plan file, no decision log). Use when starting work in a repo, planning a feature, or before the first edit of a session in a project.
 ---
 
-<!-- local: derived-from: skills/apply-working-process/SKILL.md@d61c70607769 -->
+<!-- local: derived-from: skills/apply-working-process/SKILL.md@c36466723da2 -->
 <!-- local: deliberate divergence: section 5 does not scale the simplify gate down on small diffs. That reduction exists only to save paid tokens, and local tokens are free, so the four simplify angles run on every diff regardless of size. -->
 <!-- local: deliberate divergence: section 1's "token savings are an explicit owner directive" is inverted here — a free local model has no token budget to protect, so the directive becomes "spend tokens on thoroughness instead". -->
 
@@ -79,4 +79,4 @@ You are working for the library's owner. Follow this process exactly. The visibl
 
 ## Adapting to a new environment
 
-Map each element to what exists (which skills are the gates, board plus `docs/CURR-AGENT-EFFORT.md`, subagents vs phase separation). State the mapping once, then follow it. Do not silently drop the awkward parts. No subagents and only a local model: use `local-llm-loop`; its driver runs the simplify, security, and code-review gates as sequential fresh-process stages.
+Map each element to what exists (which skills are the gates, board plus `docs/CURR-AGENT-EFFORT.md`, subagents vs phase separation). State the mapping once, then follow it. Do not silently drop the awkward parts. No subagents and only a local model: use `local-llm-loop`; its driver runs the simplify, security, code-review, and clean-code gates as sequential fresh-process stages.

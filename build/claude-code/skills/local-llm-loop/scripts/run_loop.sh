@@ -8,8 +8,8 @@
 # (plan -> red -> execute -> test -> gates, looping until the plan has no
 # unchecked steps and tests pass, or --max-iterations is reached) in a
 # disposable git worktree, committing after every stage. The gates are
-# three fresh-context review passes in a fixed order -- simplify,
-# security, review -- each followed by a fix stage and a test stage
+# four fresh-context review passes in a fixed order -- simplify,
+# security, review, clean -- each followed by a fix stage and a test stage
 # when it reports findings, capped at two fix rounds per gate per
 # iteration. A third round means the approach is wrong, not that the
 # fixes are nearly done, so the loop stops and reports "not converged".
@@ -40,8 +40,8 @@ Usage: run_loop.sh <repo_path> <plan_file> [--max-iterations N] [--test-cmd "...
   <plan_file>          Path to a file describing the task to plan and execute.
   --max-iterations N   Cap on red/execute/test/gates cycles (default 3).
   --gates LIST         Comma-separated gates to run after each execute, in
-                        this fixed order: simplify,security,review (the
-                        default). "none" skips every gate. Each gate that
+                        this fixed order: simplify,security,review,clean
+                        (the default). "none" skips every gate. Each gate that
                         reports findings is followed by a fix stage and a
                         test stage, at most twice per gate per iteration.
   --red-first on|off   Run a red stage before each execute stage
@@ -121,7 +121,13 @@ EOF
 DRY_RUN=false
 MAX_ITERATIONS=3
 TEST_CMD_OVERRIDE=""
-GATES_SPEC="simplify,security,review"
+# KNOWN_GATES names every gate and fixes their order. The default gate
+# list, the --gates validation, the bookkeeping excludes and the
+# tracked-file refusal all derive from it. Adding a gate also needs an
+# entry in gate_output_file, a prompt file prompts/<name>.md, and the
+# docs (SKILL.md, setup.md, env.example, the usage text).
+KNOWN_GATES=(simplify security review clean)
+GATES_SPEC="$(IFS=,; echo "${KNOWN_GATES[*]}")"
 RED_FIRST="on"
 POSITIONAL=()
 
@@ -301,12 +307,16 @@ fi
 
 # --------------------------------------------------------------------
 # Gates: which fresh-context review passes run after each execute, and
-# which file each one writes. Order is fixed (simplify, then security,
-# then review) regardless of the order given on the command line.
+# which file each one writes. The order is KNOWN_GATES order, whatever
+# order the command line gives.
 # --------------------------------------------------------------------
 GATES=()
 if [ "$GATES_SPEC" != "none" ]; then
   _spec_items=()
+  _known_list=""
+  for k in "${KNOWN_GATES[@]}"; do
+    _known_list+="$k, "
+  done
   IFS=',' read -r -a _spec_items <<< "$GATES_SPEC"
   if [ "${#_spec_items[@]}" -eq 0 ]; then
     echo "run_loop.sh: --gates: empty list; name gates, or pass 'none' to skip them on purpose" >&2
@@ -314,15 +324,21 @@ if [ "$GATES_SPEC" != "none" ]; then
   fi
   for g in "${_spec_items[@]}"; do
     case "$g" in
-      simplify|security|review|"") ;;
+      "") ;;
       *)
-        echo "run_loop.sh: --gates: unknown gate '$g' (known: simplify, security, review, none)" >&2
-        exit 1
+        _known=false
+        for k in "${KNOWN_GATES[@]}"; do
+          [ "$k" = "$g" ] && _known=true
+        done
+        if ! $_known; then
+          echo "run_loop.sh: --gates: unknown gate '$g' (known: ${_known_list}none)" >&2
+          exit 1
+        fi
         ;;
     esac
   done
   # Fixed order regardless of how the list was written.
-  for g in simplify security review; do
+  for g in "${KNOWN_GATES[@]}"; do
     for item in "${_spec_items[@]}"; do
       [ "$item" = "$g" ] && GATES+=("$g") && break
     done
@@ -338,6 +354,7 @@ gate_output_file() {
     simplify) echo SIMPLIFY.md ;;
     security) echo SECURITY.md ;;
     review)   echo REVIEW.md ;;
+    clean)    echo CLEAN.md ;;
   esac
 }
 
@@ -442,8 +459,14 @@ fi
 # The driver removes and rewrites its bookkeeping files at the worktree
 # root. A target repo that tracks one of those names (a GitHub-style
 # SECURITY.md, say) would lose it, so refuse up front.
-for f in PLAN.md PLAN_INPUT.md HANDOFF.md NEXT_STEP.md TEST_OUTPUT.txt \
-         RED_OUTPUT.txt FINDINGS.md NEEDS_HUMAN.md SIMPLIFY.md SECURITY.md REVIEW.md; do
+PROTECTED_ROOT_FILES=(
+  PLAN.md PLAN_INPUT.md HANDOFF.md NEXT_STEP.md TEST_OUTPUT.txt
+  RED_OUTPUT.txt FINDINGS.md NEEDS_HUMAN.md
+)
+for g in "${KNOWN_GATES[@]}"; do
+  PROTECTED_ROOT_FILES+=("$(gate_output_file "$g")")
+done
+for f in "${PROTECTED_ROOT_FILES[@]}"; do
   if git -C "$REPO_PATH" ls-files --error-unmatch -- "$f" >/dev/null 2>&1; then
     echo "run_loop.sh: $REPO_PATH tracks $f at its root, a name the loop driver overwrites; rename it or run the loop on a copy" >&2
     exit 1
@@ -1074,8 +1097,10 @@ GATE_DROPPED=0       # findings dropped by the last filter_findings call
 BOOKKEEPING_FILES=(
   .gitignore PLAN.md PLAN_INPUT.md HANDOFF.md NEXT_STEP.md TEST_OUTPUT.txt
   RED_OUTPUT.txt FINDINGS.md NEEDS_HUMAN.md
-  "$(gate_output_file simplify)" "$(gate_output_file security)" "$(gate_output_file review)"
 )
+for g in "${KNOWN_GATES[@]}"; do
+  BOOKKEEPING_FILES+=("$(gate_output_file "$g")")
+done
 GATE_DIFF_EXCLUDES=()
 for f in "${BOOKKEEPING_FILES[@]}"; do
   GATE_DIFF_EXCLUDES+=(":(exclude)$f")
