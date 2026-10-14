@@ -27,8 +27,8 @@ checklist), `NEXT_STEP.md` (the one step execute.md works on),
 `HANDOFF.md` (updated every stage), `RED_OUTPUT.txt` (the failure the
 red stage produced, read by execute), `.loop-run/DIFF.txt` (the diff each
 gate reviews), `SIMPLIFY.md`, `SECURITY.md`, and `REVIEW.md` (one per
-gate, written fresh each round), `CLEAN.md` (the fourth gate's file), `FINDINGS.md` (the gate findings that
-cite a real file, the only input fix.md reads),
+gate, written fresh each round), `CLEAN.md` (the fourth gate's file), `FINDINGS.md` (the gate
+findings that cite a real file, the only input fix.md reads),
 `.loop-run/REJECTED_FINDINGS.md` (findings the driver filtered out
 because they cite no real file), `TEST_OUTPUT.txt`, `NEEDS_HUMAN.md`
 (files a reverted fix commit deleted), and on completion

@@ -770,15 +770,15 @@ assert_true "argv[3] is the substituted prompt file path" bash -c 'sed -n "3p" "
 assert_eq "$RC12" "0" "LOOP_HARNESS_CMD quoting run exits 0"
 
 # --------------------------------------------------------------------
-# 13. Gate order: simplify, security, review after execute+test; a gate
+# 13. Gate order: simplify, security, review, clean after execute+test; a gate
 #     with "no findings" runs no fix stage; the stages the harness saw
-#     are exactly plan, execute, simplify, security, review.
+#     are exactly plan, red, execute, simplify, security, review, clean.
 # --------------------------------------------------------------------
 echo
 echo "===== (13) gates run in order and skip fix on no findings ====="
 GATE_REVIEW_OUT='no findings\nnothing in the diff is wrong' run_gate_case gates-order --max-iterations 1
 assert_eq "$(cat "$SCRATCH/gates-order.rc")" "0" "all-clean gate run exits 0"
-assert_eq "$(stages_of gates-order)" "plan red execute simplify security review clean" "stage order is plan, execute, simplify, security, review with no fix"
+assert_eq "$(stages_of gates-order)" "plan red execute simplify security review clean" "stage order is plan, red, execute, then the four gates, with no fix"
 WT13="$(wt_of gates-order)"
 assert_true "LOOP_SUMMARY.md lists the four gates" file_has "$WT13/LOOP_SUMMARY.md" "Gates: simplify security review clean"
 assert_true "LOOP_SUMMARY.md gate log shows 0 findings kept for review" file_has "$WT13/LOOP_SUMMARY.md" "gate review, round 0: 0 finding(s) kept"
@@ -868,7 +868,7 @@ assert_eq "$(cat "$SCRATCH/gates-nudge.rc")" "0" "prose-then-file review passes 
 assert_true "the driver logged the write reminder retry" file_has "$SCRATCH/gates-nudge.out" "did not write REVIEW.md; retrying with a write reminder"
 WT17="$(wt_of gates-nudge)"
 assert_true "the retry prompt carries the reminder line" file_has "$(newest_prompt "$WT17" "review_prompt_*_retry.md")" "previous attempt ended without writing REVIEW.md"
-assert_eq "$(stages_of gates-nudge)" "plan red execute simplify security review review clean" "review ran twice: the prose attempt and the nudged retry"
+assert_eq "$(stages_of gates-nudge)" "plan red execute simplify security review review clean" "review ran twice (the prose attempt and the nudged retry), then clean"
 
 GATE_REVIEW_OUT='' run_gate_case gates-noout --max-iterations 3
 assert_eq "$(cat "$SCRATCH/gates-noout.rc")" "1" "a gate that never writes its file makes the run fail"
@@ -1037,7 +1037,7 @@ echo "----- (19i) a gate quoting the truncation notice is not read as truncated 
 REVIEW_QUOTES_TRIGGER=1 run_gate_case quotetrigger --max-iterations 1
 assert_eq "$(cat "$SCRATCH/quotetrigger.rc")" "0" "the quoting run passes"
 assert_true "no retry was triggered by the quoted text" file_lacks "$SCRATCH/quotetrigger.out" "cut at the output cap"
-assert_eq "$(stages_of quotetrigger)" "plan red execute simplify security review clean" "the review gate ran exactly once"
+assert_eq "$(stages_of quotetrigger)" "plan red execute simplify security review clean" "every gate ran exactly once"
 
 echo
 echo "----- (19j) a cut-off attempt's findings file is not inherited by the retry -----"
@@ -1087,7 +1087,7 @@ assert_true "every gate stage ran with write as its only tool" bash -c '
 assert_true "plan, execute and fix keep the full tool set" bash -c '
   g="$(grep -E "^(plan|execute|fix) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "tools=shell,edit,write,tree "' _ "$PROMPT_DUMP"
 assert_true "no gate prompt tells the model to read DIFF.txt" bash -c '
-  for f in "$1"/.loop-run/logs/simplify_prompt_*.md "$1"/.loop-run/logs/security_prompt_*.md "$1"/.loop-run/logs/review_prompt_*.md; do
+  for f in "$1"/.loop-run/logs/simplify_prompt_*.md "$1"/.loop-run/logs/security_prompt_*.md "$1"/.loop-run/logs/review_prompt_*.md "$1"/.loop-run/logs/clean_prompt_*.md; do
     [ -f "$f" ] || continue
     grep -q "Read .loop-run/DIFF.txt" "$f" && exit 1
   done
@@ -1096,7 +1096,7 @@ assert_true "no gate prompt tells the model to read DIFF.txt" bash -c '
 echo
 echo "----- (19r) a gate prompt carries gate rules, not the shell/test rules -----"
 assert_true "no gate prompt tells the model to run tests or git" bash -c '
-  for f in "$1"/.loop-run/logs/simplify_prompt_*.md "$1"/.loop-run/logs/security_prompt_*.md "$1"/.loop-run/logs/review_prompt_*.md; do
+  for f in "$1"/.loop-run/logs/simplify_prompt_*.md "$1"/.loop-run/logs/security_prompt_*.md "$1"/.loop-run/logs/review_prompt_*.md "$1"/.loop-run/logs/clean_prompt_*.md; do
     [ -f "$f" ] || continue
     grep -q "Run the project.s test command" "$f" && exit 1
     grep -q "Never run git commands" "$f" && exit 1
@@ -1262,7 +1262,7 @@ SHIM_PROMPT_DUMP="$PROMPT_DUMP" LOOP_DIFF_SPLIT_BYTES=1 \
 WT19N="$(wt_of gatesplitdiff)"
 assert_true "every chunk prompt was kept and carried exactly one file's diff" bash -c '
   n=0
-  for f in "$1"/.loop-run/logs/review_prompt_*.md; do
+  for f in "$1"/.loop-run/logs/review_prompt_*.md "$1"/.loop-run/logs/clean_prompt_*.md; do
     [ -f "$f" ] || continue
     case "$f" in *_retry.md) continue ;; esac
     c=$(grep -c "^diff --git" "$f"); [ "$c" -eq 1 ] || exit 1
@@ -1440,7 +1440,7 @@ echo
 echo "----- (22c) --red-first=off and '--red-first off' reproduce the old order exactly -----"
 run_gate_case redoff --max-iterations 1 --red-first=off
 assert_eq "$(cat "$SCRATCH/redoff.rc")" "0" "a run with red-first off exits 0"
-assert_eq "$(stages_of redoff)" "plan execute simplify security review clean" "stage order is the old plan, execute, gates"
+assert_eq "$(stages_of redoff)" "plan execute simplify security review clean" "stage order is the old plan, execute, gates (no red)"
 WT22C="$(wt_of redoff)"
 assert_eq "$(loop_commits_of redoff)" \
   "loop: plan,loop: execute,loop: test,loop: simplify,loop: security,loop: review,loop: clean" \
@@ -1674,7 +1674,7 @@ assert_true "(9) it ran with write as its only tool" bash -c '
   g="$(grep "^clean " "$1")"; ! printf "%s\n" "$g" | grep -qv "tools=write "' _ "$PROMPT_DUMP_C"
 assert_true "(9) its prompt carried the diff" bash -c '
   g="$(grep "^clean " "$1")"; ! printf "%s\n" "$g" | grep -qv "diff_in_prompt=yes"' _ "$PROMPT_DUMP_C"
-assert_true "(9) its prompt carries the clean lens" file_has "$(newest_prompt "$(wt_of cleantools)" "clean_prompt_*.md")" "path:LINE"
+assert_true "(9) its prompt carries the clean lens" file_has "$(newest_prompt "$(wt_of cleantools)" "clean_prompt_*.md")" "clean-code heuristics"
 
 echo
 echo "----- (23j) the dry run lists the clean stage -----"

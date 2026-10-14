@@ -5,6 +5,8 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-10-14
+
 - **`local-llm-loop` has a clean-code gate** (#55). The driver runs a fourth
   gate, `clean`, after `review`. The gate order is now simplify, security,
   review, clean. It runs as its own fresh-context stage under the same

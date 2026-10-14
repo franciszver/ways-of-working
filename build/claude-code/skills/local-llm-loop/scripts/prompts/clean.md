@@ -15,8 +15,6 @@ The rules are heuristics, not laws. There is no fixed length limit for a
 function or a file. Report only a concrete problem you can point to on a
 changed line. Do not report style churn on a line the diff did not change.
 
-A finding without path:LINE at the start of its line is discarded.
-
 Use the `write` tool to create CLEAN.md, in the findings format below. On each line say what is unclear and what would make it clear.
 
 Rules:
