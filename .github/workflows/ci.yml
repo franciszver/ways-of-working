@@ -98,6 +98,12 @@ jobs:
       - name: plain-language em-dash and refresh-text check
         run: python3 scripts/check-plain-language.py .
 
+      - name: working-process stale-term and required-term check
+        run: python3 scripts/check-working-process.py .
+
+      - name: working-process check tests
+        run: bash scripts/test-check-working-process.sh
+
       - name: Plugin hooks generation check
         run: |
           python3 scripts/merge-hooks.py --emit-plugin > hooks/plugin-hooks.json

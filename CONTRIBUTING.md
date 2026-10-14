@@ -1,7 +1,7 @@
 # Contributing to ways-of-working
 
 This file explains how to change a canonical skill, what the frontmatter
-contract requires, how to run the checks, and the three gates every PR
+contract requires, how to run the checks, and the four gates every PR
 passes before merge.
 
 ## Propagating a canonical skill change
@@ -188,7 +188,9 @@ python3 scripts/check-counts.py .        # README skill count vs disk
 python3 scripts/check-agents.py .        # agents/*.md frontmatter contract
 python3 scripts/check-skill-sections.py . # closing sections, ## Report, duplicate paragraphs, dangling references
 python3 scripts/check-plain-language.py . # plain-language strikes em dashes, holds no refresh text
+python3 scripts/check-working-process.py . # no stale terms, required terms present
 bash scripts/test-install.sh             # installer behavior (also runs bash -n)
+bash scripts/test-check-working-process.sh  # --owner-file handling of the working-process check
 ```
 
 After changing a canonical skill or `scripts/profile-claude-code.yaml`,
@@ -197,17 +199,18 @@ run `python3 scripts/build-profile.py .` (writes) first, commit
 
 All of these run in CI (`.github/workflows/ci.yml`) on every push and PR.
 
-## The three gates
+## The four gates
 
-Before any PR merges, run on the full diff, in order:
+Run these on the full diff, in order. Timing, the prose checks for
+description-only edits, and the fix rules are in
+`skills/apply-working-process/SKILL.md` §3 and §5.
 
-1. **Simplify** (`/simplify` or the `declutter` skill) — cleanup only, no
+1. **Simplify** (`/simplify` or the `declutter` skill). Cleanup only, no
    redesign.
 2. **Security review** (`/security-review` or the `sec-audit` skill).
 3. **Code review** (`/code-review` or the `deep-review` skill).
-
-Fix every finding — do not defer a real defect to a follow-up issue. Re-run
-the test suite green after the fixes, including on docs-only PRs.
+4. **Clean-code review** (the `clean-code` skill as the review lens). One
+   single pass.
 
 ## Releasing
 
