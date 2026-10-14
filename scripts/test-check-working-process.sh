@@ -70,7 +70,7 @@ new_fixture; mkdir -p "$fixture/docs/build"; printf 'old %s\n' "$old_plan" > "$f
 expect "nested build/ is scanned" 1 "docs/build/x.md"
 
 new_fixture; mkdir -p "$fixture/skills/local-llm-loop"; printf 'the three gates run\n' > "$fixture/skills/local-llm-loop/SKILL.md"; track
-expect "local-llm-loop gate-count exemption" 0
+expect "local-llm-loop is no longer exempt for the gate count" 1 "skills/local-llm-loop/SKILL.md"
 
 new_fixture; mkdir -p "$fixture/skills/local-llm-loop"; printf 'keep %s\n' "$old_plan" > "$fixture/skills/local-llm-loop/SKILL.md"; track
 expect "local-llm-loop is not exempt for other terms" 1
