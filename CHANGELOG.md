@@ -5,6 +5,16 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-13
+
+- **New skill: `clean-code`** (#50). Practical clean-code heuristics for
+  names, functions, comments, formatting, data and object boundaries,
+  error handling, tests, and code smells. They are heuristics, not fixed
+  limits. Refactoring work goes to `refactor`. Cleanup and deletion go to
+  `declutter`.
+- New route hint for readability, naming, and code-smell phrasing.
+- New `skills-local/clean-code` twin. Skill count is now 36.
+
 ## [0.15.1] - 2026-10-13
 
 - **`plain-language` strikes em dashes** (#49): the skill now tells the

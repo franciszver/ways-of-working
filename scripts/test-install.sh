@@ -10,6 +10,7 @@ set -euo pipefail
 
 LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALL="$LIB/install.sh"
+N_SKILLS="$(find "$LIB/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
 
 bash -n "$INSTALL"
 
@@ -276,11 +277,11 @@ export HOME="$TMPROOT/home-unused-15"
 "$INSTALL" --generic "$GEN1/proj" >/dev/null
 assert_true "--generic: AGENTS.md written" [ -f "$GEN1/proj/AGENTS.md" ]
 n_skills="$(find "$GEN1/proj/.agents/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
-assert_eq "$n_skills" "35" "--generic: 35 skill dirs under DIR/.agents/skills"
+assert_eq "$n_skills" "$N_SKILLS" "--generic: $N_SKILLS skill dirs under DIR/.agents/skills"
 
 "$INSTALL" --generic "$GEN1/proj" >/dev/null
 n_skills_rerun="$(find "$GEN1/proj/.agents/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
-assert_eq "$n_skills_rerun" "35" "--generic: idempotent re-run, still 35 skill dirs"
+assert_eq "$n_skills_rerun" "$N_SKILLS" "--generic: idempotent re-run, still $N_SKILLS skill dirs"
 assert_true "--generic: idempotent re-run, AGENTS.md still present" [ -f "$GEN1/proj/AGENTS.md" ]
 
 rm -rf "$GEN1"
@@ -302,7 +303,7 @@ mkdir -p "$HOME10"
 export HOME="$HOME10"
 "$INSTALL" --generic-user >/dev/null
 n_skills_user="$(find "$HOME10/.agents/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
-assert_eq "$n_skills_user" "35" "--generic-user: 35 skill dirs under \$HOME/.agents/skills"
+assert_eq "$n_skills_user" "$N_SKILLS" "--generic-user: $N_SKILLS skill dirs under \$HOME/.agents/skills"
 assert_false "--generic-user: no AGENTS.md written at \$HOME" [ -f "$HOME10/AGENTS.md" ]
 
 rm -rf "$HOME10"
@@ -362,7 +363,7 @@ mkdir -p "$GEN4/proj"
 "$INSTALL" --agents-md "$GEN4/proj" >/dev/null
 assert_true "--agents-md (alias): AGENTS.md written" [ -f "$GEN4/proj/AGENTS.md" ]
 n_skills_alias="$(find "$GEN4/proj/.agents/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
-assert_eq "$n_skills_alias" "35" "--agents-md (alias): 35 skill dirs under DIR/.agents/skills"
+assert_eq "$n_skills_alias" "$N_SKILLS" "--agents-md (alias): $N_SKILLS skill dirs under DIR/.agents/skills"
 assert_false "--agents-md (alias): no separate DIR/skills layout" [ -d "$GEN4/proj/skills" ]
 
 rm -rf "$GEN4"

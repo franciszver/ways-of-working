@@ -32,6 +32,7 @@ Each line points at one canonical skill's full protocol. Load the file at its pa
 - @.agents/skills/brainstorm/SKILL.md — Use when asked to brainstorm, generate options/names/approaches, find alternatives to a stuck plan, or when a decision is being made with only one candidate on the table.
 - @.agents/skills/breakdown/SKILL.md — Use when planning a multi-step feature or project, splitting work for parallel agents or sessions, or when a task is too big to hold in one context window.
 - @.agents/skills/ci-triage/SKILL.md — Use when CI fails, a pipeline breaks, a build goes red, or a test is flaky.
+- @.agents/skills/clean-code/SKILL.md — Use when writing new code, reviewing a diff for readability, or judging whether code is easy to change.
 - @.agents/skills/data-analysis/SKILL.md — Use when exploring a dataset, answering a question with data, building metrics/dashboards, evaluating an experiment, or checking someone else's numbers.
 - @.agents/skills/debug/SKILL.md — Use whenever anything fails — bug report, failing test, error message, stack trace, regression, flaky behavior, or "it worked yesterday".
 - @.agents/skills/declutter/SKILL.md — Use as a quality gate before opening a PR, after generated/AI-written code, or when asked to simplify/clean up recent changes.
