@@ -22,7 +22,7 @@ Judgment-dense skills tuned for frontier models (Opus, Sonnet) in Claude Code. E
 | [`research`](research/) | Triangulated sources, citation log, disconfirmation | Evaluations, landscape questions, costly facts |
 | [`write`](write/) | Audience → thesis → outline → draft → one revision pass | Prose is the product |
 | [`handoff`](handoff/) | Continuation brief a cold session can resume from | Context pressure, session end, model downshift |
-| [`apply-working-process`](apply-working-process/) | The owner's standard operating process — roles, board-as-plan, effort plan, red-first, four gates | Starting work in a repo, planning a feature, or before the first edit of a session in a project |
+| [`apply-working-process`](apply-working-process/) | The owner's standard operating process, roles, board-as-plan, effort plan, red-first, four gates | Starting work in a repo, planning a feature, or before the first edit of a session in a project |
 | [`ste-writing`](ste-writing/) | Simplified Technical English spirit for all prose — one word per idea, short active sentences | Writing prose a person will read: docs, commit messages, PR text, reports, replies, code comments |
 | [`plain-language`](plain-language/) | Read a draft against the published signs of AI writing and strike what matches | Before shipping any prose a person will read |
 
