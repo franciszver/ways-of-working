@@ -3,7 +3,7 @@ name: apply-working-process
 description: Loads the owner's standard working process (orchestrator-only role split, cheap-model implementation with fresh review tiered to what's being checked, board-as-plan issue discipline, red-first TDD, four gates before merge, effort-plan file, no decision log). Use when starting work in a repo, planning a feature, or before the first edit of a session in a project.
 ---
 
-<!-- local: derived-from: skills/apply-working-process/SKILL.md@18511d5884d7 -->
+<!-- local: derived-from: skills/apply-working-process/SKILL.md@d61c70607769 -->
 <!-- local: deliberate divergence: section 5 does not scale the simplify gate down on small diffs. That reduction exists only to save paid tokens, and local tokens are free, so the four simplify angles run on every diff regardless of size. -->
 <!-- local: deliberate divergence: section 1's "token savings are an explicit owner directive" is inverted here — a free local model has no token budget to protect, so the directive becomes "spend tokens on thoroughness instead". -->
 
@@ -29,15 +29,15 @@ You are working for the library's owner. Follow this process exactly. The visibl
 ## 2. The plan lives on a board and in the effort plan
 
 - Tasks are issues (`P<phase>.<seq>`) with labels for phase and implementation tier. The body carries: scope, a **Red-first** line (the failing artifact), **Done when** criteria, and a Definition-of-Done checklist.
-- Issues stay the system of record. The effort plan is the working copy for the current effort. A plan change lands in the issue first.
+- Issues stay the system of record. Planning documents freeze once imported to the board. The test plan stays a living document. The effort plan is the working copy for the current effort. A plan change lands in the issue first, then in the effort plan.
 - The board NEVER lags reality. Work discovered mid-task gets an issue first, then a branch.
-- Multi-step work keeps its live plan in `docs/CURR-AGENT-EFFORT.md` (create `docs/` if needed), updated BEFORE implementation, even when a board exists.
+- Multi-step work keeps its live plan in `docs/CURR-AGENT-EFFORT.md` (create `docs/` if needed), updated BEFORE implementation, even when a board exists. Use the issue structure: scope, red-first, done when. The effort plan is not frozen. It is the only plan file that changes during the effort.
 
 ## 3. One issue = one branch = one PR
 
 - Nothing reaches main without a PR. Every PR links its issue (`Closes #N`). A PR with no linked issue does not merge.
 - Branches `feat/p<N>-<slug>` (or `fix/`, `docs/`, `ci/`). Conventional commits + `Assisted-by:` trailer. The pr-workflow skill owns PR craft once the branch exists.
-- Run `plain-language` and `ste-writing` on commit messages, PR titles, and PR descriptions. No em dashes, per `plain-language`.
+- Run `ste-writing` on commit messages, PR titles, and PR descriptions. Where plain-language is installed, run it too. New prose has no em dashes.
 - Code comments you add or change follow `ste-writing`. Do not rewrite unrelated comments.
 
 ## 4. Red first, strict TDD, everywhere
@@ -69,7 +69,8 @@ You are working for the library's owner. Follow this process exactly. The visibl
 - Never game a metric. Non-deterministic failures stay xfail. Numbers report what happened.
 - When an implementer's measurement against real data contradicts a reviewer's model of the risk, the measurement wins. Do NOT spend a review round fixing a finding the implementer already measured not to apply.
 - In unattended runs: self-merge only after the gates pass. Leave owner-gated items open and annotated.
-- Check in on long-running subagents every 15 minutes. Prefer a free spot-check (git status, docker ps, GPU/resource stats, artifact dirs) before spending a message on asking the agent. Read back actual output or status to confirm real progress, not just that they are alive. Interrupt and redirect stalled or looping work. The spot-check includes: is it parked on a CI watch past the ceiling? (`gh run list` is free)
+- Check in on long-running subagents every 15 minutes. Prefer a free spot-check (git status, docker ps, GPU/resource stats, artifact dirs) before spending a message on asking the agent. Read back actual output or status to confirm real progress, not just that they are alive. Interrupt and redirect stalled or looping work.
+- The 15-minute spot-check includes CI. Is the task parked on a CI watch past the ceiling? (`gh run list` is free)
 - CI watches are bounded. A hung run is a failure mode, not a long run. Derive the ceiling from the pipeline's known runtime (a suite that finishes in ~30 seconds gets a ~5-minute ceiling, not "until it ends"). Never watch unbounded.
 - On breach, diagnose once: a run still queued never started, so cancel and re-run it once. A run genuinely executing gets one extension with a stated reason. Two strikes: surface to the owner instead of looping.
 - Right after opening a PR, poll until checks exist (short loop, ~2-minute cap) before reading their absence as a verdict. "No checks reported" immediately post-push is usually the registration race, not the result.

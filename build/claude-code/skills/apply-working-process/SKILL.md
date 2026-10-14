@@ -32,7 +32,7 @@ This is how the library's owner runs engineering work. It was proven on the Agen
 - Each issue body carries: scope, a **Red-first** line (the failing artifact to write before implementing), **Done when** (acceptance criteria), and the Definition-of-Done checklist.
 - Issues stay the system of record. Planning documents freeze once imported to the board, and the effort plan is the working copy for the current effort. A plan change lands in the issue first, then in the effort plan. (Exception: the test plan stays a living document.)
 - **The board never lags reality.** Work discovered mid-task gets an issue created *first*, with acceptance criteria, then a branch.
-- **Multi-step work keeps its live plan in `docs/CURR-AGENT-EFFORT.md`.** Create `docs/` if needed. Update the file before implementation starts, even when a project board also tracks the work. Use the issue structure: scope, red-first, done when.
+- **Multi-step work keeps its live plan in `docs/CURR-AGENT-EFFORT.md`.** Create `docs/` if needed. Update the file before implementation starts, even when a project board also tracks the work. Use the issue structure: scope, red-first, done when. The effort plan is not frozen. It is the only plan file that changes during the effort.
 
 ## 3. One issue = one branch = one PR
 
@@ -40,7 +40,7 @@ This is how the library's owner runs engineering work. It was proven on the Agen
 - Every PR links its issue via `Closes #N`; a PR with no linked issue does not merge.
 - Branches: `feat/p<N>-<slug>` (or `fix/`, `docs/`, `ci/`). Conventional commits, with an `Assisted-by: <tool>` trailer when an AI helped.
 - Once the branch exists, `pr-workflow` owns the craft: commit narrative, PR description, review dialogue.
-- **Prose checks.** Run `plain-language` and `ste-writing` on commit messages, PR titles, and PR descriptions. Prose written from now on has no em dashes, per `plain-language`.
+- **Prose checks.** Run `plain-language` and `ste-writing` on commit messages, PR titles, and PR descriptions. New prose has no em dashes (see `plain-language`).
 - **Code comments** that you add or change follow `ste-writing`. Do not rewrite unrelated comments.
 
 ## 4. Red first — strict TDD, everywhere
@@ -72,7 +72,8 @@ This is how the library's owner runs engineering work. It was proven on the Agen
 - **Anything that can be done now gets done now** — environment setup runs immediately, outside tracked tasks, so problems surface before the first task's pipeline.
 - **Honest measurement.** Never game a metric: a non-deterministic test stays xfail rather than being flaked green. When an implementer's measurement against real data contradicts a reviewer's model of the risk, the measurement wins (see `references/observations.md`).
 - **Autonomy with accountability.** When granted an unattended run: self-merge after the gates pass, and leave owner-gated items open and annotated rather than blocking on them.
-- **Check in on long-running subagents every 15 minutes.** A delegated task still "running" isn't proof it's progressing, read back its actual output or status and confirm real progress, not just that the process is alive. Prefer a free, independent spot-check of the environment (`git status`, `docker ps`, GPU/resource stats, artifact directories) before spending a message or resume on asking the agent itself. Stalled or looping work gets interrupted and redirected, not left to burn budget silently. The spot-check includes: is it parked on a CI watch past the ceiling? (`gh run list` is free)
+- **Check in on long-running subagents every 15 minutes.** A delegated task still "running" isn't proof it's progressing. Read back its actual output or status and confirm real progress, not just that the process is alive. Prefer a free, independent spot-check of the environment (`git status`, `docker ps`, GPU/resource stats, artifact directories) before spending a message or resume on asking the agent itself. Stalled or looping work gets interrupted and redirected, not left to burn budget silently.
+- **The 15-minute spot-check includes CI.** Is the task parked on a CI watch past the ceiling? (`gh run list` is free)
 - **CI watches are bounded, not open-ended, and post-push checks-absence needs one short poll first** (see `references/observations.md`). Brief subagents with the CI ceiling and re-run rule, never an open-ended `--watch`.
 - **Subagents never passively wait on background work — they poll in a bounded foreground loop instead** (see `references/observations.md`).
 
