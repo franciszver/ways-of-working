@@ -75,4 +75,4 @@ This is how the library's owner runs engineering work. It was proven on the Agen
 
 ## Adapting to a new environment
 
-On first use in a tool or repo, map each element to what exists: which review skills stand in for the gates, whether a board and `docs/CURR-AGENT-EFFORT.md` carry the plan, whether subagents or phase separation carry the role split. State the mapping once, then follow it. Do not silently drop the elements the environment makes awkward. With no subagents and only a local model, see `local-llm-loop`: its driver runs the simplify, security, and code-review gates as sequential fresh-process stages.
+On first use in a tool or repo, map each element to what exists: which review skills stand in for the gates, whether a board and `docs/CURR-AGENT-EFFORT.md` carry the plan, whether subagents or phase separation carry the role split. State the mapping once, then follow it. Do not silently drop the elements the environment makes awkward. With no subagents and only a local model, see `local-llm-loop`: its driver runs the simplify, security, code-review, and clean-code gates as sequential fresh-process stages.

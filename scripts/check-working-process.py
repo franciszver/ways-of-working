@@ -25,7 +25,6 @@ Allow rule:
     with "/". "CHANGELOG.md" does not exempt "CHANGELOG.mdx".
   - CHANGELOG.md and PLAN.md keep history.
   - This script and its test hold stale terms on purpose.
-  - skills/local-llm-loop/ may say "three gates": its driver runs three stages.
   - A line may carry the marker "check-working-process: allow".
 
 Known limits, not caught:
@@ -45,7 +44,6 @@ ALLOW_MARKER = "check-working-process: allow"
 HISTORY_FILES = ("CHANGELOG.md", "PLAN.md")
 SELF_FILES = ("scripts/check-working-process.py", "scripts/test-check-working-process.sh")
 EXEMPT_COMMON = HISTORY_FILES + SELF_FILES
-LOOP_DIR = "skills/local-llm-loop/"
 
 # (pattern, label, exempt paths). BANNED patterns ignore case, because a
 # stale phrase is stale in any case. REQUIRED terms match exactly, because
@@ -53,7 +51,7 @@ LOOP_DIR = "skills/local-llm-loop/"
 BANNED = [
     (re.compile(r"WORKPLAN\.md", re.IGNORECASE), "names the old plan file", EXEMPT_COMMON),
     (re.compile(r"DECISIONS\.md|prd/DECISIONS", re.IGNORECASE), "names the old decision log", EXEMPT_COMMON),
-    (re.compile(r"\b(?:three|3)[-\s]+gates?\b", re.IGNORECASE), 'says "three gates"', EXEMPT_COMMON + (LOOP_DIR,)),
+    (re.compile(r"\b(?:three|3)[-\s]+gates?\b", re.IGNORECASE), 'says "three gates"', EXEMPT_COMMON),
     (re.compile(r"\bkeeps?\s+a\s+decisions?\s+log\b", re.IGNORECASE), "tells the reader to keep a decisions log", EXEMPT_COMMON),
     (re.compile(r"\bsame-session\s+decision", re.IGNORECASE), "names same-session decision logging", EXEMPT_COMMON),
 ]

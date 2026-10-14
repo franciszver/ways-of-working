@@ -5,6 +5,33 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+- **`local-llm-loop` has a clean-code gate** (#55). The driver runs a fourth
+  gate, `clean`, after `review`. The gate order is now simplify, security,
+  review, clean. It runs as its own fresh-context stage under the same
+  write-only gate config, with the diff in its prompt, and it applies the
+  `clean-code` skill's heuristics to the changed lines. It is one pass, with
+  no fan-out beyond the per-file split for a large diff.
+- **`--gates LIST` accepts `clean`.** The default list gains it. `--gates
+  none` and `--gates review` work as before. An unknown name is still
+  rejected, and the message now lists `clean`.
+- The clean gate follows every gate rule. A finding is kept only if it cites
+  a real file. A gate that writes nothing fails closed. The verdict is
+  recovered from the reply. A fix restarts the pass over all four gates, and
+  `LOOP_GATE_ROUNDS` caps the rounds.
+- New files: `scripts/prompts/clean.md`, and `CLEAN.md` in the loop
+  worktree. A target repo that tracks `CLEAN.md` at its root is refused, like
+  the other gate files. The gates are one list in the driver now
+  (`KNOWN_GATES`), so a later gate is data, not a copied stage.
+- `SKILL.md` section "Three gates" is now "Four gates". The sentence that
+  said the driver skips the clean-code review is gone. The `/security-review`
+  caveat stays: the local security gate is a prefilter.
+- `scripts/check-working-process.py` no longer exempts
+  `skills/local-llm-loop/` from the gate-count rule, because the directory no
+  longer says "three gates". Its test was written red first.
+- **Measurement:** the shim-based suite is the proof for this change
+  (`test_loop.sh`). There was no live Goose run, by owner decision; none is
+  available on the build machine.
+
 ## [0.18.0] - 2026-10-14
 
 - **`local-llm-loop` has a red-first stage** (#46). Each step now runs a

@@ -31,14 +31,14 @@ checklist), `NEXT_STEP.md` (the one step execute.md works on),
 `HANDOFF.md` (updated every stage), `RED_OUTPUT.txt` (the failure the
 red stage produced, read by execute), `.loop-run/DIFF.txt` (the diff each
 gate reviews), `SIMPLIFY.md`, `SECURITY.md`, and `REVIEW.md` (one per
-gate, written fresh each round), `FINDINGS.md` (the gate findings that
+gate, written fresh each round), `CLEAN.md` (the fourth gate's file), `FINDINGS.md` (the gate findings that
 cite a real file, the only input fix.md reads),
 `.loop-run/REJECTED_FINDINGS.md` (findings the driver filtered out
 because they cite no real file), `TEST_OUTPUT.txt`, `NEEDS_HUMAN.md`
 (files a reverted fix commit deleted), and on completion
 `LOOP_SUMMARY.md` plus a `LOOP_DONE` marker. `--gates LIST` selects
-which of the three gates run, in their fixed order
-simplify,security,review (the default); `--gates none` skips them and
+which of the four gates run, in their fixed order
+simplify,security,review,clean (the default); `--gates none` skips them and
 `--gates review` reproduces the old single-review behavior.
 `--red-first on|off` (default `on`) controls the red stage, described
 under "Red first" below. Run
@@ -92,11 +92,12 @@ exists, and is seen failing, before the code that satisfies it.
   fails from a typo passes the check. It also does not check that the red
   stage left source alone. Only the prompt and the gates guard that.
 
-## Three gates
+## Four gates
 
-The three gates map the first three of `apply-working-process`'s "Four gates before anything merges" (simplify → security review → code review) onto a local model with no subagents: each gate runs as its own fresh-context Goose stage instead of a fresh subagent, in the same fixed order, each finding fixed and tests re-run green after. A fix is new code the other gates have not seen, so any fix restarts the pass over all three gates; fix rounds per iteration are capped at `LOOP_GATE_ROUNDS` (default 2) before the loop reports "not converged". The local security gate is a prefilter, not the real check, run `/security-review` in Claude Code on the loop branch before merging. The driver does not run the fourth gate, the clean-code review: run the `clean-code` skill on the loop branch before merging too.
+The four gates map `apply-working-process`'s "Four gates before anything merges" (simplify → security review → code review → clean-code review) onto a local model with no subagents: each gate runs as its own fresh-context Goose stage instead of a fresh subagent, in the same fixed order, each finding fixed and tests re-run green after. A fix is new code the other gates have not seen, so any fix restarts the pass over all four gates; fix rounds per iteration are capped at `LOOP_GATE_ROUNDS` (default 2) before the loop reports "not converged". The local security gate is a prefilter, not the real check, run `/security-review` in Claude Code on the loop branch before merging.
 
 - A gate stage runs under its own Goose config at `.loop-run/goose-config-gate/`, derived at run start from the stage config with `shell`, `edit`, and `tree` removed from the developer extension's `available_tools`; only `write` is left, and the driver fails fast if `write` is not present. A gate therefore has no tool that can read a file: the diff under review, and the last 40 lines of `TEST_OUTPUT.txt`, are appended to its built prompt under the headings "## The diff under review" and "## Latest test run" instead (an empty diff is stated as such). The only action a gate can take is writing its findings file. Plan, red, execute, and fix stages are unchanged and keep `shell`, `edit`, `write`, and `tree`. Under the per-file split (below), each chunk's prompt carries only that file's diff.
+- The fourth gate, `clean`, applies the `clean-code` skill's heuristics to the changed lines through its own prompt, `scripts/prompts/clean.md`, and writes `CLEAN.md`. It is one pass, never a fan-out: the only split is the per-file split for a large diff, below. Its findings are heuristics. The gate reports only concrete problems on changed lines, with no fixed length limits.
 - A finding is kept only if it cites a file that exists in the worktree; rejected lines go to `.loop-run/REJECTED_FINDINGS.md` instead of `FINDINGS.md`.
 - A gate that writes no output file is retried once with a write reminder, then fails closed if still missing, and the loop stops. Tests that fail with no gate finding still get a fix stage pointed at `TEST_OUTPUT.txt`.
 - A gate that still writes no output file after the retry has its verdict recovered from its reply, per chunk under the per-file split: a line matching the findings format is findings, a line beginning "no findings" is clean, and either is written to the findings file and checked like a file's contents would be. A reply with no such line stays failed closed; findings recovered this way that cite no real path also fail closed, since a reply citing nothing real is not a review.

@@ -126,7 +126,7 @@ git -C "$DEST2" worktree list 2>/dev/null | grep -q 'loop/'
 assert_eq "$?" "0" "dry-run registered a loop/<timestamp> branch worktree"
 
 assert_true "stage prompt files exist under scripts/prompts" bash -c '
-  [ -f "$1/plan.md" ] && [ -f "$1/execute.md" ] && [ -f "$1/simplify.md" ] && [ -f "$1/security.md" ] && [ -f "$1/review.md" ] && [ -f "$1/fix.md" ] && [ -f "$1/common-rules.md" ] && [ -f "$1/gate-rules.md" ]
+  [ -f "$1/plan.md" ] && [ -f "$1/execute.md" ] && [ -f "$1/simplify.md" ] && [ -f "$1/security.md" ] && [ -f "$1/review.md" ] && [ -f "$1/clean.md" ] && [ -f "$1/fix.md" ] && [ -f "$1/common-rules.md" ] && [ -f "$1/gate-rules.md" ]
 ' _ "$SCRIPT_DIR/prompts"
 
 assert_true "dry-run seeded an isolated goose config from the bundled example" bash -c '[ -n "$1" ] && [ -f "$1/.loop-run/goose-config/goose/config.yaml" ]' _ "$WT2"
@@ -149,6 +149,9 @@ assert_true "dry-run's mechanical test stage actually ran the fixture's real tes
 #   GATE_REVIEW_OUT   text the review gate writes to REVIEW.md; unset
 #                     means "no findings"; set but empty means write
 #                     nothing at all (prose instead of a call)
+#   GATE_CLEAN_OUT    the same for the clean gate and CLEAN.md
+#   GATE_CLEAN_ONCE   the clean gate writes this on its first call only
+#   CLEAN_SKIP_FILE   the clean gate writes nothing when DIFF.txt mentions it
 #   REVIEW_SKIP_FIRST when set, the review gate writes nothing on its
 #                     first call only, then behaves normally
 #   FIX_DELETES       when set, the fix stage deletes this file
@@ -271,7 +274,7 @@ case "$stage" in
     printf '1. [x] do the thing\n' > PLAN.md
     printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
     ;;
-  simplify|security)
+  simplify|security|clean)
     if [ -n "${PROSE_ONLY:-}" ]; then
       # Keyed on the chunk under review, not on the call count: the
       # driver retries a stage that wrote nothing, so a call-count
@@ -283,8 +286,21 @@ case "$stage" in
       fi
       exit 0
     fi
-    if [ "$stage" = simplify ]; then printf 'no findings\n' > SIMPLIFY.md
-    else printf 'no findings\n' > SECURITY.md; fi
+    case "$stage" in
+      simplify) printf 'no findings\n' > SIMPLIFY.md ;;
+      security) printf 'no findings\n' > SECURITY.md ;;
+      clean)
+        if [ -n "${GATE_CLEAN_ONCE:-}" ] && [ ! -f "$STATE_DIR/clean_once_done" ]; then
+          touch "$STATE_DIR/clean_once_done"
+          printf '%b\n' "$GATE_CLEAN_ONCE" > CLEAN.md
+        elif [ -n "${CLEAN_SKIP_FILE:-}" ] && grep -q "$CLEAN_SKIP_FILE" .loop-run/DIFF.txt; then
+          echo "prose instead of a file, for this chunk only"
+        elif [ -n "${GATE_CLEAN_OUT-no findings}" ]; then
+          # Unset: a clean verdict. Set but empty: write nothing at all.
+          printf '%b\n' "${GATE_CLEAN_OUT-no findings\nclean}" > CLEAN.md
+        fi
+        ;;
+    esac
     ;;
   review)
     if [ -n "${REVIEW_SLEEP:-}" ]; then sleep "$REVIEW_SLEEP"; fi   # a runaway gate
@@ -560,6 +576,9 @@ case "$prompt" in
     cp .loop-run/DIFF.txt "$STATE_DIR/diff_seen_${n}.txt" 2>/dev/null || true
     printf 'no findings\n' > REVIEW.md
     ;;
+  */clean_prompt*.md)
+    printf 'no findings\n' > CLEAN.md
+    ;;
   */fix_prompt*.md)
     printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
     ;;
@@ -723,6 +742,9 @@ case "$prompt" in
   */review_prompt*.md)
     printf 'no findings\n' > REVIEW.md
     ;;
+  */clean_prompt*.md)
+    printf 'no findings\n' > CLEAN.md
+    ;;
   */fix_prompt*.md)
     printf '# Handoff: test\nUpdated: now - State: ready for review\n' > HANDOFF.md
     ;;
@@ -756,9 +778,9 @@ echo
 echo "===== (13) gates run in order and skip fix on no findings ====="
 GATE_REVIEW_OUT='no findings\nnothing in the diff is wrong' run_gate_case gates-order --max-iterations 1
 assert_eq "$(cat "$SCRATCH/gates-order.rc")" "0" "all-clean gate run exits 0"
-assert_eq "$(stages_of gates-order)" "plan red execute simplify security review" "stage order is plan, execute, simplify, security, review with no fix"
+assert_eq "$(stages_of gates-order)" "plan red execute simplify security review clean" "stage order is plan, execute, simplify, security, review with no fix"
 WT13="$(wt_of gates-order)"
-assert_true "LOOP_SUMMARY.md lists the three gates" file_has "$WT13/LOOP_SUMMARY.md" "Gates: simplify security review"
+assert_true "LOOP_SUMMARY.md lists the four gates" file_has "$WT13/LOOP_SUMMARY.md" "Gates: simplify security review clean"
 assert_true "LOOP_SUMMARY.md gate log shows 0 findings kept for review" file_has "$WT13/LOOP_SUMMARY.md" "gate review, round 0: 0 finding(s) kept"
 
 # --------------------------------------------------------------------
@@ -828,7 +850,7 @@ echo
 echo "===== (16) a gate that never converges stops after two fix rounds ====="
 GATE_REVIEW_OUT='- new_a.txt:1: still wrong' run_gate_case gates-cap --max-iterations 3
 assert_eq "$(cat "$SCRATCH/gates-cap.rc")" "1" "non-converging run exits 1"
-assert_eq "$(stages_of gates-cap)" "plan red execute simplify security review fix simplify security review fix simplify security review" "every fix is re-gated by all three gates; two fix rounds, then stop"
+assert_eq "$(stages_of gates-cap)" "plan red execute simplify security review fix clean simplify security review fix clean simplify security review" "every fix is re-gated by all four gates; two fix rounds, then stop"
 WT16="$(wt_of gates-cap)"
 assert_true "LOOP_SUMMARY.md names the gate that did not converge" file_has "$WT16/LOOP_SUMMARY.md" "Not converged: review"
 assert_true "the driver said why it stopped" file_has "$SCRATCH/gates-cap.out" "stopping as not converged"
@@ -846,7 +868,7 @@ assert_eq "$(cat "$SCRATCH/gates-nudge.rc")" "0" "prose-then-file review passes 
 assert_true "the driver logged the write reminder retry" file_has "$SCRATCH/gates-nudge.out" "did not write REVIEW.md; retrying with a write reminder"
 WT17="$(wt_of gates-nudge)"
 assert_true "the retry prompt carries the reminder line" file_has "$(newest_prompt "$WT17" "review_prompt_*_retry.md")" "previous attempt ended without writing REVIEW.md"
-assert_eq "$(stages_of gates-nudge)" "plan red execute simplify security review review" "review ran twice: the prose attempt and the nudged retry"
+assert_eq "$(stages_of gates-nudge)" "plan red execute simplify security review review clean" "review ran twice: the prose attempt and the nudged retry"
 
 GATE_REVIEW_OUT='' run_gate_case gates-noout --max-iterations 3
 assert_eq "$(cat "$SCRATCH/gates-noout.rc")" "1" "a gate that never writes its file makes the run fail"
@@ -948,7 +970,7 @@ SHIM_ENV_DUMP="$ENV_DUMP19D" REVIEW_SLEEP=30 LOOP_STAGE_TIMEOUT=60 LOOP_GATE_TIM
 END19D=$(date +%s)
 ELAPSED19D=$((END19D - START19D))
 assert_true "every gate call carried the gate cap and nothing else (8192)" bash -c '
-  g="$(grep -E "^(simplify|security|review) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "GOOSE_MAX_TOKENS=8192$"' _ "$ENV_DUMP19D"
+  g="$(grep -E "^(simplify|security|review|clean) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "GOOSE_MAX_TOKENS=8192$"' _ "$ENV_DUMP19D"
 assert_true "every file-writing call carried the stage cap and nothing else (8192)" bash -c '
   g="$(grep -E "^(plan|execute|fix) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "GOOSE_MAX_TOKENS=8192$"' _ "$ENV_DUMP19D"
 assert_true "no call ran without a cap" file_lacks "$ENV_DUMP19D" "unset"
@@ -1015,7 +1037,7 @@ echo "----- (19i) a gate quoting the truncation notice is not read as truncated 
 REVIEW_QUOTES_TRIGGER=1 run_gate_case quotetrigger --max-iterations 1
 assert_eq "$(cat "$SCRATCH/quotetrigger.rc")" "0" "the quoting run passes"
 assert_true "no retry was triggered by the quoted text" file_lacks "$SCRATCH/quotetrigger.out" "cut at the output cap"
-assert_eq "$(stages_of quotetrigger)" "plan red execute simplify security review" "the review gate ran exactly once"
+assert_eq "$(stages_of quotetrigger)" "plan red execute simplify security review clean" "the review gate ran exactly once"
 
 echo
 echo "----- (19j) a cut-off attempt's findings file is not inherited by the retry -----"
@@ -1059,9 +1081,9 @@ PROMPT_DUMP="$SCRATCH/gate_prompt_dump.txt"
 SHIM_PROMPT_DUMP="$PROMPT_DUMP" run_gate_case gatediff --max-iterations 1
 assert_eq "$(cat "$SCRATCH/gatediff.rc")" "0" "the run passes"
 assert_true "every gate stage was handed the diff in its prompt" bash -c '
-  g="$(grep -E "^(simplify|security|review) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "diff_in_prompt=yes"' _ "$PROMPT_DUMP"
+  g="$(grep -E "^(simplify|security|review|clean) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "diff_in_prompt=yes"' _ "$PROMPT_DUMP"
 assert_true "every gate stage ran with write as its only tool" bash -c '
-  g="$(grep -E "^(simplify|security|review) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "tools=write "' _ "$PROMPT_DUMP"
+  g="$(grep -E "^(simplify|security|review|clean) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "tools=write "' _ "$PROMPT_DUMP"
 assert_true "plan, execute and fix keep the full tool set" bash -c '
   g="$(grep -E "^(plan|execute|fix) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "tools=shell,edit,write,tree "' _ "$PROMPT_DUMP"
 assert_true "no gate prompt tells the model to read DIFF.txt" bash -c '
@@ -1197,7 +1219,7 @@ LOOP_HARNESS_CMD="$SHIMDIR19P/goose-wrap -i {prompt}" SHIM_STATE_DIR="$SCRATCH/s
   SHIM_PROMPT_DUMP="$PROMPT_DUMP_P" bash "$RUN_LOOP" "$DEST19P" "$TASK_PROMPT" --max-iterations 1 \
   > "$SCRATCH/retamper.out" 2>&1
 assert_true "every gate still ran with write as its only tool after the tamper" bash -c '
-  g="$(grep -E "^(simplify|security|review) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "tools=write "' _ "$PROMPT_DUMP_P"
+  g="$(grep -E "^(simplify|security|review|clean) " "$1")"; [ -n "$g" ] && ! printf "%s\n" "$g" | grep -qv "tools=write "' _ "$PROMPT_DUMP_P"
 
 echo
 echo "----- (19q) a repo tracking files under .loop-run/ is refused -----"
@@ -1377,7 +1399,7 @@ echo
 echo "===== (21) failing tests with no gate finding get a fix stage ====="
 EXECUTE_BREAKS_TESTS=1 run_gate_case gates-testfix --max-iterations 1
 assert_eq "$(cat "$SCRATCH/gates-testfix.rc")" "0" "the run passes after the test-driven fix"
-assert_eq "$(stages_of gates-testfix)" "plan red execute simplify security review fix simplify security review" "a fix stage ran after clean gates because tests failed, and the gates re-ran on that fix"
+assert_eq "$(stages_of gates-testfix)" "plan red execute simplify security review clean fix simplify security review clean" "a fix stage ran after clean gates because tests failed, and the gates re-ran on that fix"
 assert_true "the driver said why the fix ran" file_has "$SCRATCH/gates-testfix.out" "tests fail with no gate finding"
 STATE21="$SCRATCH/state-gates-testfix"
 assert_true "the fix stage was pointed at TEST_OUTPUT.txt" bash -c 'file_has "$(ls "$1"/findings_seen_*.md | head -n1)" "TEST_OUTPUT.txt:1"' _ "$STATE21"
@@ -1391,11 +1413,11 @@ echo "===== (22) red stage runs before execute and must fail the test command ==
 assert_true "the red stage has its own prompt file" [ -f "$SCRIPT_DIR/prompts/red.md" ]
 PLAN_STEP='1. [ ] add parse_due() | red: tests/test_dates.py rejects "tomorrow"' run_gate_case redorder --max-iterations 1
 assert_eq "$(cat "$SCRATCH/redorder.rc")" "0" "a red-first run with a real failing test exits 0"
-assert_eq "$(stages_of redorder)" "plan red execute simplify security review" "model stages run in the order plan, red, execute, gates"
+assert_eq "$(stages_of redorder)" "plan red execute simplify security review clean" "model stages run in the order plan, red, execute, gates"
 WT22="$(wt_of redorder)"
-assert_true "LOOP_SUMMARY.md lists the stage order, test stage after execute" file_has "$WT22/LOOP_SUMMARY.md" "Stages: plan red red-check execute test simplify security review"
+assert_true "LOOP_SUMMARY.md lists the stage order, test stage after execute" file_has "$WT22/LOOP_SUMMARY.md" "Stages: plan red red-check execute test simplify security review clean"
 assert_eq "$(loop_commits_of redorder)" \
-  "loop: plan,loop: red,loop: red-check,loop: execute,loop: test,loop: simplify,loop: security,loop: review" \
+  "loop: plan,loop: red,loop: red-check,loop: execute,loop: test,loop: simplify,loop: security,loop: review,loop: clean" \
   "each stage has its own checkpoint commit, red before execute"
 assert_true "RED_OUTPUT.txt holds the failure the red stage produced" file_has "$WT22/RED_OUTPUT.txt" "red: not implemented yet"
 assert_true "the final test run passes after execute" file_has "$WT22/LOOP_SUMMARY.md" "Final test result: PASS"
@@ -1418,16 +1440,16 @@ echo
 echo "----- (22c) --red-first=off and '--red-first off' reproduce the old order exactly -----"
 run_gate_case redoff --max-iterations 1 --red-first=off
 assert_eq "$(cat "$SCRATCH/redoff.rc")" "0" "a run with red-first off exits 0"
-assert_eq "$(stages_of redoff)" "plan execute simplify security review" "stage order is the old plan, execute, gates"
+assert_eq "$(stages_of redoff)" "plan execute simplify security review clean" "stage order is the old plan, execute, gates"
 WT22C="$(wt_of redoff)"
 assert_eq "$(loop_commits_of redoff)" \
-  "loop: plan,loop: execute,loop: test,loop: simplify,loop: security,loop: review" \
+  "loop: plan,loop: execute,loop: test,loop: simplify,loop: security,loop: review,loop: clean" \
   "the commit sequence has no red commit"
 assert_true "no red prompt was built" bash -c '! ls "$1"/.loop-run/logs/red_prompt_* >/dev/null 2>&1' _ "$WT22C"
 assert_true "no RED_OUTPUT.txt was written" [ ! -e "$WT22C/RED_OUTPUT.txt" ]
 assert_true "LOOP_SUMMARY.md says red-first was turned off by flag" file_has "$WT22C/LOOP_SUMMARY.md" "Red-first: off (--red-first=off)"
 run_gate_case redoff2 --max-iterations 1 --red-first off
-assert_eq "$(stages_of redoff2)" "plan execute simplify security review" "the two-word form gives the same order"
+assert_eq "$(stages_of redoff2)" "plan execute simplify security review clean" "the two-word form gives the same order"
 
 DEST22D="$SCRATCH/redbad/taskrepo"
 bash "$RESET_TASK" --dest "$DEST22D" >/dev/null
@@ -1443,7 +1465,7 @@ drop_test_cmd() { # $1 = repo: remove its tests and Makefile so no default test 
 }
 CASE_PREP=drop_test_cmd run_gate_case rednocmd --max-iterations 1
 assert_eq "$(cat "$SCRATCH/rednocmd.rc")" "0" "a run with no test command still passes"
-assert_eq "$(stages_of rednocmd)" "plan execute simplify security review" "no red stage ran without a test command"
+assert_eq "$(stages_of rednocmd)" "plan execute simplify security review clean" "no red stage ran without a test command"
 assert_true "the driver states the opt-out" file_has "$SCRATCH/rednocmd.out" "red-first is off for this run: no test command"
 assert_true "LOOP_SUMMARY.md states the opt-out" file_has "$(wt_of rednocmd)/LOOP_SUMMARY.md" "Red-first: off (no test command)"
 
@@ -1451,7 +1473,7 @@ echo
 echo "----- (22e) a step marked 'red: none' skips red for that step, and says so -----"
 PLAN_STEP='1. [ ] reword the README | red: none' run_gate_case rednone --max-iterations 1
 assert_eq "$(cat "$SCRATCH/rednone.rc")" "0" "a run with a red: none step exits 0"
-assert_eq "$(stages_of rednone)" "plan execute simplify security review" "no red stage ran for the marked step"
+assert_eq "$(stages_of rednone)" "plan execute simplify security review clean" "no red stage ran for the marked step"
 WT22F="$(wt_of rednone)"
 assert_true "LOOP_SUMMARY.md logs the skipped red stage" file_has "$WT22F/LOOP_SUMMARY.md" "iteration 1: red skipped, the step says red: none"
 assert_true "the run still counts as red-first on" file_has "$WT22F/LOOP_SUMMARY.md" "Red-first: on"
@@ -1564,6 +1586,113 @@ echo
 echo "----- (22r) a stopped red run does not report an older test result (C3) -----"
 RED_PASSES=1 run_gate_case redfinal --max-iterations 3
 assert_true "the final test result says not run" file_has "$(wt_of redfinal)/LOOP_SUMMARY.md" "Final test result: not run (red check failed closed)"
+
+# --------------------------------------------------------------------
+# 23. Clean gate (#55): a fourth gate, run last, that follows every rule
+#     the other gates follow.
+# --------------------------------------------------------------------
+echo
+echo "===== (23) the clean gate runs last and follows the gate rules ====="
+assert_true "the clean gate has its own prompt file" [ -f "$SCRIPT_DIR/prompts/clean.md" ]
+run_gate_case cleanorder --max-iterations 1
+assert_eq "$(cat "$SCRATCH/cleanorder.rc")" "0" "(1) a default run with a clean verdict from every gate exits 0"
+assert_eq "$(stages_of cleanorder)" "plan red execute simplify security review clean" "(1) stage order ends with clean"
+assert_true "(1) the clean gate wrote CLEAN.md" [ -f "$(wt_of cleanorder)/CLEAN.md" ]
+assert_eq "$(loop_commits_of cleanorder | tr ',' '\n' | tail -n1)" "loop: clean" "(1) the clean gate has its own checkpoint commit, last"
+
+echo
+echo "----- (23b) --gates simplify,clean runs exactly those two, in order -----"
+run_gate_case cleansel --max-iterations 1 --gates clean,simplify
+assert_eq "$(cat "$SCRATCH/cleansel.rc")" "0" "(2) the selected run exits 0"
+assert_eq "$(stages_of cleansel)" "plan red execute simplify clean" "(2) only simplify and clean ran, in the fixed order"
+assert_true "(2) the summary lists the selected gates" file_has "$(wt_of cleansel)/LOOP_SUMMARY.md" "Gates: simplify clean"
+
+echo
+echo "----- (23c) a clean gate that writes nothing fails closed -----"
+GATE_CLEAN_OUT='' run_gate_case cleannoout --max-iterations 3
+assert_eq "$(cat "$SCRATCH/cleannoout.rc")" "1" "(3) the run fails"
+assert_eq "$(stages_of cleannoout)" "plan red execute simplify security review clean clean" "(3) clean ran twice (attempt and nudge), then the loop stopped"
+assert_true "(3) the summary lists clean as failed closed" file_has "$(wt_of cleannoout)/LOOP_SUMMARY.md" "Gates with no output (failed closed): clean"
+assert_true "(3) the retry prompt names CLEAN.md" file_has "$SCRATCH/cleannoout.out" "did not write CLEAN.md; retrying with a write reminder"
+
+echo
+echo "----- (23d) a clean finding citing no real file is rejected -----"
+GATE_CLEAN_ONCE='- new_a.txt:1: name hides intent\n- ghost/nowhere.py:7: this file was hallucinated' run_gate_case cleanfilter --max-iterations 1
+WT23D="$(wt_of cleanfilter)"
+FIRST23D="$(ls "$SCRATCH"/state-cleanfilter/findings_seen_*.md 2>/dev/null | head -n1)"
+assert_true "(4) the real finding reached FINDINGS.md" bash -c '[ -n "$1" ] && file_has "$1" "new_a.txt:1"' _ "$FIRST23D"
+assert_true "(4) the invented path stayed out of FINDINGS.md" bash -c '[ -n "$1" ] && file_lacks "$1" "nowhere.py"' _ "$FIRST23D"
+assert_true "(4) the rejected line is logged with the gate name" file_has "$WT23D/.loop-run/REJECTED_FINDINGS.md" "clean: - ghost/nowhere.py:7"
+
+GATE_CLEAN_OUT='- ghost/nowhere.py:7: this file was hallucinated' run_gate_case cleanghost --max-iterations 1 --gates clean
+assert_true "(4) the invented line went to REJECTED_FINDINGS.md" file_has "$(wt_of cleanghost)/.loop-run/REJECTED_FINDINGS.md" "clean: - ghost/nowhere.py:7"
+assert_eq "$(stages_of cleanghost)" "plan red execute clean" "(4) no fix ran for an invented finding"
+
+echo
+echo "----- (23e) --gates none and --gates review are unchanged -----"
+run_gate_case cleannone --max-iterations 1 --gates none
+assert_eq "$(stages_of cleannone)" "plan red execute" "(5) --gates none runs no gate"
+run_gate_case cleanreview --max-iterations 1 --gates review
+assert_eq "$(stages_of cleanreview)" "plan red execute review" "(5) --gates review runs review alone"
+assert_true "(5) the unknown-name message lists clean" file_has "$SCRATCH/gates-bad.out" "known: simplify, security, review, clean, none"
+
+echo
+echo "----- (23f) a clean finding triggers a fix and the pass restarts over every gate -----"
+GATE_CLEAN_ONCE='- new_a.txt:1: name hides intent' run_gate_case cleanfix --max-iterations 1
+assert_eq "$(cat "$SCRATCH/cleanfix.rc")" "0" "(6) the run passes once the fix is clean"
+assert_eq "$(stages_of cleanfix)" "plan red execute simplify security review clean fix simplify security review clean" "(6) fix after clean, then a full pass over all four gates"
+
+GATE_CLEAN_OUT='- new_a.txt:1: still unclear' run_gate_case cleancap --max-iterations 3
+assert_eq "$(cat "$SCRATCH/cleancap.rc")" "1" "(6) LOOP_GATE_ROUNDS caps the clean gate"
+assert_true "(6) the summary names clean as not converged" file_has "$(wt_of cleancap)/LOOP_SUMMARY.md" "Not converged: clean"
+
+echo
+echo "----- (23g) the per-file split applies to the clean gate -----"
+LOOP_DIFF_SPLIT_BYTES=1 run_gate_case cleansplit --max-iterations 1 --gates clean
+assert_eq "$(stages_of cleansplit)" "plan red execute clean clean clean" "(7) clean ran once per changed file"
+assert_true "(7) the driver announced the split for clean" file_has "$SCRATCH/cleansplit.out" "gate 'clean': diff is"
+LOOP_DIFF_SPLIT_BYTES=1 CLEAN_SKIP_FILE=new_b.txt run_gate_case cleansplitfail --max-iterations 1 --gates clean
+assert_eq "$(cat "$SCRATCH/cleansplitfail.rc")" "1" "(7) one unreviewed file fails the clean gate closed"
+
+echo
+echo "----- (23h) the clean verdict is recovered from the reply -----"
+PROSE_ONLY=1 run_gate_case cleanreply --max-iterations 1 --gates clean
+assert_eq "$(cat "$SCRATCH/cleanreply.rc")" "0" "(8) a no-findings reply passes"
+assert_true "(8) the driver said it read the verdict from the reply" file_has "$SCRATCH/cleanreply.out" "gate 'clean' never called write"
+assert_true "(8) the gate log says so" file_has "$(wt_of cleanreply)/LOOP_SUMMARY.md" "gate clean, round 0: 0 finding(s) kept, 0 rejected, verdict recovered from the reply"
+PROSE_ONLY=1 PROSE_ONLY_TEXT='- new_a.txt:1: name hides intent' run_gate_case cleanreplyfind --max-iterations 1 --gates clean
+FIRST23H="$(ls "$SCRATCH"/state-cleanreplyfind/findings_seen_*.md 2>/dev/null | head -n1)"
+assert_true "(8) a finding in the reply reached FINDINGS.md" bash -c '[ -n "$1" ] && file_has "$1" "new_a.txt:1"' _ "$FIRST23H"
+
+echo
+echo "----- (23i) the clean gate has write as its only tool and the diff in its prompt -----"
+PROMPT_DUMP_C="$SCRATCH/clean_prompt_dump.txt"
+: > "$PROMPT_DUMP_C"
+SHIM_PROMPT_DUMP="$PROMPT_DUMP_C" run_gate_case cleantools --max-iterations 1
+assert_true "(9) a clean stage ran" bash -c 'grep -q "^clean " "$1"' _ "$PROMPT_DUMP_C"
+assert_true "(9) it ran with write as its only tool" bash -c '
+  g="$(grep "^clean " "$1")"; ! printf "%s\n" "$g" | grep -qv "tools=write "' _ "$PROMPT_DUMP_C"
+assert_true "(9) its prompt carried the diff" bash -c '
+  g="$(grep "^clean " "$1")"; ! printf "%s\n" "$g" | grep -qv "diff_in_prompt=yes"' _ "$PROMPT_DUMP_C"
+assert_true "(9) its prompt carries the clean lens" file_has "$(newest_prompt "$(wt_of cleantools)" "clean_prompt_*.md")" "path:LINE"
+
+echo
+echo "----- (23j) the dry run lists the clean stage -----"
+DEST23J="$SCRATCH/cleandry/taskrepo"
+bash "$RESET_TASK" --dest "$DEST23J" >/dev/null
+bash "$RUN_LOOP" "$DEST23J" "$TASK_PROMPT" --dry-run --max-iterations 1 > "$SCRATCH/cleandry.out" 2>&1
+assert_true "(10) the dry-run print names the clean stage prompt" file_has "$SCRATCH/cleandry.out" "clean_prompt_"
+assert_true "(10) the dry-run summary lists the gate" file_has "$(find "$DEST23J/.loop" -name LOOP_SUMMARY.md | head -n1)" "Gates: simplify security review clean"
+
+echo
+echo "----- (23k) a repo tracking CLEAN.md at its root is refused -----"
+DEST23K="$SCRATCH/cleantracked/taskrepo"
+bash "$RESET_TASK" --dest "$DEST23K" >/dev/null
+echo "notes" > "$DEST23K/CLEAN.md"
+git -C "$DEST23K" add CLEAN.md >/dev/null && git -C "$DEST23K" commit -q -m "clean notes"
+bash "$RUN_LOOP" "$DEST23K" "$TASK_PROMPT" --max-iterations 1 > "$SCRATCH/cleantracked.out" 2>&1
+assert_eq "$?" "1" "the run is refused"
+assert_true "the refusal names the file" file_has "$SCRATCH/cleantracked.out" "tracks CLEAN.md"
 
 # --------------------------------------------------------------------
 echo

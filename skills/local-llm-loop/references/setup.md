@@ -71,7 +71,7 @@ alone — no single prompt carries the whole diff.
 iteration; a gate still reporting findings after that many rounds stops
 the loop as "not converged".
 
-`LOOP_MAX_TOKENS` (default 3072) is the output-token cap for the three
+`LOOP_MAX_TOKENS` (default 3072) is the output-token cap for the four
 gate stages, sent to the harness as `GOOSE_MAX_TOKENS`. 3072 is the
 benchmark's recommended client cap for tool-calling tasks
 (`local-coding-env` REPORT.md). It bounds a runaway generation at the
@@ -93,7 +93,7 @@ All four timeout and cap knobs (`LOOP_STAGE_TIMEOUT`, `LOOP_GATE_TIMEOUT`,
 1: 0 would disable a timeout and goose rejects a 0 cap.
 
 `LOOP_GATE_TIMEOUT` (default 300 seconds) is the per-stage timeout for
-the three gate stages, and is never set above `LOOP_STAGE_TIMEOUT`. A
+the four gate stages, and is never set above `LOOP_STAGE_TIMEOUT`. A
 gate writes at most ten lines, so a gate still running at this limit is
 a runaway generation, not slow work.
 
