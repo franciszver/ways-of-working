@@ -34,10 +34,10 @@ expect() { # name want_rc [grep-pattern-in-output]
   run "${EXTRA_ARGS[@]}"
   got=$?
   if [ "$got" != "$want" ]; then
-    echo "FAIL: $name (want rc $want, got $got)"; echo "$out" | sed 's/^/    /'; fail=1; return
+    echo "FAIL: $name (want rc $want, got $got)"; printf '    %s\n' "${out//$'\n'/$'\n'    }"; fail=1; return
   fi
   if [ -n "$pat" ] && ! printf '%s' "$out" | grep -q -- "$pat"; then
-    echo "FAIL: $name (output lacks '$pat')"; echo "$out" | sed 's/^/    /'; fail=1; return
+    echo "FAIL: $name (output lacks '$pat')"; printf '    %s\n' "${out//$'\n'/$'\n'    }"; fail=1; return
   fi
   echo "PASS: $name"
 }
