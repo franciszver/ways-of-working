@@ -190,6 +190,7 @@ python3 scripts/check-skill-sections.py . # closing sections, ## Report, duplica
 python3 scripts/check-plain-language.py . # plain-language strikes em dashes, holds no refresh text
 python3 scripts/check-working-process.py . # four gates, effort plan, no decision log, on every surface
 bash scripts/test-install.sh             # installer behavior (also runs bash -n)
+bash scripts/test-check-working-process.sh  # --owner-file handling of the working-process check
 ```
 
 After changing a canonical skill or `scripts/profile-claude-code.yaml`,
