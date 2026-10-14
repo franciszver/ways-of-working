@@ -95,6 +95,9 @@ jobs:
       - name: Skill closing-section, duplication, and reference check
         run: python3 scripts/check-skill-sections.py .
 
+      - name: plain-language em-dash and refresh-text check
+        run: python3 scripts/check-plain-language.py .
+
       - name: Plugin hooks generation check
         run: |
           python3 scripts/merge-hooks.py --emit-plugin > hooks/plugin-hooks.json

@@ -5,6 +5,19 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-10-13
+
+- **`plain-language` strikes em dashes** (#49): the skill now tells the
+  writer to remove every em dash. The "Two things that are NOT reliable
+  tells" section is now "Em dashes" and "AI detectors". The check order
+  names em dashes. The AI-detectors point stays.
+- **`plain-language` has no refresh schedule.** The "Refresh due"
+  paragraph and the "Refreshing the references" section are gone. Cached
+  snapshots are used as is. Dates are provenance. Word lists are clues.
+  The description now says the skill checks prose for AI-writing tells and
+  clear technical English.
+- **New check:** `scripts/check-plain-language.py`.
+
 ## [0.15.0] - 2026-09-14
 
 - **`local-llm-loop`: a gate verdict stated in prose, not written, is
