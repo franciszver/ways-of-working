@@ -11,13 +11,16 @@
 # three fresh-context review passes in a fixed order -- simplify,
 # security, review -- each followed by a fix stage and a test stage
 # when it reports findings, capped at two fix rounds per gate per
-# iteration (a third round means the approach is wrong, not that the
-# fixes are nearly done; the loop stops and reports "not converged").
-# Before each execute, a red stage writes the failing test for the step
-# and the driver asserts that the test command fails (--red-first off
-# skips it). The endpoint is passed as explicit environment
-# variables on the goose command itself, never relying on a config file
-# for OPENAI_HOST/OPENAI_API_KEY/GOOSE_MODEL, so a stale config can't
+# iteration. A third round means the approach is wrong, not that the
+# fixes are nearly done, so the loop stops and reports "not converged".
+#
+# Before each execute, a red stage writes the failing test for the step.
+# The driver then asserts that the test command fails. --red-first off
+# skips this.
+#
+# The endpoint is passed as explicit environment variables on the goose
+# command itself. The driver never relies on a config file for
+# OPENAI_HOST/OPENAI_API_KEY/GOOSE_MODEL, so a stale config can't
 # silently override it.
 #
 # --dry-run skips only the actual `goose run` calls (printed instead)
@@ -35,22 +38,24 @@ Usage: run_loop.sh <repo_path> <plan_file> [--max-iterations N] [--test-cmd "...
 
   <repo_path>          Path to an existing git repo to run the loop against.
   <plan_file>          Path to a file describing the task to plan and execute.
-  --max-iterations N   Cap on execute/test/gates cycles (default 3).
+  --max-iterations N   Cap on red/execute/test/gates cycles (default 3).
   --gates LIST         Comma-separated gates to run after each execute, in
                         this fixed order: simplify,security,review (the
                         default). "none" skips every gate. Each gate that
                         reports findings is followed by a fix stage and a
                         test stage, at most twice per gate per iteration.
-  --red-first on|off   (also --red-first=on|off) Run a red stage before each execute stage (default
-                        on). The red stage writes only the failing test
-                        for the step, and the driver asserts that the test
-                        command fails. A red stage whose test passes fails
-                        the run. "off" gives the old plan, execute, test,
-                        gates order. Red is also off, and the output says
-                        so, when there is no test command. A step ending
-                        in "| red: none" skips red for that step. A suite
-                        already failing before red skips the assertion
-                        and logs it.
+  --red-first on|off   Run a red stage before each execute stage
+                        (default on). Both --red-first off and
+                        --red-first=off work. The red stage writes only
+                        the failing test for the step. The driver then
+                        asserts that the test command fails. A red stage
+                        whose test passes fails the run.
+                        "off" gives the old order: plan, execute, test,
+                        gates. Red is also off, and the output says so,
+                        when there is no test command. A step ending in
+                        "| red: none" skips red for that step. A suite
+                        that already fails before red skips the
+                        assertion and logs it.
   --test-cmd "..."     Mechanical test command to run in the worktree.
                         Default: `python3 -m unittest discover -s tests -t .`
                         if tests/ exists, else `make test` if the Makefile
@@ -189,6 +194,11 @@ case "$RED_FIRST" in
     exit 1
     ;;
 esac
+
+# Why red is off, or empty while it is on. Decided here and after the test
+# command is known, then read by everything else.
+RED_OFF_REASON=""
+[ "$RED_FIRST" = off ] && RED_OFF_REASON="--red-first=off"
 
 REPO_PATH="${POSITIONAL[0]:-}"
 PLAN_FILE="${POSITIONAL[1]:-}"
@@ -369,30 +379,49 @@ fi
 run_with_timeout() {
   local secs="$1"
   shift
-  case "$TIMEOUT_BIN" in
-    timeout|gtimeout)
-      "$TIMEOUT_BIN" "$secs" "$@"
-      ;;
-    perl)
-      perl -e '
-        my $secs = shift;
-        my $pid = fork();
-        die "run_with_timeout: fork failed: $!\n" unless defined $pid;
-        if ($pid == 0) { setpgrp(0, 0); exec @ARGV; exit 127; }
-        $SIG{ALRM} = sub {
-          kill("TERM", -$pid);
-          select(undef, undef, undef, 0.5);
-          kill("KILL", -$pid);
-          exit 124;
-        };
-        alarm $secs;
-        waitpid($pid, 0);
-        alarm 0;
-        my $st = $?;
-        exit($st & 127 ? 128 + ($st & 127) : $st >> 8);
-      ' -- "$secs" "$@"
-      ;;
-  esac
+  run_with_timeout_k "$secs" "" "$@"
+}
+
+# run_with_timeout_k <seconds> <kill-after seconds or ""> <cmd...>: the
+# same, and a command that ignores TERM gets KILL after the grace period.
+# Perl is preferred when a grace period is asked for: its group kill also
+# reaches a child that traps TERM, and uutils timeout 0.2.2 did not kill
+# one even with -k (measured). GNU timeout exits 137 after a KILL, which
+# is mapped back to 124 so the contract holds.
+run_with_timeout_k() {
+  local secs="$1" kill_after="$2" rc use_perl=false
+  shift 2
+  [ "$TIMEOUT_BIN" = perl ] && use_perl=true
+  if [ -n "$kill_after" ] && command -v perl >/dev/null 2>&1; then
+    use_perl=true
+  fi
+  if $use_perl; then
+    perl -e '
+      my $secs = shift;
+      my $grace = shift;
+      my $pid = fork();
+      die "run_with_timeout: fork failed: $!\n" unless defined $pid;
+      if ($pid == 0) { setpgrp(0, 0); exec @ARGV; exit 127; }
+      $SIG{ALRM} = sub {
+        kill("TERM", -$pid);
+        select(undef, undef, undef, $grace);
+        kill("KILL", -$pid);
+        exit 124;
+      };
+      alarm $secs;
+      waitpid($pid, 0);
+      alarm 0;
+      my $st = $?;
+      exit($st & 127 ? 128 + ($st & 127) : $st >> 8);
+    ' -- "$secs" "${kill_after:-0.5}" "$@"
+  elif [ -n "$kill_after" ]; then
+    "$TIMEOUT_BIN" -k "$kill_after" "$secs" "$@"
+    rc=$?
+    [ "$rc" -eq 137 ] && rc=124
+    return "$rc"
+  else
+    "$TIMEOUT_BIN" "$secs" "$@"
+  fi
 }
 
 # Harness seam: the CLI command each stage is run through. `{prompt}` is
@@ -420,6 +449,12 @@ for f in PLAN.md PLAN_INPUT.md HANDOFF.md NEXT_STEP.md TEST_OUTPUT.txt \
     exit 1
   fi
 done
+
+# A symlink at .loop-run would send every driver write somewhere else.
+if [ -L "$REPO_PATH/.loop-run" ]; then
+  echo "run_loop.sh: $REPO_PATH/.loop-run is a symlink; the loop driver owns that name, so remove the link or run the loop on a copy" >&2
+  exit 1
+fi
 
 # Nothing under .loop-run/ may be tracked. git checks those files out
 # into every new worktree, so a tracked symlink there would be waiting
@@ -621,7 +656,8 @@ else
 fi
 # Red needs a command that can fail. Without one the opt-out is stated,
 # never silent.
-if [ -z "$TEST_CMD" ] && [ "$RED_FIRST" = on ]; then
+if [ -z "$TEST_CMD" ] && [ -z "$RED_OFF_REASON" ]; then
+  RED_OFF_REASON="no test command"
   echo "run_loop.sh: red-first is off for this run: no test command, so no failing test can be checked" >&2
 fi
 
@@ -654,13 +690,14 @@ plan_has_unchecked() {
 # execute.md reads one step's text directly instead of scanning the
 # whole checklist. PLAN.md stays authoritative and is only read back to
 # tick the box once the step is done.
+NO_STEP_TEXT="(no unchecked step found in PLAN.md)"
 write_next_step() {
   unlink_if_symlink "$WORKTREE/NEXT_STEP.md"
   if [ -f "$WORKTREE/PLAN.md" ]; then
     grep -m1 '\[ \]' "$WORKTREE/PLAN.md" > "$WORKTREE/NEXT_STEP.md" || true
   fi
   if [ ! -s "$WORKTREE/NEXT_STEP.md" ]; then
-    echo "(no unchecked step found in PLAN.md)" > "$WORKTREE/NEXT_STEP.md"
+    echo "$NO_STEP_TEXT" > "$WORKTREE/NEXT_STEP.md"
   fi
 }
 
@@ -961,25 +998,43 @@ stage_or_abort() {
   return 0
 }
 
-# Mechanical test stage: always runs for real (even under --dry-run).
-# run_test_cmd: the test command in the worktree, bounded like a model
-# stage so a hung suite ends as exit 124 instead of stalling the loop.
+# run_test_cmd: the test command in the worktree, in a subshell that
+# inherits pipefail and -u from this script. It has no timeout of its own.
 run_test_cmd() {
-  (cd "$WORKTREE" && run_with_timeout "$STAGE_TIMEOUT" bash -c "$TEST_CMD")
+  (cd "$WORKTREE" && eval "$TEST_CMD")
 }
 
-# run_test_stage [name] [output file] [keep lines]: the checkpointed test
-# run. The red check reuses it with its own name and output file, and
-# keeps only the tail of a long failure.
+# run_red_cmd: the red check's runner. A model wrote this test and it runs
+# before any review, so it gets the stage timeout, and one that traps TERM
+# is killed after a short grace period. It keeps pipefail and -u, which a
+# bare `bash -c` would drop.
+run_red_cmd() {
+  (cd "$WORKTREE" && run_with_timeout_k "$STAGE_TIMEOUT" "$RED_KILL_AFTER" bash -o pipefail -u -c "$TEST_CMD")
+}
+
+# trim_to_tail <file> <lines>: keep the last <lines> lines of a file. If
+# tail fails the file stays whole, because a long output is better than
+# a lost one.
+trim_to_tail() {
+  local file="$1" keep="$2" tmp="$WORKTREE/.loop-run/trim.tmp"
+  unlink_if_symlink "$tmp"
+  if tail -n "$keep" "$file" > "$tmp"; then
+    mv -f "$tmp" "$file"
+  fi
+}
+
+# run_test_stage [name] [output file] [keep lines] [runner]: the
+# checkpointed test run. It always runs for real, even under --dry-run.
+# The red check reuses it with its own name, output file and runner.
 run_test_stage() {
-  local name="${1:-test}" out="${2:-TEST_OUTPUT.txt}" keep="${3:-0}" n rc
-  local tmp="$WORKTREE/.loop-run/trim.tmp"
+  local name="${1:-test}" out="${2:-TEST_OUTPUT.txt}" keep="${3:-0}" runner="${4:-run_test_cmd}"
+  local n rc
   next_step_n; n="$STEP_N"
   STAGES_RUN+=("$name")
   unlink_if_symlink "$WORKTREE/$out"
   {
     if [ -n "$TEST_CMD" ]; then
-      run_test_cmd
+      "$runner"
     else
       echo "run_loop.sh: no test command available; test stage skipped"
       true
@@ -987,8 +1042,7 @@ run_test_stage() {
   } > "$WORKTREE/$out" 2>&1
   rc=$?
   if [ "$keep" -gt 0 ]; then
-    rm -f "$tmp"
-    tail -n "$keep" "$WORKTREE/$out" > "$tmp" && mv -f "$tmp" "$WORKTREE/$out"
+    trim_to_tail "$WORKTREE/$out" "$keep"
   fi
   commit_or_warn "$name" "$n"
   return "$rc"
@@ -1000,7 +1054,8 @@ run_test_stage() {
 GATE_LOG=()          # one line per gate run, for LOOP_SUMMARY.md
 RED_LOG=()           # one line per red check or skip, for LOOP_SUMMARY.md
 RED_FAILED=false     # a red check failed closed (passed, or was not a valid run)
-BASELINE_RC=0        # the suite's exit code before the red stage of this iteration
+RED_OUTPUT_KEEP_LINES=200 # RED_OUTPUT.txt keeps this many trailing lines
+RED_KILL_AFTER=5     # seconds between TERM and KILL for a red check
 GATES_FAILED=()      # gates that wrote no output even after the retry
 NOT_CONVERGED=""     # the gate that still had findings after GATE_ROUNDS fixes
 DELETES_REVERTED=0   # fix stages whose deleted files the driver restored
@@ -1414,20 +1469,24 @@ run_gates_for_iteration() {
   done
 }
 
-# red_active: red runs only when asked for and a test command exists.
+# red_active: red runs unless something turned it off.
 red_active() {
-  [ "$RED_FIRST" = on ] && [ -n "$TEST_CMD" ]
+  [ -z "$RED_OFF_REASON" ]
 }
 
-# red_first_state: the summary text, with the reason when red is off.
-red_first_state() {
-  if [ "$RED_FIRST" = off ]; then
-    echo "off (--red-first=off)"
-  elif [ -z "$TEST_CMD" ]; then
-    echo "off (no test command)"
-  else
+# red_first_label: the summary text, with the reason when red is off.
+red_first_label() {
+  if red_active; then
     echo "on"
+  else
+    echo "off ($RED_OFF_REASON)"
   fi
+}
+
+# red_note <message>: one red event, for the summary log and the operator.
+red_note() {
+  RED_LOG+=("iteration $ITER: $1")
+  echo "run_loop.sh: $1 (iteration $ITER)" >&2
 }
 
 # step_opts_out_of_red: true when the current step ends in "red: none",
@@ -1439,44 +1498,52 @@ step_opts_out_of_red() {
   grep -qiE '(\||`|[[:space:]])red:[[:space:]]*none[[:space:]`.,;!]*(\([^)]*\))?[[:space:]`.,;!]*$' "$WORKTREE/NEXT_STEP.md"
 }
 
-# run_red_stage: the red stage, then the assertion. The test command must
-# FAIL after the stage: a passing run means the stage wrote no real test,
-# the same as a gate that wrote nothing, so the run fails closed. A run
-# that is not a test result (timeout 124, not executable 126, not found
-# 127) is no valid red either. A suite that already failed before the
-# stage cannot show a new failure, so the check is skipped and logged.
-# Returns 1 when the run must stop. The failure text is kept in
-# RED_OUTPUT.txt for execute. Only that the command fails is checked, not
-# why; the gates and a human read the test itself.
+# run_red_stage <last test rc>: the red stage, then the assertion. The
+# test command must FAIL after the stage: a passing run means the stage
+# wrote no real test, the same as a gate that wrote nothing. A run that is
+# not a test result (timeout 124, not executable 126, not found 127) is
+# no valid red either. A suite that was already failing before the stage
+# cannot show a new failure, so the check is skipped and logged. Sets
+# RED_FAILED and returns 1 when the run must stop. The failure text is
+# kept in RED_OUTPUT.txt for execute. Only that the command fails is
+# checked, not why; the gates and a human read the test itself.
 run_red_stage() {
-  local rc
+  local last_test_rc="$1" baseline rc
+  local baseline_out="$WORKTREE/.loop-run/BASELINE_OUTPUT.txt"
   if [ "$ITER" -eq 1 ]; then
-    run_test_cmd > "$WORKTREE/.loop-run/BASELINE_OUTPUT.txt" 2>&1
-    BASELINE_RC=$?
+    unlink_if_symlink "$baseline_out"
+    run_test_cmd > "$baseline_out" 2>&1
+    baseline=$?
   else
-    BASELINE_RC="$LAST_TEST_RC"
+    baseline="$last_test_rc"
   fi
   stage_or_abort red "$PROMPTS_DIR/red.md"
-  if [ "$BASELINE_RC" -ne 0 ]; then
-    RED_LOG+=("iteration $ITER: red check skipped: baseline suite already failing (exit $BASELINE_RC)")
-    echo "run_loop.sh: red check skipped: baseline suite already failing (exit $BASELINE_RC, iteration $ITER)" >&2
-    return 0
-  fi
-  run_test_stage red-check RED_OUTPUT.txt 200
+  case "$baseline" in
+    0) ;;
+    124|126|127)
+      red_note "red check skipped: baseline invalid (exit $baseline)"
+      return 0
+      ;;
+    *)
+      red_note "red check skipped: baseline suite already failing (exit $baseline)"
+      return 0
+      ;;
+  esac
+  run_test_stage red-check RED_OUTPUT.txt "$RED_OUTPUT_KEEP_LINES" run_red_cmd
   rc=$?
   case "$rc" in
     0)
-      RED_LOG+=("iteration $ITER: red stage wrote no failing test, the test command passed (failed closed)")
-      echo "run_loop.sh: WARNING red stage wrote no failing test: the test command passed after it (iteration $ITER). A test that never failed proves nothing, so the loop stops. See RED_OUTPUT.txt." >&2
+      red_note "red stage wrote no failing test, the test command passed (failed closed)"
+      RED_FAILED=true
       return 1
       ;;
     124|126|127)
-      RED_LOG+=("iteration $ITER: red check invalid: test command exited $rc (failed closed)")
-      echo "run_loop.sh: WARNING red check invalid: test command exited $rc (iteration $ITER); that is not a test failure, so the loop stops. See RED_OUTPUT.txt." >&2
+      red_note "red check invalid: test command exited $rc (failed closed)"
+      RED_FAILED=true
       return 1
       ;;
   esac
-  RED_LOG+=("iteration $ITER: red check failed as expected (test command exit $rc)")
+  red_note "red check failed as expected (test command exit $rc)"
   return 0
 }
 
@@ -1525,9 +1592,13 @@ finalize() {
     echo "Stages run: $STEP_N"
     echo "Stages: ${STAGES_RUN[*]}"
     echo "Iterations run: $ITER (max $MAX_ITERATIONS)"
-    echo "Final test result: $([ "$final_test_rc" -eq 0 ] && echo PASS || echo FAIL)"
+    if $RED_FAILED; then
+      echo "Final test result: not run (red check failed closed)"
+    else
+      echo "Final test result: $([ "$final_test_rc" -eq 0 ] && echo PASS || echo FAIL)"
+    fi
     echo "PLAN.md unchecked steps remaining: $(plan_has_unchecked && echo yes || echo no)"
-    echo "Red-first: $(red_first_state)"
+    echo "Red-first: $(red_first_label)"
     echo "Red check failed closed: $($RED_FAILED && echo yes || echo no)"
     echo "Gates: ${GATES[*]:-none}"
     echo "Gates with no output (failed closed): ${GATES_FAILED[*]:-none}"
@@ -1578,19 +1649,20 @@ stage_or_abort plan "$PROMPTS_DIR/plan.md" PLAN.md
 while [ "$ITER" -lt "$MAX_ITERATIONS" ]; do
   ITER=$((ITER + 1))
 
+  # A planted or stale file must never reach execute, whatever red does.
+  rm -f "$WORKTREE/RED_OUTPUT.txt"
   write_next_step
 
   if red_active; then
-    rm -f "$WORKTREE/RED_OUTPUT.txt"
     if $DRY_RUN; then
       # No model runs, so there is no test to write and nothing to assert.
-      RED_LOG+=("iteration $ITER: dry run: red skipped")
+      red_note "dry run: red skipped"
+    elif [ "$(cat "$WORKTREE/NEXT_STEP.md")" = "$NO_STEP_TEXT" ]; then
+      red_note "red skipped, no unchecked step in PLAN.md"
     elif step_opts_out_of_red; then
-      RED_LOG+=("iteration $ITER: red skipped, the step says red: none")
-      echo "run_loop.sh: red stage skipped for iteration $ITER: the step says red: none" >&2
-    elif ! run_red_stage; then
-      RED_FAILED=true
-      break
+      red_note "red skipped, the step says red: none"
+    else
+      run_red_stage "$LAST_TEST_RC" || break
     fi
   fi
 

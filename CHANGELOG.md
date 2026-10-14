@@ -27,10 +27,14 @@ All notable changes to this repo are recorded here. Format loosely follows
   red log.
 - **Test suite:** `test_loop.sh` sets its own git identity, so it no longer
   depends on the host's global git config.
-- **Measurement:** the shim-based suite is the proof for this change (220
-  checks). No live run on the fixture was done, because this machine has
-  no Goose and no local model. The live run in the issue's "Done when" is
-  still open.
+- **Measurement:** the shim-based suite is the proof for this change
+  (251 checks in `test_loop.sh`). There was no live fixture run, by owner
+  decision, and none could run here: this machine has no Goose and no
+  local model.
+- **Scope:** the regular test stage is unchanged. It still runs the test
+  command with pipefail and no timeout. Only the red check is bounded: it
+  runs under the stage timeout, and a test that traps TERM is killed after
+  5 seconds.
 
 ## [0.17.0] - 2026-10-13
 
