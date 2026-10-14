@@ -13,6 +13,14 @@ RUN_LOOP="$SCRIPT_DIR/run_loop.sh"
 RESET_TASK="$SCRIPT_DIR/reset_task.sh"
 TASK_PROMPT="$SCRIPT_DIR/task_prompt.txt"
 
+# The suite makes many temp repos and each needs checkpoint commits. A
+# machine with no global git identity would fail all of them, so the
+# suite brings its own identity and reads nothing from the host.
+export GIT_AUTHOR_NAME="loop-test"
+export GIT_AUTHOR_EMAIL="loop-test@example.invalid"
+export GIT_COMMITTER_NAME="loop-test"
+export GIT_COMMITTER_EMAIL="loop-test@example.invalid"
+
 SCRATCH="$(mktemp -d)"
 cleanup() { rm -rf "$SCRATCH"; }
 trap cleanup EXIT
@@ -168,6 +176,12 @@ assert_true "dry-run's mechanical test stage actually ran the fixture's real tes
 #                     and then behaves normally
 #   SHIM_ENV_DUMP     file to append "<stage> GOOSE_MAX_TOKENS=<value>" to on every call
 #   REVIEW_SLEEP      seconds the review gate sleeps before answering
+#   RED_PASSES        the red stage writes a test that passes, as a model
+#                     would that wrote no real failing test
+#   PLANT_BASELINE_LINK  the plan stage plants a symlink at
+#                     .loop-run/BASELINE_OUTPUT.txt pointing at this path
+#   PLANT_RED_OUTPUT  the plan stage plants a RED_OUTPUT.txt
+#   PLAN_STEP         the one step line the plan stage writes to PLAN.md
 #   EXECUTE_BREAKS_TESTS  execute adds a failing tests/test_broken.py; the
 #                     fix stage repairs it only when FINDINGS.md points at
 #                     TEST_OUTPUT.txt
@@ -192,6 +206,10 @@ if [ -n "${TRUNCATE_FIRST_CALL:-}" ] && [ ! -f "$STATE_DIR/truncated_once" ]; th
   echo "goose: it hit the output token limit while generating this tool call. Try increasing max_tokens for this provider or breaking the task into smaller steps."
   exit 1
 fi
+# The test a real red stage would never write, and the one execute leaves
+# behind. Distinct file names tell the two states apart, so a test command
+# can ask "was red written" and "is it green" without reading file bodies.
+PASSING_RED_TEST='import unittest\nclass R(unittest.TestCase):\n    def test_red(self):\n        pass\n'
 prompt=""
 prev=""
 for a in "$@"; do
@@ -224,11 +242,26 @@ cat > /dev/null
 cp .loop-run/DIFF.txt "$STATE_DIR/diff_seen_$(wc -l < "$STATE_DIR/stages" | tr -d ' ')_$stage.txt" 2>/dev/null || true
 case "$stage" in
   plan)
-    printf '1. [ ] do the thing\n' > PLAN.md
+    printf '%s\n' "${PLAN_STEP:-1. [ ] do the thing}" > PLAN.md
+    if [ -n "${PLANT_BASELINE_LINK:-}" ]; then ln -sf "$PLANT_BASELINE_LINK" .loop-run/BASELINE_OUTPUT.txt; fi
+    if [ -n "${PLANT_RED_OUTPUT:-}" ]; then echo planted > RED_OUTPUT.txt; fi
     printf '# Handoff: test\nUpdated: now - State: in progress\n' > HANDOFF.md
+    ;;
+  red)
+    mkdir -p tests
+    if [ -n "${RED_PASSES:-}" ]; then
+      printf "$PASSING_RED_TEST" > tests/test_red_passing.py
+    else
+      printf 'import unittest\nclass R(unittest.TestCase):\n    def test_red(self):\n        self.fail("red: not implemented yet")\n' > tests/test_red_failing.py
+    fi
+    printf '# Handoff: test\nUpdated: now - State: red test written\n' > HANDOFF.md
     ;;
   execute)
     echo "new code" > new_a.txt
+    if [ -f tests/test_red_failing.py ]; then
+      rm -f tests/test_red_failing.py
+      printf "$PASSING_RED_TEST" > tests/test_red_passing.py
+    fi
     echo "new code" > new_b.txt
     if [ -n "${EXECUTE_EXTRA_FILE:-}" ]; then echo "new code" > "$EXECUTE_EXTRA_FILE"; fi
     if [ -n "${EXECUTE_FENCE_FILE:-}" ]; then printf 'text\n````\nfenced\n````\n' > fenced.md; fi
@@ -303,6 +336,8 @@ run_gate_case() { # $1 = case name; remaining args passed to run_loop.sh
   local name="$1"; shift
   local dest="$SCRATCH/$name/taskrepo" shimdir="$SCRATCH/shim-$name"
   bash "$RESET_TASK" --dest "$dest" >/dev/null
+  # CASE_PREP names a function that adjusts the fresh repo before the run.
+  if [ -n "${CASE_PREP:-}" ]; then "$CASE_PREP" "$dest"; fi
   mkdir -p "$shimdir"
   write_gate_shim "$shimdir/goose"
   PATH="$shimdir:$PATH" SHIM_STATE_DIR="$SCRATCH/state-$name" \
@@ -315,6 +350,10 @@ newest_prompt() { ls -t "$1"/.loop-run/logs/$2 2>/dev/null | head -n1; }
 export -f newest_prompt   # defined here, so export after, not with the pair above
 wt_of() { find "$SCRATCH/$1/taskrepo/.loop" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -n1; }
 stages_of() { tr '\n' ' ' < "$SCRATCH/state-$1/stages" | sed 's/ $//'; }
+# The driver's checkpoint commit subjects in order, numbers stripped.
+loop_commits_of() {
+  git -C "$(wt_of "$1")" log --reverse --format=%s | sed -n '/^loop:/p' | sed 's/ [0-9]*$//' | tr '\n' ',' | sed 's/,$//'
+}
 
 # --------------------------------------------------------------------
 # 3. Fake-goose happy path.
@@ -533,8 +572,10 @@ exit 0
 SHIM
 chmod +x "$SHIMDIR9/goose"
 
+# --red-first off: this shim knows no red stage, so a red run would fail
+# closed before the delta this case measures.
 PATH="$SHIMDIR9:$PATH" SHIM_STATE_DIR="$STATE9" \
-  bash "$RUN_LOOP" "$DEST9" "$TASK_PROMPT" --max-iterations 2 \
+  bash "$RUN_LOOP" "$DEST9" "$TASK_PROMPT" --max-iterations 2 --red-first off \
   > "$SCRATCH/reviewdiff.out" 2>&1
 RC9=$?
 cat "$SCRATCH/reviewdiff.out"
@@ -691,8 +732,10 @@ SHIM
 chmod +x "$SHIMDIR12/shim.sh"
 
 export ARGV_DUMP
+# --red-first off: the case counts argv entries of the plan stage, and this
+# shim writes no red test, so a red run would fail closed.
 LOOP_HARNESS_CMD="$SHIMDIR12/shim.sh --flag \"quoted value\" {prompt}" \
-  bash "$RUN_LOOP" "$DEST12" "$TASK_PROMPT" --max-iterations 1 \
+  bash "$RUN_LOOP" "$DEST12" "$TASK_PROMPT" --max-iterations 1 --red-first off \
   > "$SCRATCH/quoting.out" 2>&1
 RC12=$?
 cat "$SCRATCH/quoting.out"
@@ -713,7 +756,7 @@ echo
 echo "===== (13) gates run in order and skip fix on no findings ====="
 GATE_REVIEW_OUT='no findings\nnothing in the diff is wrong' run_gate_case gates-order --max-iterations 1
 assert_eq "$(cat "$SCRATCH/gates-order.rc")" "0" "all-clean gate run exits 0"
-assert_eq "$(stages_of gates-order)" "plan execute simplify security review" "stage order is plan, execute, simplify, security, review with no fix"
+assert_eq "$(stages_of gates-order)" "plan red execute simplify security review" "stage order is plan, execute, simplify, security, review with no fix"
 WT13="$(wt_of gates-order)"
 assert_true "LOOP_SUMMARY.md lists the three gates" file_has "$WT13/LOOP_SUMMARY.md" "Gates: simplify security review"
 assert_true "LOOP_SUMMARY.md gate log shows 0 findings kept for review" file_has "$WT13/LOOP_SUMMARY.md" "gate review, round 0: 0 finding(s) kept"
@@ -785,7 +828,7 @@ echo
 echo "===== (16) a gate that never converges stops after two fix rounds ====="
 GATE_REVIEW_OUT='- new_a.txt:1: still wrong' run_gate_case gates-cap --max-iterations 3
 assert_eq "$(cat "$SCRATCH/gates-cap.rc")" "1" "non-converging run exits 1"
-assert_eq "$(stages_of gates-cap)" "plan execute simplify security review fix simplify security review fix simplify security review" "every fix is re-gated by all three gates; two fix rounds, then stop"
+assert_eq "$(stages_of gates-cap)" "plan red execute simplify security review fix simplify security review fix simplify security review" "every fix is re-gated by all three gates; two fix rounds, then stop"
 WT16="$(wt_of gates-cap)"
 assert_true "LOOP_SUMMARY.md names the gate that did not converge" file_has "$WT16/LOOP_SUMMARY.md" "Not converged: review"
 assert_true "the driver said why it stopped" file_has "$SCRATCH/gates-cap.out" "stopping as not converged"
@@ -803,13 +846,13 @@ assert_eq "$(cat "$SCRATCH/gates-nudge.rc")" "0" "prose-then-file review passes 
 assert_true "the driver logged the write reminder retry" file_has "$SCRATCH/gates-nudge.out" "did not write REVIEW.md; retrying with a write reminder"
 WT17="$(wt_of gates-nudge)"
 assert_true "the retry prompt carries the reminder line" file_has "$(newest_prompt "$WT17" "review_prompt_*_retry.md")" "previous attempt ended without writing REVIEW.md"
-assert_eq "$(stages_of gates-nudge)" "plan execute simplify security review review" "review ran twice: the prose attempt and the nudged retry"
+assert_eq "$(stages_of gates-nudge)" "plan red execute simplify security review review" "review ran twice: the prose attempt and the nudged retry"
 
 GATE_REVIEW_OUT='' run_gate_case gates-noout --max-iterations 3
 assert_eq "$(cat "$SCRATCH/gates-noout.rc")" "1" "a gate that never writes its file makes the run fail"
 WT17B="$(wt_of gates-noout)"
 assert_true "LOOP_SUMMARY.md lists the gate that failed closed" file_has "$WT17B/LOOP_SUMMARY.md" "Gates with no output (failed closed): review"
-assert_eq "$(stages_of gates-noout)" "plan execute simplify security review review" "a failed-closed gate stops the loop; no further iterations run"
+assert_eq "$(stages_of gates-noout)" "plan red execute simplify security review review" "a failed-closed gate stops the loop; no further iterations run"
 
 # --------------------------------------------------------------------
 # 18. Per-file split: with LOOP_DIFF_SPLIT_BYTES=1 and two changed
@@ -821,7 +864,7 @@ echo "===== (18) a large diff runs each gate once per changed file ====="
 GATE_REVIEW_OUT='no findings\nclean' LOOP_DIFF_SPLIT_BYTES=1 EXECUTE_EXTRA_FILE='café.txt' \
   run_gate_case gates-split --max-iterations 1 --gates review
 assert_eq "$(cat "$SCRATCH/gates-split.rc")" "0" "split run exits 0"
-assert_eq "$(stages_of gates-split)" "plan execute review review review" "review ran once per changed file (three files)"
+assert_eq "$(stages_of gates-split)" "plan red execute review review review review" "review ran once per changed file (the red test plus three files)"
 STATE18="$SCRATCH/state-gates-split"
 assert_true "the café.txt chunk carried a real diff, not an empty one" bash -c '
   for d in "$1"/diff_seen_*_review.txt; do
@@ -848,7 +891,7 @@ echo
 echo "===== (19) --gates rejects unknown names; none skips every gate ====="
 GATE_REVIEW_OUT='no findings\nclean' run_gate_case gates-none --max-iterations 1 --gates none
 assert_eq "$(cat "$SCRATCH/gates-none.rc")" "0" "--gates none run exits 0"
-assert_eq "$(stages_of gates-none)" "plan execute" "--gates none runs no gate and no fix"
+assert_eq "$(stages_of gates-none)" "plan red execute" "--gates none runs no gate and no fix"
 DEST19="$SCRATCH/gates-bad/taskrepo"
 bash "$RESET_TASK" --dest "$DEST19" >/dev/null
 bash "$RUN_LOOP" "$DEST19" "$TASK_PROMPT" --gates simplify,bogus > "$SCRATCH/gates-bad.out" 2>&1
@@ -972,7 +1015,7 @@ echo "----- (19i) a gate quoting the truncation notice is not read as truncated 
 REVIEW_QUOTES_TRIGGER=1 run_gate_case quotetrigger --max-iterations 1
 assert_eq "$(cat "$SCRATCH/quotetrigger.rc")" "0" "the quoting run passes"
 assert_true "no retry was triggered by the quoted text" file_lacks "$SCRATCH/quotetrigger.out" "cut at the output cap"
-assert_eq "$(stages_of quotetrigger)" "plan execute simplify security review" "the review gate ran exactly once"
+assert_eq "$(stages_of quotetrigger)" "plan red execute simplify security review" "the review gate ran exactly once"
 
 echo
 echo "----- (19j) a cut-off attempt's findings file is not inherited by the retry -----"
@@ -1334,10 +1377,193 @@ echo
 echo "===== (21) failing tests with no gate finding get a fix stage ====="
 EXECUTE_BREAKS_TESTS=1 run_gate_case gates-testfix --max-iterations 1
 assert_eq "$(cat "$SCRATCH/gates-testfix.rc")" "0" "the run passes after the test-driven fix"
-assert_eq "$(stages_of gates-testfix)" "plan execute simplify security review fix simplify security review" "a fix stage ran after clean gates because tests failed, and the gates re-ran on that fix"
+assert_eq "$(stages_of gates-testfix)" "plan red execute simplify security review fix simplify security review" "a fix stage ran after clean gates because tests failed, and the gates re-ran on that fix"
 assert_true "the driver said why the fix ran" file_has "$SCRATCH/gates-testfix.out" "tests fail with no gate finding"
 STATE21="$SCRATCH/state-gates-testfix"
 assert_true "the fix stage was pointed at TEST_OUTPUT.txt" bash -c 'file_has "$(ls "$1"/findings_seen_*.md | head -n1)" "TEST_OUTPUT.txt:1"' _ "$STATE21"
+
+# --------------------------------------------------------------------
+# 22. Red first (#46): a red stage writes the failing test, the driver
+#     asserts the test command fails, then execute makes it pass.
+# --------------------------------------------------------------------
+echo
+echo "===== (22) red stage runs before execute and must fail the test command ====="
+assert_true "the red stage has its own prompt file" [ -f "$SCRIPT_DIR/prompts/red.md" ]
+PLAN_STEP='1. [ ] add parse_due() | red: tests/test_dates.py rejects "tomorrow"' run_gate_case redorder --max-iterations 1
+assert_eq "$(cat "$SCRATCH/redorder.rc")" "0" "a red-first run with a real failing test exits 0"
+assert_eq "$(stages_of redorder)" "plan red execute simplify security review" "model stages run in the order plan, red, execute, gates"
+WT22="$(wt_of redorder)"
+assert_true "LOOP_SUMMARY.md lists the stage order, test stage after execute" file_has "$WT22/LOOP_SUMMARY.md" "Stages: plan red red-check execute test simplify security review"
+assert_eq "$(loop_commits_of redorder)" \
+  "loop: plan,loop: red,loop: red-check,loop: execute,loop: test,loop: simplify,loop: security,loop: review" \
+  "each stage has its own checkpoint commit, red before execute"
+assert_true "RED_OUTPUT.txt holds the failure the red stage produced" file_has "$WT22/RED_OUTPUT.txt" "red: not implemented yet"
+assert_true "the final test run passes after execute" file_has "$WT22/LOOP_SUMMARY.md" "Final test result: PASS"
+assert_true "LOOP_SUMMARY.md says red-first was on" file_has "$WT22/LOOP_SUMMARY.md" "Red-first: on"
+assert_true "the red prompt says to write only the failing test" file_has "$(newest_prompt "$WT22" "red_prompt_*.md")" "Write only the failing test"
+assert_true "the execute prompt points at the red output" file_has "$(newest_prompt "$WT22" "execute_prompt_*.md")" "RED_OUTPUT.txt"
+
+echo
+echo "----- (22b) a red stage whose test command passes fails the iteration -----"
+RED_PASSES=1 run_gate_case redpass --max-iterations 3
+assert_eq "$(cat "$SCRATCH/redpass.rc")" "1" "a passing red stage makes the run fail"
+assert_eq "$(stages_of redpass)" "plan red" "execute and the gates never ran after a passing red stage"
+WT22B="$(wt_of redpass)"
+assert_true "the driver names the cause" file_has "$SCRATCH/redpass.out" "red stage wrote no failing test"
+assert_true "the message says the test command passed" file_has "$SCRATCH/redpass.out" "test command passed"
+assert_true "LOOP_SUMMARY.md records the failed red check" file_has "$WT22B/LOOP_SUMMARY.md" "Red check failed closed: yes"
+assert_true "the red log keeps the iteration number" file_has "$WT22B/LOOP_SUMMARY.md" "iteration 1: red stage wrote no failing test"
+
+echo
+echo "----- (22c) --red-first=off and '--red-first off' reproduce the old order exactly -----"
+run_gate_case redoff --max-iterations 1 --red-first=off
+assert_eq "$(cat "$SCRATCH/redoff.rc")" "0" "a run with red-first off exits 0"
+assert_eq "$(stages_of redoff)" "plan execute simplify security review" "stage order is the old plan, execute, gates"
+WT22C="$(wt_of redoff)"
+assert_eq "$(loop_commits_of redoff)" \
+  "loop: plan,loop: execute,loop: test,loop: simplify,loop: security,loop: review" \
+  "the commit sequence has no red commit"
+assert_true "no red prompt was built" bash -c '! ls "$1"/.loop-run/logs/red_prompt_* >/dev/null 2>&1' _ "$WT22C"
+assert_true "no RED_OUTPUT.txt was written" [ ! -e "$WT22C/RED_OUTPUT.txt" ]
+assert_true "LOOP_SUMMARY.md says red-first was turned off by flag" file_has "$WT22C/LOOP_SUMMARY.md" "Red-first: off (--red-first=off)"
+run_gate_case redoff2 --max-iterations 1 --red-first off
+assert_eq "$(stages_of redoff2)" "plan execute simplify security review" "the two-word form gives the same order"
+
+DEST22D="$SCRATCH/redbad/taskrepo"
+bash "$RESET_TASK" --dest "$DEST22D" >/dev/null
+bash "$RUN_LOOP" "$DEST22D" "$TASK_PROMPT" --red-first=maybe > "$SCRATCH/redbad.out" 2>&1
+assert_eq "$?" "1" "a bad --red-first value exits 1"
+assert_true "the bad value is named" file_has "$SCRATCH/redbad.out" "--red-first must be on or off"
+
+echo
+echo "----- (22d) no test command: red is off, and the output says so -----"
+drop_test_cmd() { # $1 = repo: remove its tests and Makefile so no default test command exists
+  git -C "$1" rm -rq tests Makefile
+  git -C "$1" commit -q -m "drop the test command"
+}
+CASE_PREP=drop_test_cmd run_gate_case rednocmd --max-iterations 1
+assert_eq "$(cat "$SCRATCH/rednocmd.rc")" "0" "a run with no test command still passes"
+assert_eq "$(stages_of rednocmd)" "plan execute simplify security review" "no red stage ran without a test command"
+assert_true "the driver states the opt-out" file_has "$SCRATCH/rednocmd.out" "red-first is off for this run: no test command"
+assert_true "LOOP_SUMMARY.md states the opt-out" file_has "$(wt_of rednocmd)/LOOP_SUMMARY.md" "Red-first: off (no test command)"
+
+echo
+echo "----- (22e) a step marked 'red: none' skips red for that step, and says so -----"
+PLAN_STEP='1. [ ] reword the README | red: none' run_gate_case rednone --max-iterations 1
+assert_eq "$(cat "$SCRATCH/rednone.rc")" "0" "a run with a red: none step exits 0"
+assert_eq "$(stages_of rednone)" "plan execute simplify security review" "no red stage ran for the marked step"
+WT22F="$(wt_of rednone)"
+assert_true "LOOP_SUMMARY.md logs the skipped red stage" file_has "$WT22F/LOOP_SUMMARY.md" "iteration 1: red skipped, the step says red: none"
+assert_true "the run still counts as red-first on" file_has "$WT22F/LOOP_SUMMARY.md" "Red-first: on"
+
+echo
+echo "----- (22f) 'red: none' tolerates trailing marks; 'red: nonexistent' does not opt out -----"
+n=0
+for step in '1. [ ] reword | red: none.' '1. [ ] reword `red: none`' '1. [ ] reword | red: none (docs)'; do
+  n=$((n + 1))
+  PLAN_STEP="$step" run_gate_case "redtrail$n" --max-iterations 1 --gates none
+  assert_eq "$(stages_of "redtrail$n")" "plan execute" "opt-out holds for: $step"
+done
+PLAN_STEP='1. [ ] add it | red: nonexistent test' run_gate_case rednegative --max-iterations 1 --gates none
+assert_eq "$(stages_of rednegative)" "plan red execute" "'red: nonexistent test' does not opt out"
+
+echo
+echo "----- (22g) the dry run skips the red stage and the red check, and logs it -----"
+DEST22G="$SCRATCH/reddry/taskrepo"
+bash "$RESET_TASK" --dest "$DEST22G" >/dev/null
+bash "$RUN_LOOP" "$DEST22G" "$TASK_PROMPT" --dry-run --max-iterations 1 > "$SCRATCH/reddry.out" 2>&1
+assert_true "the dry-run print has no red stage" file_lacks "$SCRATCH/reddry.out" "red_prompt_"
+assert_true "the dry run did not fail closed on the red check" file_lacks "$SCRATCH/reddry.out" "red stage wrote no failing test"
+assert_true "the summary logs the skip" file_has "$(find "$DEST22G/.loop" -name LOOP_SUMMARY.md | head -n1)" "dry run: red skipped"
+
+echo
+echo "----- (22h) a test command that is missing or not runnable is not a valid red -----"
+run_gate_case redmissing --max-iterations 1 --gates none \
+  --test-cmd 'if [ -f tests/test_red_failing.py ]; then exit 127; fi'
+assert_eq "$(cat "$SCRATCH/redmissing.rc")" "1" "exit 127 after the red stage fails the run"
+assert_eq "$(stages_of redmissing)" "plan red" "execute never ran"
+assert_true "the message names the cause and the code" file_has "$SCRATCH/redmissing.out" "red check invalid: test command exited 127"
+
+echo
+echo "----- (22i) a red check that times out is not a valid red -----"
+LOOP_STAGE_TIMEOUT=2 run_gate_case redtimeout --max-iterations 1 --gates none \
+  --test-cmd 'if [ -f tests/test_red_failing.py ]; then sleep 30; fi'
+assert_eq "$(cat "$SCRATCH/redtimeout.rc")" "1" "a timed-out red check fails the run"
+assert_true "the message names exit 124" file_has "$SCRATCH/redtimeout.out" "red check invalid: test command exited 124"
+
+echo
+echo "----- (22j) a suite already failing before red skips the assertion, and logs it -----"
+run_gate_case reddirty --max-iterations 1 --gates none \
+  --test-cmd 'if [ -f tests/test_red_passing.py ]; then exit 0; else exit 1; fi'
+assert_eq "$(cat "$SCRATCH/reddirty.rc")" "0" "the run continues and passes once the suite is green"
+assert_eq "$(stages_of reddirty)" "plan red execute" "red and execute both ran"
+assert_true "the driver says the check was skipped" file_has "$SCRATCH/reddirty.out" "red check skipped: baseline suite already failing"
+assert_true "LOOP_SUMMARY.md logs the skip" file_has "$(wt_of reddirty)/LOOP_SUMMARY.md" "red check skipped: baseline suite already failing"
+
+echo
+echo "----- (22k) RED_OUTPUT.txt keeps only its last 200 lines -----"
+run_gate_case redtrunc --max-iterations 1 --gates none \
+  --test-cmd 'if [ -f tests/test_red_failing.py ]; then seq 1 300; exit 1; fi'
+WT22K="$(wt_of redtrunc)"
+assert_eq "$(wc -l < "$WT22K/RED_OUTPUT.txt" | tr -d ' ')" "200" "RED_OUTPUT.txt is cut to 200 lines"
+assert_eq "$(tail -n1 "$WT22K/RED_OUTPUT.txt")" "300" "the cut keeps the end of the output"
+
+echo
+echo "----- (22l) the regular test stage keeps pipefail and no timeout (S1) -----"
+run_gate_case pipefail --max-iterations 1 --gates none --red-first off --test-cmd 'false | tee /dev/null'
+assert_true "a piped failing command fails the regular test stage" bash -c '[ "$(cat "$1")" -ne 0 ]' _ "$SCRATCH/pipefail.rc"
+LOOP_STAGE_TIMEOUT=2 run_gate_case longsuite --max-iterations 1 --gates none --red-first off --test-cmd 'sleep 4'
+assert_eq "$(cat "$SCRATCH/longsuite.rc")" "0" "a suite longer than the stage timeout is not killed"
+run_gate_case redpipe --max-iterations 1 --gates none \
+  --test-cmd 'if [ -f tests/test_red_failing.py ]; then false | tee /dev/null; fi'
+assert_eq "$(cat "$SCRATCH/redpipe.rc")" "0" "a piped failing red check counts as a valid red"
+assert_eq "$(stages_of redpipe)" "plan red execute" "execute ran after the piped red"
+
+echo
+echo "----- (22m) a planted symlink is not followed; a symlinked .loop-run is refused (S2) -----"
+TARGET22M="$SCRATCH/baseline-target.txt"
+echo untouched > "$TARGET22M"
+PLANT_BASELINE_LINK="$TARGET22M" run_gate_case redlink --max-iterations 1 --gates none
+assert_eq "$(cat "$TARGET22M")" "untouched" "the baseline output did not write through the planted link"
+DEST22M="$SCRATCH/loopsym/taskrepo"
+bash "$RESET_TASK" --dest "$DEST22M" >/dev/null
+mkdir -p "$SCRATCH/loopsym-elsewhere"
+ln -s "$SCRATCH/loopsym-elsewhere" "$DEST22M/.loop-run"
+bash "$RUN_LOOP" "$DEST22M" "$TASK_PROMPT" --dry-run --max-iterations 1 > "$SCRATCH/loopsym.out" 2>&1
+assert_eq "$?" "1" "a symlinked .loop-run is refused"
+assert_true "the refusal names the symlink" file_has "$SCRATCH/loopsym.out" ".loop-run is a symlink"
+
+echo
+echo "----- (22n) a test that traps TERM is killed, not waited for (S3) -----"
+START22N=$(date +%s)
+LOOP_STAGE_TIMEOUT=2 run_gate_case redtrap --max-iterations 1 --gates none \
+  --test-cmd 'if [ -f tests/test_red_failing.py ]; then trap "" TERM; sleep 12; fi'
+ELAPSED22N=$(( $(date +%s) - START22N ))
+assert_true "the red check ended well under the 12 s sleep ($ELAPSED22N s)" [ "$ELAPSED22N" -lt 10 ]
+assert_true "exit 124 is reported as an invalid red" file_has "$SCRATCH/redtrap.out" "red check invalid: test command exited 124"
+pkill -f "sleep 1[2]" 2>/dev/null || true
+
+echo
+echo "----- (22o) a planted RED_OUTPUT.txt is deleted even with red-first off (S4) -----"
+PLANT_RED_OUTPUT=1 run_gate_case redplant --max-iterations 1 --gates none --red-first off
+assert_true "RED_OUTPUT.txt is gone from the worktree" [ ! -e "$(wt_of redplant)/RED_OUTPUT.txt" ]
+
+echo
+echo "----- (22p) no unchecked step: red is skipped and logged (C1) -----"
+PLAN_STEP='1. [x] already done' run_gate_case redplaceholder --max-iterations 1 --gates none
+assert_eq "$(stages_of redplaceholder)" "plan execute" "no red stage ran without a step"
+assert_true "the summary logs why" file_has "$(wt_of redplaceholder)/LOOP_SUMMARY.md" "red skipped, no unchecked step in PLAN.md"
+
+echo
+echo "----- (22q) a baseline that is not a test result is labeled invalid (C2) -----"
+run_gate_case redbaseinvalid --max-iterations 1 --gates none --test-cmd 'exit 127'
+assert_true "the log says the baseline was invalid with its exit code" file_has "$SCRATCH/redbaseinvalid.out" "baseline invalid (exit 127)"
+assert_true "it is not called a failing suite" file_lacks "$SCRATCH/redbaseinvalid.out" "baseline suite already failing"
+
+echo
+echo "----- (22r) a stopped red run does not report an older test result (C3) -----"
+RED_PASSES=1 run_gate_case redfinal --max-iterations 3
+assert_true "the final test result says not run" file_has "$(wt_of redfinal)/LOOP_SUMMARY.md" "Final test result: not run (red check failed closed)"
 
 # --------------------------------------------------------------------
 echo

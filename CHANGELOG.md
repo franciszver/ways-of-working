@@ -5,6 +5,37 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-14
+
+- **`local-llm-loop` has a red-first stage** (#46). Each step now runs a
+  `red` stage before `execute`. The stage writes only the failing test for
+  the step. The driver then runs the test command and asserts that it
+  fails. A red stage whose test passes fails the run closed, with a message
+  that names the cause. Execute then makes the test pass, and the existing
+  test stage and gates follow.
+- **`--red-first on|off`** (default `on`). `off` reproduces the old order
+  exactly. Red is also off, and says so, when there is no test command. A
+  plan step that ends in `| red: none` skips red for that step. A step may
+  end in `| red: <what>` to name its failing test. Old plans keep working.
+- A red check that exits 124, 126, or 127 is not a test result, so it
+  fails closed. A suite that already fails before the red stage skips the
+  assertion and logs that. The red check runs under the stage timeout, and
+  `RED_OUTPUT.txt` keeps its last 200 lines. A dry run skips red and logs
+  it.
+- New files: `scripts/prompts/red.md`, and `RED_OUTPUT.txt` in the loop
+  worktree. `LOOP_SUMMARY.md` gains `Red-first`, a failed-red line, and a
+  red log.
+- **Test suite:** `test_loop.sh` sets its own git identity, so it no longer
+  depends on the host's global git config.
+- **Measurement:** the shim-based suite is the proof for this change
+  (251 checks in `test_loop.sh`). There was no live fixture run, by owner
+  decision, and none could run here: this machine has no Goose and no
+  local model.
+- **Scope:** the regular test stage is unchanged. It still runs the test
+  command with pipefail and no timeout. Only the red check is bounded: it
+  runs under the stage timeout, and a test that traps TERM is killed after
+  5 seconds.
+
 ## [0.17.0] - 2026-10-13
 
 - **`apply-working-process` has four gates** (#51): simplify, security

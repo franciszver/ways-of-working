@@ -78,8 +78,8 @@ benchmark's recommended client cap for tool-calling tasks
 server instead of waiting for the stage timeout: `GOOSE_MAX_TOKENS=48`
 was verified live to truncate a 400-line answer to 7 lines.
 
-`LOOP_STAGE_MAX_TOKENS` (default 8192) is the cap for the plan, execute
-and fix stages, which write files. The benchmark measured 3072
+`LOOP_STAGE_MAX_TOKENS` (default 8192) is the cap for the plan, red,
+execute and fix stages, which write files. The benchmark measured 3072
 truncating whole-file writes, so those stages get the larger cap. A call
 cut at either cap is retried once: a gate is told to stop printing file
 contents, a writing stage to split the write.
@@ -99,7 +99,7 @@ a runaway generation, not slow work.
 
 ## Gate config and the prompt-carried diff
 
-A gate stage does not run under the same Goose config as plan, execute,
+A gate stage does not run under the same Goose config as plan, red, execute,
 and fix. At run start, `run_loop.sh` derives `.loop-run/goose-config-gate/`
 from the stage config by removing `shell`, `edit`, and `tree` from the
 developer extension's `available_tools`, leaving `write` alone. The

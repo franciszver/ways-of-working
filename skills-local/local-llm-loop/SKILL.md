@@ -3,7 +3,7 @@ name: local-llm-loop
 description: "Runs the working loop for a coding agent backed by a local, small-active-parameter model (~3B active MoE) on consumer hardware — short steps, a mechanical check after every write, tolerant of format-rejection retries and prose-instead-of-a-call. Use when Claude Code or any agent runs against a local server (ANTHROPIC_BASE_URL, llama.cpp, Ollama, LM Studio), or when tuning that server's inference flags."
 ---
 
-<!-- local: derived-from: skills/local-llm-loop/SKILL.md@b40640fc65fa -->
+<!-- local: derived-from: skills/local-llm-loop/SKILL.md@9558406b7dc0 -->
 
 # Local LLM Loop
 
@@ -19,7 +19,8 @@ You are a local model. Work in small, checked steps — this is a measured const
 6. If the harness reports "Resource not found" (HTTP 404), stop — the endpoint is misconfigured, not you. Do not keep retrying.
 7. A prose answer or a clarifying question is a normal outcome, not a failure — `tool_choice: required` is not guaranteed to force a structured call on this stack. If you're unsure a tool call is needed, ask in prose rather than emitting a malformed call.
 8. When recovering from a missing file or wrong path, keep exploring toward the right name (list the directory, check nearby paths) rather than giving up after one failed lookup.
-9. Before you stop, write the state file in the `handoff` skill's format so a fresh session with no memory of this one can resume from it alone.
+9. In a red stage, write only the failing test for the current step and then stop. Do not touch source code. The test must fail now; the driver runs it and rejects a test that passes. In the stage after, make that test pass and never weaken it.
+10. Before you stop, write the state file in the `handoff` skill's format so a fresh session with no memory of this one can resume from it alone.
 
 ## Anti-patterns
 

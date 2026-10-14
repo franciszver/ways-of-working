@@ -20,11 +20,12 @@ bash scripts/run_loop.sh <repo> plan.md --test-cmd "python3 -m unittest discover
 ```
 
 `run_loop.sh` drives Goose through a fresh-context plan stage, then
-execute/test/gates/fix cycles, each stage checkpointed with its own
+red/execute/test/gates/fix cycles, each stage checkpointed with its own
 commit on a disposable git worktree branch at
 `<repo>/.loop/<timestamp>/`. Inside that worktree: `PLAN.md` (the step
 checklist), `NEXT_STEP.md` (the one step execute.md works on),
-`HANDOFF.md` (updated every stage), `.loop-run/DIFF.txt` (the diff each
+`HANDOFF.md` (updated every stage), `RED_OUTPUT.txt` (the failure the
+red stage produced, read by execute), `.loop-run/DIFF.txt` (the diff each
 gate reviews), `SIMPLIFY.md`, `SECURITY.md`, and `REVIEW.md` (one per
 gate, written fresh each round), `FINDINGS.md` (the gate findings that
 cite a real file, the only input fix.md reads),
@@ -34,7 +35,9 @@ because they cite no real file), `TEST_OUTPUT.txt`, `NEEDS_HUMAN.md`
 `LOOP_SUMMARY.md` plus a `LOOP_DONE` marker. `--gates LIST` selects
 which of the three gates run, in their fixed order
 simplify,security,review (the default); `--gates none` skips them and
-`--gates review` reproduces the old single-review behavior. Run
+`--gates review` reproduces the old single-review behavior.
+`--red-first on|off` (default `on`) controls the red stage, described
+under "Red first" below. Run
 `bash scripts/run_loop.sh <repo> plan.md --dry-run` first — it exercises
 the worktree, prompts, and mechanical test stage for real without
 calling the model, so plumbing problems surface before spending an
@@ -47,17 +50,55 @@ is never added to that repo's top-level `.gitignore` automatically — add
 worktrees by hand (`git -C <repo> worktree remove .loop/<timestamp>`)
 once you're done with a run, so `git status` in `<repo>` stays clean.
 
+## Red first
+
+The order is plan once, then for each step red, execute, test, and the
+gates. Red is the working process's first rule: the failing artifact
+exists, and is seen failing, before the code that satisfies it.
+
+- The red stage has its own prompt, `scripts/prompts/red.md`. It writes only
+  the failing test or check for the current step.
+- The driver runs the test command and asserts that it **fails**. A passing
+  run means no real test was written. The driver treats it like a gate that
+  wrote nothing: the run fails closed, the message names the cause, and
+  `LOOP_SUMMARY.md` records it. A run that is not a test result (timeout
+  124, not executable 126, not found 127) is no valid red either.
+- The red stage and the check each get a checkpoint commit (`loop: red N`,
+  `loop: red-check N`), so a branch shows the failing test before the code.
+  The last 200 lines of the failure are kept in `RED_OUTPUT.txt`. Execute
+  must make that test pass without weakening it, and the test stage must
+  pass after.
+- The driver checks only that the command fails. A suite that was already
+  failing before the red stage cannot show a new failure, so the check is
+  skipped and logged in the summary, never passed.
+- Only the red check is bounded. It runs under the stage timeout, and a
+  test that traps TERM is killed after 5 seconds. The regular test stage
+  has no timeout and is unchanged.
+- Opt-outs are stated, never silent. `--red-first=off` or `--red-first off`
+  gives the old order exactly (plan, execute, test, gates). With no test
+  command, red is off and the output and summary say so. A plan step that
+  ends in `| red: none` skips red for that step, and the summary logs it.
+  A dry run calls no model, so it skips red and logs that.
+- A plan step names its failing artifact by ending in `| red: <what>`, for
+  example `1. [ ] add parse_due() | red: tests/test_dates.py rejects
+  "tomorrow"`. The ending is optional. A step without it still runs red,
+  and the red stage picks the smallest test that proves the step. Plans
+  written before this shape existed keep working.
+- Limits: the driver does not compare failing test names, so a test that
+  fails from a typo passes the check. It also does not check that the red
+  stage left source alone. Only the prompt and the gates guard that.
+
 ## Three gates
 
 The three gates map the first three of `apply-working-process`'s "Four gates before anything merges" (simplify → security review → code review) onto a local model with no subagents: each gate runs as its own fresh-context Goose stage instead of a fresh subagent, in the same fixed order, each finding fixed and tests re-run green after. A fix is new code the other gates have not seen, so any fix restarts the pass over all three gates; fix rounds per iteration are capped at `LOOP_GATE_ROUNDS` (default 2) before the loop reports "not converged". The local security gate is a prefilter, not the real check, run `/security-review` in Claude Code on the loop branch before merging. The driver does not run the fourth gate, the clean-code review: run the `clean-code` skill on the loop branch before merging too.
 
-- A gate stage runs under its own Goose config at `.loop-run/goose-config-gate/`, derived at run start from the stage config with `shell`, `edit`, and `tree` removed from the developer extension's `available_tools`; only `write` is left, and the driver fails fast if `write` is not present. A gate therefore has no tool that can read a file — the diff under review, and the last 40 lines of `TEST_OUTPUT.txt`, are appended to its built prompt under the headings "## The diff under review" and "## Latest test run" instead (an empty diff is stated as such). The only action a gate can take is writing its findings file. Plan, execute, and fix stages are unchanged and keep `shell`, `edit`, `write`, and `tree`. Under the per-file split (below), each chunk's prompt carries only that file's diff.
+- A gate stage runs under its own Goose config at `.loop-run/goose-config-gate/`, derived at run start from the stage config with `shell`, `edit`, and `tree` removed from the developer extension's `available_tools`; only `write` is left, and the driver fails fast if `write` is not present. A gate therefore has no tool that can read a file: the diff under review, and the last 40 lines of `TEST_OUTPUT.txt`, are appended to its built prompt under the headings "## The diff under review" and "## Latest test run" instead (an empty diff is stated as such). The only action a gate can take is writing its findings file. Plan, red, execute, and fix stages are unchanged and keep `shell`, `edit`, `write`, and `tree`. Under the per-file split (below), each chunk's prompt carries only that file's diff.
 - A finding is kept only if it cites a file that exists in the worktree; rejected lines go to `.loop-run/REJECTED_FINDINGS.md` instead of `FINDINGS.md`.
 - A gate that writes no output file is retried once with a write reminder, then fails closed if still missing, and the loop stops. Tests that fail with no gate finding still get a fix stage pointed at `TEST_OUTPUT.txt`.
 - A gate that still writes no output file after the retry has its verdict recovered from its reply, per chunk under the per-file split: a line matching the findings format is findings, a line beginning "no findings" is clean, and either is written to the findings file and checked like a file's contents would be. A reply with no such line stays failed closed; findings recovered this way that cite no real path also fail closed, since a reply citing nothing real is not a review.
 - A fix stage that deletes or moves any file has those files restored in a checkpoint of their own, the rest of its work kept, and the files listed in `NEEDS_HUMAN.md`; a repo that already tracks a bookkeeping name such as `SECURITY.md` at its root is refused up front.
 - A diff over `LOOP_DIFF_SPLIT_BYTES` (default 32768 bytes) that touches more than one file runs each gate once per changed file, on that file's diff alone.
-- Each gate call is capped at `LOOP_MAX_TOKENS` output tokens (default 3072) and runs under `LOOP_GATE_TIMEOUT` (default 300 s, never above `LOOP_STAGE_TIMEOUT`). Plan, execute and fix stages write files and get `LOOP_STAGE_MAX_TOKENS` (default 8192). A call cut at the cap is retried once, telling a gate to stop printing file contents and a writing stage to split the write. The caps travel as `GOOSE_MAX_TOKENS`, so a different harness ignores them and only the timeouts bound it.
+- Each gate call is capped at `LOOP_MAX_TOKENS` output tokens (default 3072) and runs under `LOOP_GATE_TIMEOUT` (default 300 s, never above `LOOP_STAGE_TIMEOUT`). Plan, red, execute and fix stages write files and get `LOOP_STAGE_MAX_TOKENS` (default 8192). A call cut at the cap is retried once, telling a gate to stop printing file contents and a writing stage to split the write. The caps travel as `GOOSE_MAX_TOKENS`, so a different harness ignores them and only the timeouts bound it.
 
 ## The loop
 
