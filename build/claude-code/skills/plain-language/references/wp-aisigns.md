@@ -2,9 +2,9 @@
 
 Source: Wikipedia:Signs_of_AI_writing, revision **1374467046**, page last edited
 August 2026. Checked 2026-09-13 via WebFetch against the live page.
-Next refresh due 2026-09-20 (see "Refreshing the references" in the skill's SKILL.md).
+Use this cache as it is. The dates here are provenance, not a schedule.
 
-**2026-09-13 refresh: no content change needed for this skill's scope.** The page
+**2026-09-13 check: no content change needed for this skill's scope.** The page
 gained two Wikipedia-specific structural tells since the last cache (a "Leads
 treating Wikipedia lists as proper nouns" item, and an "Awards and recognition"
 section-header pattern) — both about article/section naming conventions specific to
@@ -13,15 +13,15 @@ wiki list-articles, so both are omitted under this cache's existing scope note
 vocabulary list, construction pattern, and general-prose section below is unchanged
 and still current, confirmed against a fresh outline of the live page rather than a
 revision diff this time (the MediaWiki revision-diff API was not used), so treat
-this refresh as slightly coarser than the 2026-08-05 one.
+this check as slightly coarser than the 2026-08-05 one.
 
-**2026-08-05 refresh: no content change needed.** Exactly one edit landed between the
+**2026-08-05 check: no content change needed.** Exactly one edit landed between the
 cached revision (1367549492) and current (1367680556), and it added a sentence about
 finding the age of a block of text using the "Who Wrote That?" and WikiBlame tools --
 Wikipedia editing tooling, which this cache deliberately omits as irrelevant to
 the prose this skill checks. Every vocabulary list, construction pattern and section
 below is unchanged and still current. Verified by diffing the two revisions rather
-than re-reading the page, so the check is cheap to repeat weekly.
+than re-reading the page, so that check was cheap.
 
 This is the authoritative drafting check. Read any draft longer than three
 sentences against this file before it ships. Wikipedia-specific sections (wikitext

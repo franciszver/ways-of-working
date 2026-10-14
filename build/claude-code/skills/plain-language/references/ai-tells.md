@@ -1,13 +1,13 @@
 # AI writing tells — current reference
-_Refreshed: 2026-09-13 (degraded — see note below). Previous full refresh: 2026-07-30._
+_Last read: 2026-09-13 (partial, see note below). Previous full read: 2026-07-30._
 
-Refreshed per "Refreshing the references" in the skill's SKILL.md. Treat the word lists as perishable and the
-constructions section as the durable core.
+Use this file as it is. Dates are provenance, not a schedule. The word lists are clues, not
+exhaustive tests. The constructions section is the durable core.
 
-**2026-09-13 refresh, degraded mode.** Re-fetched Vollmer's Substack piece via WebFetch and confirmed its
+**2026-09-13 read, partial.** Re-fetched Vollmer's Substack piece via WebFetch and confirmed its
 constructions and word groups below are unchanged and still current. The Forbes list (Cook, 21 May 2026) —
 this file's most recent concrete lexical-list source — now returns HTTP 403 to WebFetch, the same failure
-mode already logged for Wikipedia and HuffPost below; per the refresh rules, no proxy, mirror, or scraper was
+mode already logged for Wikipedia and HuffPost below; no proxy, mirror, or scraper was
 attempted. **References stale as of 2026-09-13: treat the word lists as a floor**, not a ceiling — a term
 absent from every list here can still be a live tell; the Forbes list specifically has not been re-verified
 since May 2026.
@@ -117,7 +117,7 @@ that replaced the older long-strung-together tell. Present-generation models def
 **5. Additive em dashes.** The precise version of the em-dash claim: the tell is the *function*, not the mark.
 Dashes used additively, to append a qualifying clause, rather than to interrupt.
 Before: "We shipped the migration — a process that took nine weeks — and moved on."
-After: "We shipped the migration, which took nine weeks, and moved on." Reserve the dash for a real break in voice.
+After: "We shipped the migration, which took nine weeks, and moved on." This skill strikes the mark itself, so rewrite every dash.
 
 **6. Identical opening verbs across every bullet.** (NG Career Strategy) "Led… / Led… / Led…" Vary by what
 actually happened: "Rewrote…", "Argued for…", "Inherited and fixed…".
@@ -137,10 +137,8 @@ match the vocabulary, do not clone the sentences.
 - Keyword repetition — the same term restated across several sections (NG Career Strategy).
 - Cross-document tone inconsistency — résumé vs LinkedIn vs email. Recruiters lean on this comparison more
   than on any single word (NG Career Strategy).
-- **The em dash alone is NOT a tell.** Gregory Agency rejects the claim directly; the mark is ordinary in
-  edited prose. Use construction #5 instead of counting dashes. Counting will produce false positives against
-  good human writing — and note the second-order problem: writers now avoid dashes defensively, so
-  dash-*absence* is becoming its own signal. Do not drive the count to zero either.
+- **The em dash alone is not proof of AI use.** Gregory Agency rejects the claim directly. The mark is
+  ordinary in edited prose. This skill strikes it anyway: see "Em dashes" in SKILL.md.
 
 ---
 
@@ -177,11 +175,11 @@ match the vocabulary, do not clone the sentences.
 ## Unavailable sources
 
 - **forbes.com — Jodie Cook, "15 New Giveaway Signs Of AI Writing (May 2026 Update)": HTTP 403 to WebFetch
-  as of 2026-09-13.** Not routed around, per the refresh rules. Its list is kept below from the 2026-07-30
+  as of 2026-09-13.** Not routed around. Its list is kept below from the 2026-07-30
   read; treat it as unverified past that date.
-- **en.wikipedia.org — "Wikipedia:Signs of AI writing" (WP:AISIGNS): not fetchable at refresh time.**
-  **Not routed around** — no proxy, mirror, archive, cache, scraper or alternative front-end was attempted,
-  per the refresh rules in SKILL.md. Several fetchable pages in the results are restatements of it (ETBI Digital
+- **en.wikipedia.org, "Wikipedia:Signs of AI writing" (WP:AISIGNS): not fetchable at that read.**
+  **Not routed around.** No proxy, mirror, archive, cache, scraper or alternative front-end was attempted.
+  Several fetchable pages in the results are restatements of it (ETBI Digital
   Library, blakestockton.com, onlinewritingclub.com) and were deliberately **not** used, since reading a summary
   of the blocked page is still routing around it. Any overlap with WP:AISIGNS above arrived independently via
   Vollmer, Matsui or Cook. The page has since been cached at [`wp-aisigns.md`](wp-aisigns.md), which carries its
