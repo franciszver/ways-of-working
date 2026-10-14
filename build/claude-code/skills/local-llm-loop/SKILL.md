@@ -56,36 +56,38 @@ once you're done with a run, so `git status` in `<repo>` stays clean.
 
 ## Red first
 
-The stage order for each step is plan (once), then red, execute, test, and
-the gates. The red stage is the loop's version of the working process's
-first rule: the failing artifact exists, and is seen failing, before the
-code that satisfies it.
+The order is plan once, then for each step red, execute, test, and the
+gates. Red is the working process's first rule: the failing artifact
+exists, and is seen failing, before the code that satisfies it.
 
 - The red stage has its own prompt, `scripts/prompts/red.md`. It writes only
-  the failing test or check for the current step and touches nothing else.
-- The driver then runs the test command and asserts that it **fails**. A red
-  stage whose test command passes has not written a real test. The driver
-  treats it like a gate that wrote nothing: the run fails closed, the
-  message names the cause, and `LOOP_SUMMARY.md` records the iteration.
+  the failing test or check for the current step.
+- The driver runs the test command and asserts that it **fails**. A passing
+  run means no real test was written. The driver treats it like a gate that
+  wrote nothing: the run fails closed, the message names the cause, and
+  `LOOP_SUMMARY.md` records it. A run that is not a test result (timeout
+  124, not executable 126, not found 127) is no valid red either.
 - The red stage and the check each get a checkpoint commit (`loop: red N`,
   `loop: red-check N`), so a branch shows the failing test before the code.
-  The failure text is kept in `RED_OUTPUT.txt`, and execute must make that
-  test pass without weakening it. The existing test stage must pass after.
-- The driver checks only that the command fails, not why. A test that fails
-  from a typo passes this check, so the gates and a human still read it. A
-  suite that already failed before the red stage also passes the check.
-- Opt-outs are always stated, never silent. `--red-first=off` gives the old
-  order exactly (plan, execute, test, gates). When no test command is
-  available, red is off for the run and the output and summary say so. A
-  plan step that ends in `| red: none` skips red for that step only, and
-  the summary logs the skip.
+  The last 200 lines of the failure are kept in `RED_OUTPUT.txt`. Execute
+  must make that test pass without weakening it, and the test stage must
+  pass after.
+- The driver checks only that the command fails. A suite that was already
+  failing before the red stage cannot show a new failure, so the check is
+  skipped and logged in the summary, never passed.
+- Opt-outs are stated, never silent. `--red-first=off` or `--red-first off`
+  gives the old order exactly (plan, execute, test, gates). With no test
+  command, red is off and the output and summary say so. A plan step that
+  ends in `| red: none` skips red for that step, and the summary logs it.
+  A dry run calls no model, so it skips red and logs that.
 - A plan step names its failing artifact by ending in `| red: <what>`, for
   example `1. [ ] add parse_due() | red: tests/test_dates.py rejects
   "tomorrow"`. The ending is optional. A step without it still runs red,
   and the red stage picks the smallest test that proves the step. Plans
   written before this shape existed keep working.
-- A dry run calls no model, so it runs the test command and reports the
-  result but does not assert on it.
+- Limits: the driver does not compare failing test names, so a test that
+  fails from a typo passes the check. It also does not check that the red
+  stage left source alone. Only the prompt and the gates guard that.
 
 ## Three gates
 

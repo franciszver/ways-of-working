@@ -17,6 +17,11 @@ All notable changes to this repo are recorded here. Format loosely follows
   exactly. Red is also off, and says so, when there is no test command. A
   plan step that ends in `| red: none` skips red for that step. A step may
   end in `| red: <what>` to name its failing test. Old plans keep working.
+- A red check that exits 124, 126, or 127 is not a test result, so it
+  fails closed. A suite that already fails before the red stage skips the
+  assertion and logs that. The red check runs under the stage timeout, and
+  `RED_OUTPUT.txt` keeps its last 200 lines. A dry run skips red and logs
+  it.
 - New files: `scripts/prompts/red.md`, and `RED_OUTPUT.txt` in the loop
   worktree. `LOOP_SUMMARY.md` gains `Red-first`, a failed-red line, and a
   red log.
