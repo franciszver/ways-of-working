@@ -71,10 +71,11 @@ alone — no single prompt carries the whole diff.
 iteration; a gate still reporting findings after that many rounds stops
 the loop as "not converged".
 
-`LOOP_MAX_TOKENS` (default 3072) is the output-token cap for the four
-gate stages, sent to the harness as `GOOSE_MAX_TOKENS`. 3072 is the
-benchmark's recommended client cap for tool-calling tasks
-(`local-coding-env` REPORT.md). It bounds a runaway generation at the
+`LOOP_MAX_TOKENS` (default 8192) is the output-token cap for the four
+gate stages, sent to the harness as `GOOSE_MAX_TOKENS`. A gate holds
+only `write`, so the tool set stops a runaway at the source and the cap
+only has to fit one findings file. At the benchmark's 3072 tool-calling
+cap, a gate was cut mid tool call in 1 of 2 live attempts. The cap bounds a runaway generation at the
 server instead of waiting for the stage timeout: `GOOSE_MAX_TOKENS=48`
 was verified live to truncate a 400-line answer to 7 lines.
 

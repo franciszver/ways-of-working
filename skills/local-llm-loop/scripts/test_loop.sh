@@ -1262,7 +1262,7 @@ SHIM_PROMPT_DUMP="$PROMPT_DUMP" LOOP_DIFF_SPLIT_BYTES=1 \
 WT19N="$(wt_of gatesplitdiff)"
 assert_true "every chunk prompt was kept and carried exactly one file's diff" bash -c '
   n=0
-  for f in "$1"/.loop-run/logs/review_prompt_*.md "$1"/.loop-run/logs/clean_prompt_*.md; do
+  for f in "$1"/.loop-run/logs/review_prompt_*.md; do
     [ -f "$f" ] || continue
     case "$f" in *_retry.md) continue ;; esac
     c=$(grep -c "^diff --git" "$f"); [ "$c" -eq 1 ] || exit 1
@@ -1595,94 +1595,101 @@ echo
 echo "===== (23) the clean gate runs last and follows the gate rules ====="
 assert_true "the clean gate has its own prompt file" [ -f "$SCRIPT_DIR/prompts/clean.md" ]
 run_gate_case cleanorder --max-iterations 1
-assert_eq "$(cat "$SCRATCH/cleanorder.rc")" "0" "(1) a default run with a clean verdict from every gate exits 0"
-assert_eq "$(stages_of cleanorder)" "plan red execute simplify security review clean" "(1) stage order ends with clean"
-assert_true "(1) the clean gate wrote CLEAN.md" [ -f "$(wt_of cleanorder)/CLEAN.md" ]
-assert_eq "$(loop_commits_of cleanorder | tr ',' '\n' | tail -n1)" "loop: clean" "(1) the clean gate has its own checkpoint commit, last"
+assert_eq "$(cat "$SCRATCH/cleanorder.rc")" "0" "AC1: a default run with a clean verdict from every gate exits 0"
+assert_eq "$(stages_of cleanorder)" "plan red execute simplify security review clean" "AC1: stage order ends with clean"
+assert_eq "$(stages_of cleanorder | awk '{print $NF}')" "clean" "AC1: clean is the last stage"
+assert_true "AC1: the clean gate wrote CLEAN.md" [ -f "$(wt_of cleanorder)/CLEAN.md" ]
+assert_eq "$(loop_commits_of cleanorder | tr ',' '\n' | tail -n1)" "loop: clean" "AC1: the clean gate has its own checkpoint commit, last"
 
 echo
-echo "----- (23b) --gates simplify,clean runs exactly those two, in order -----"
+echo "----- (23b) --gates given as clean,simplify runs exactly those two, in the fixed order -----"
 run_gate_case cleansel --max-iterations 1 --gates clean,simplify
-assert_eq "$(cat "$SCRATCH/cleansel.rc")" "0" "(2) the selected run exits 0"
-assert_eq "$(stages_of cleansel)" "plan red execute simplify clean" "(2) only simplify and clean ran, in the fixed order"
-assert_true "(2) the summary lists the selected gates" file_has "$(wt_of cleansel)/LOOP_SUMMARY.md" "Gates: simplify clean"
+assert_eq "$(cat "$SCRATCH/cleansel.rc")" "0" "AC2: the selected run exits 0"
+assert_eq "$(stages_of cleansel)" "plan red execute simplify clean" "AC2: only simplify and clean ran, in the fixed order"
+assert_true "AC2: the summary lists the selected gates" file_has "$(wt_of cleansel)/LOOP_SUMMARY.md" "Gates: simplify clean"
 
 echo
 echo "----- (23c) a clean gate that writes nothing fails closed -----"
 GATE_CLEAN_OUT='' run_gate_case cleannoout --max-iterations 3
-assert_eq "$(cat "$SCRATCH/cleannoout.rc")" "1" "(3) the run fails"
-assert_eq "$(stages_of cleannoout)" "plan red execute simplify security review clean clean" "(3) clean ran twice (attempt and nudge), then the loop stopped"
-assert_true "(3) the summary lists clean as failed closed" file_has "$(wt_of cleannoout)/LOOP_SUMMARY.md" "Gates with no output (failed closed): clean"
-assert_true "(3) the retry prompt names CLEAN.md" file_has "$SCRATCH/cleannoout.out" "did not write CLEAN.md; retrying with a write reminder"
+assert_eq "$(cat "$SCRATCH/cleannoout.rc")" "1" "AC3: the run fails"
+assert_eq "$(stages_of cleannoout)" "plan red execute simplify security review clean clean" "AC3: clean ran twice (attempt and nudge), then the loop stopped"
+assert_true "AC3: the summary lists clean as failed closed" file_has "$(wt_of cleannoout)/LOOP_SUMMARY.md" "Gates with no output (failed closed): clean"
+assert_true "AC3: the retry prompt names CLEAN.md" file_has "$SCRATCH/cleannoout.out" "did not write CLEAN.md; retrying with a write reminder"
 
 echo
 echo "----- (23d) a clean finding citing no real file is rejected -----"
 GATE_CLEAN_ONCE='- new_a.txt:1: name hides intent\n- ghost/nowhere.py:7: this file was hallucinated' run_gate_case cleanfilter --max-iterations 1
 WT23D="$(wt_of cleanfilter)"
 FIRST23D="$(ls "$SCRATCH"/state-cleanfilter/findings_seen_*.md 2>/dev/null | head -n1)"
-assert_true "(4) the real finding reached FINDINGS.md" bash -c '[ -n "$1" ] && file_has "$1" "new_a.txt:1"' _ "$FIRST23D"
-assert_true "(4) the invented path stayed out of FINDINGS.md" bash -c '[ -n "$1" ] && file_lacks "$1" "nowhere.py"' _ "$FIRST23D"
-assert_true "(4) the rejected line is logged with the gate name" file_has "$WT23D/.loop-run/REJECTED_FINDINGS.md" "clean: - ghost/nowhere.py:7"
+assert_true "AC4: the real finding reached FINDINGS.md" bash -c '[ -n "$1" ] && file_has "$1" "new_a.txt:1"' _ "$FIRST23D"
+assert_true "AC4: the invented path stayed out of FINDINGS.md" bash -c '[ -n "$1" ] && file_lacks "$1" "nowhere.py"' _ "$FIRST23D"
+assert_true "AC4: the rejected line is logged with the gate name" file_has "$WT23D/.loop-run/REJECTED_FINDINGS.md" "clean: - ghost/nowhere.py:7"
 
 GATE_CLEAN_OUT='- ghost/nowhere.py:7: this file was hallucinated' run_gate_case cleanghost --max-iterations 1 --gates clean
-assert_true "(4) the invented line went to REJECTED_FINDINGS.md" file_has "$(wt_of cleanghost)/.loop-run/REJECTED_FINDINGS.md" "clean: - ghost/nowhere.py:7"
-assert_eq "$(stages_of cleanghost)" "plan red execute clean" "(4) no fix ran for an invented finding"
+assert_true "AC4: the invented line went to REJECTED_FINDINGS.md" file_has "$(wt_of cleanghost)/.loop-run/REJECTED_FINDINGS.md" "clean: - ghost/nowhere.py:7"
+assert_eq "$(stages_of cleanghost)" "plan red execute clean" "AC4: no fix ran for an invented finding"
 
 echo
 echo "----- (23e) --gates none and --gates review are unchanged -----"
 run_gate_case cleannone --max-iterations 1 --gates none
-assert_eq "$(stages_of cleannone)" "plan red execute" "(5) --gates none runs no gate"
+assert_eq "$(stages_of cleannone)" "plan red execute" "AC5: --gates none runs no gate"
 run_gate_case cleanreview --max-iterations 1 --gates review
-assert_eq "$(stages_of cleanreview)" "plan red execute review" "(5) --gates review runs review alone"
-assert_true "(5) the unknown-name message lists clean" file_has "$SCRATCH/gates-bad.out" "known: simplify, security, review, clean, none"
+assert_eq "$(stages_of cleanreview)" "plan red execute review" "AC5: --gates review runs review alone"
+DEST23E="$SCRATCH/cleanbad/taskrepo"
+bash "$RESET_TASK" --dest "$DEST23E" >/dev/null
+bash "$RUN_LOOP" "$DEST23E" "$TASK_PROMPT" --gates clean,bogus > "$SCRATCH/cleanbad.out" 2>&1
+assert_eq "$?" "1" "AC5: an unknown name beside clean is still rejected"
+assert_true "AC5: the unknown-name message lists clean" file_has "$SCRATCH/cleanbad.out" "known: simplify, security, review, clean, none"
 
 echo
 echo "----- (23f) a clean finding triggers a fix and the pass restarts over every gate -----"
 GATE_CLEAN_ONCE='- new_a.txt:1: name hides intent' run_gate_case cleanfix --max-iterations 1
-assert_eq "$(cat "$SCRATCH/cleanfix.rc")" "0" "(6) the run passes once the fix is clean"
-assert_eq "$(stages_of cleanfix)" "plan red execute simplify security review clean fix simplify security review clean" "(6) fix after clean, then a full pass over all four gates"
+assert_eq "$(cat "$SCRATCH/cleanfix.rc")" "0" "AC6: the run passes once the fix is clean"
+assert_eq "$(stages_of cleanfix)" "plan red execute simplify security review clean fix simplify security review clean" "AC6: fix after clean, then a full pass over all four gates"
 
 GATE_CLEAN_OUT='- new_a.txt:1: still unclear' run_gate_case cleancap --max-iterations 3
-assert_eq "$(cat "$SCRATCH/cleancap.rc")" "1" "(6) LOOP_GATE_ROUNDS caps the clean gate"
-assert_true "(6) the summary names clean as not converged" file_has "$(wt_of cleancap)/LOOP_SUMMARY.md" "Not converged: clean"
+assert_eq "$(cat "$SCRATCH/cleancap.rc")" "1" "AC6: LOOP_GATE_ROUNDS caps the clean gate"
+assert_true "AC6: the summary names clean as not converged" file_has "$(wt_of cleancap)/LOOP_SUMMARY.md" "Not converged: clean"
 
 echo
 echo "----- (23g) the per-file split applies to the clean gate -----"
 LOOP_DIFF_SPLIT_BYTES=1 run_gate_case cleansplit --max-iterations 1 --gates clean
-assert_eq "$(stages_of cleansplit)" "plan red execute clean clean clean" "(7) clean ran once per changed file"
-assert_true "(7) the driver announced the split for clean" file_has "$SCRATCH/cleansplit.out" "gate 'clean': diff is"
+assert_eq "$(stages_of cleansplit)" "plan red execute clean clean clean" "AC7: clean ran once per changed file"
+assert_true "AC7: the driver announced the split for clean" file_has "$SCRATCH/cleansplit.out" "gate 'clean': diff is"
 LOOP_DIFF_SPLIT_BYTES=1 CLEAN_SKIP_FILE=new_b.txt run_gate_case cleansplitfail --max-iterations 1 --gates clean
-assert_eq "$(cat "$SCRATCH/cleansplitfail.rc")" "1" "(7) one unreviewed file fails the clean gate closed"
+assert_eq "$(cat "$SCRATCH/cleansplitfail.rc")" "1" "AC7: one unreviewed file fails the clean gate closed"
+assert_true "AC7: the summary names clean as failed closed" file_has "$(wt_of cleansplitfail)/LOOP_SUMMARY.md" "Gates with no output (failed closed): clean"
+assert_true "AC7: the cause is not an unknown-gate refusal" file_lacks "$SCRATCH/cleansplitfail.out" "unknown gate"
 
 echo
 echo "----- (23h) the clean verdict is recovered from the reply -----"
 PROSE_ONLY=1 run_gate_case cleanreply --max-iterations 1 --gates clean
-assert_eq "$(cat "$SCRATCH/cleanreply.rc")" "0" "(8) a no-findings reply passes"
-assert_true "(8) the driver said it read the verdict from the reply" file_has "$SCRATCH/cleanreply.out" "gate 'clean' never called write"
-assert_true "(8) the gate log says so" file_has "$(wt_of cleanreply)/LOOP_SUMMARY.md" "gate clean, round 0: 0 finding(s) kept, 0 rejected, verdict recovered from the reply"
+assert_eq "$(cat "$SCRATCH/cleanreply.rc")" "0" "AC8: a no-findings reply passes"
+assert_true "AC8: the driver said it read the verdict from the reply" file_has "$SCRATCH/cleanreply.out" "gate 'clean' never called write"
+assert_true "AC8: the gate log says so" file_has "$(wt_of cleanreply)/LOOP_SUMMARY.md" "gate clean, round 0: 0 finding(s) kept, 0 rejected, verdict recovered from the reply"
 PROSE_ONLY=1 PROSE_ONLY_TEXT='- new_a.txt:1: name hides intent' run_gate_case cleanreplyfind --max-iterations 1 --gates clean
 FIRST23H="$(ls "$SCRATCH"/state-cleanreplyfind/findings_seen_*.md 2>/dev/null | head -n1)"
-assert_true "(8) a finding in the reply reached FINDINGS.md" bash -c '[ -n "$1" ] && file_has "$1" "new_a.txt:1"' _ "$FIRST23H"
+assert_true "AC8: a finding in the reply reached FINDINGS.md" bash -c '[ -n "$1" ] && file_has "$1" "new_a.txt:1"' _ "$FIRST23H"
 
 echo
 echo "----- (23i) the clean gate has write as its only tool and the diff in its prompt -----"
 PROMPT_DUMP_C="$SCRATCH/clean_prompt_dump.txt"
 : > "$PROMPT_DUMP_C"
 SHIM_PROMPT_DUMP="$PROMPT_DUMP_C" run_gate_case cleantools --max-iterations 1
-assert_true "(9) a clean stage ran" bash -c 'grep -q "^clean " "$1"' _ "$PROMPT_DUMP_C"
-assert_true "(9) it ran with write as its only tool" bash -c '
+assert_true "AC9: a clean stage ran" bash -c 'grep -q "^clean " "$1"' _ "$PROMPT_DUMP_C"
+assert_true "AC9: it ran with write as its only tool" bash -c '
   g="$(grep "^clean " "$1")"; ! printf "%s\n" "$g" | grep -qv "tools=write "' _ "$PROMPT_DUMP_C"
-assert_true "(9) its prompt carried the diff" bash -c '
+assert_true "AC9: its prompt carried the diff" bash -c '
   g="$(grep "^clean " "$1")"; ! printf "%s\n" "$g" | grep -qv "diff_in_prompt=yes"' _ "$PROMPT_DUMP_C"
-assert_true "(9) its prompt carries the clean lens" file_has "$(newest_prompt "$(wt_of cleantools)" "clean_prompt_*.md")" "clean-code heuristics"
+assert_true "AC9: its prompt carries the clean lens" file_has "$(newest_prompt "$(wt_of cleantools)" "clean_prompt_*.md")" "clean-code heuristics"
 
 echo
 echo "----- (23j) the dry run lists the clean stage -----"
 DEST23J="$SCRATCH/cleandry/taskrepo"
 bash "$RESET_TASK" --dest "$DEST23J" >/dev/null
 bash "$RUN_LOOP" "$DEST23J" "$TASK_PROMPT" --dry-run --max-iterations 1 > "$SCRATCH/cleandry.out" 2>&1
-assert_true "(10) the dry-run print names the clean stage prompt" file_has "$SCRATCH/cleandry.out" "clean_prompt_"
-assert_true "(10) the dry-run summary lists the gate" file_has "$(find "$DEST23J/.loop" -name LOOP_SUMMARY.md | head -n1)" "Gates: simplify security review clean"
+assert_true "AC10: the dry-run print names the clean stage prompt" file_has "$SCRATCH/cleandry.out" "clean_prompt_"
+assert_true "AC10: the dry-run summary lists the gate" file_has "$(find "$DEST23J/.loop" -name LOOP_SUMMARY.md | head -n1)" "Gates: simplify security review clean"
 
 echo
 echo "----- (23k) a repo tracking CLEAN.md at its root is refused -----"
