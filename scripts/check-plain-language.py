@@ -14,6 +14,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent))
+import _lib
+
 EM_DASH = "—"
 REFRESH = re.compile(r"refresh", re.IGNORECASE)
 TOLERATES = [
@@ -61,8 +64,7 @@ def main() -> int:
     if EM_DASH in dash_section:
         failures.append("SKILL.md: the em-dash section holds an em dash")
 
-    desc = re.search(r"^description:\s*(.*)$", skill, re.M)
-    d = desc.group(1) if desc else ""
+    d = str(_lib.parse_frontmatter(files[0]).get("description", ""))
     if "AI-writing tells" not in d or "clear technical English" not in d:
         failures.append("SKILL.md: description lacks 'AI-writing tells' or 'clear technical English'")
     if len(d) >= 1024:
