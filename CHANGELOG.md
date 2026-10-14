@@ -24,8 +24,10 @@ All notable changes to this repo are recorded here. Format loosely follows
   never published.
 - **Named models:** use the newest version in the tier and verify it is
   available.
-- New check: `scripts/check-working-process.py`, wired into CI and
-  CONTRIBUTING.md.
+- New check: `scripts/check-working-process.py` finds stale terms and
+  checks required terms. It takes an optional `--owner-file PATH`. Its
+  test is `scripts/test-check-working-process.sh`. Both run in CI and are
+  listed in CONTRIBUTING.md.
 
 ## [0.16.0] - 2026-10-13
 

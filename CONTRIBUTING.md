@@ -188,7 +188,7 @@ python3 scripts/check-counts.py .        # README skill count vs disk
 python3 scripts/check-agents.py .        # agents/*.md frontmatter contract
 python3 scripts/check-skill-sections.py . # closing sections, ## Report, duplicate paragraphs, dangling references
 python3 scripts/check-plain-language.py . # plain-language strikes em dashes, holds no refresh text
-python3 scripts/check-working-process.py . # four gates, effort plan, no decision log, on every surface
+python3 scripts/check-working-process.py . # no stale terms, required terms present
 bash scripts/test-install.sh             # installer behavior (also runs bash -n)
 bash scripts/test-check-working-process.sh  # --owner-file handling of the working-process check
 ```
@@ -201,8 +201,9 @@ All of these run in CI (`.github/workflows/ci.yml`) on every push and PR.
 
 ## The four gates
 
-Before a PR is created, and again before any PR update that changes the
-diff, run on the full diff, in order:
+Run these on the full diff, in order. Timing, the prose checks for
+description-only edits, and the fix rules are in
+`skills/apply-working-process/SKILL.md` §3 and §5.
 
 1. **Simplify** (`/simplify` or the `declutter` skill). Cleanup only, no
    redesign.
@@ -210,12 +211,6 @@ diff, run on the full diff, in order:
 3. **Code review** (`/code-review` or the `deep-review` skill).
 4. **Clean-code review** (the `clean-code` skill as the review lens). One
    single pass.
-
-Fix every finding. Do not defer a real defect to a follow-up issue. Re-run
-the test suite green after the fixes, including on docs-only PRs. A
-description-only edit uses `plain-language` and `ste-writing` instead of
-the code gates. Run both on commit messages, PR titles, and PR
-descriptions.
 
 ## Releasing
 
