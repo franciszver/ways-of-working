@@ -32,7 +32,7 @@ This is how the library's owner runs engineering work. It was proven on the Agen
 - Each issue body carries: scope, a **Red-first** line (the failing artifact to write before implementing), **Done when** (acceptance criteria), and the Definition-of-Done checklist.
 - Issues stay the system of record. Planning documents freeze once imported to the board, and the effort plan is the working copy for the current effort. A plan change lands in the issue first, then in the effort plan. (Exception: the test plan stays a living document.)
 - **The board never lags reality.** Work discovered mid-task gets an issue created *first*, with acceptance criteria, then a branch.
-- **Multi-step work keeps its live plan in `docs/CURR-AGENT-EFFORT.md`.** Create `docs/` if needed. Update the file before implementation starts, even when a project board also tracks the work. Use the issue structure: scope, red-first, done when. The effort plan is not frozen. It is the only plan file that changes during the effort.
+- **Multi-step work keeps its live plan in `.agent/execution-plan.md`.** Add `.agent/` to `.gitignore`. Create `.agent/` if needed. Update the file before implementation starts, even when a project board also tracks the work. Use the issue structure: scope, red-first, done when. The effort plan is not frozen. It is the only plan file that changes during the effort.
 
 ## 3. One issue = one branch = one PR
 
@@ -79,4 +79,4 @@ This is how the library's owner runs engineering work. It was proven on the Agen
 
 ## Adapting to a new environment
 
-On first use in a tool or repo, map each element to what exists: which review skills stand in for the gates, whether a board and `docs/CURR-AGENT-EFFORT.md` carry the plan, whether subagents or phase separation carry the role split. State the mapping once, then follow it. Do not silently drop the elements the environment makes awkward. With no subagents and only a local model, see `local-llm-loop`: its driver runs the simplify, security, code-review, and clean-code gates as sequential fresh-process stages.
+On first use in a tool or repo, map each element to what exists: which review skills stand in for the gates, whether a board and `.agent/execution-plan.md` carry the plan, whether subagents or phase separation carry the role split. State the mapping once, then follow it. Do not silently drop the elements the environment makes awkward. With no subagents and only a local model, see `local-llm-loop`: its driver runs the simplify, security, code-review, and clean-code gates as sequential fresh-process stages.

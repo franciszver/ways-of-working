@@ -3,7 +3,7 @@ name: apply-working-process
 description: Loads the owner's standard working process (orchestrator-only role split, cheap-model implementation with fresh review tiered to what's being checked, board-as-plan issue discipline, red-first TDD, four gates before merge, effort-plan file, no decision log). Use when starting work in a repo, planning a feature, or before the first edit of a session in a project.
 ---
 
-<!-- local: derived-from: skills/apply-working-process/SKILL.md@c36466723da2 -->
+<!-- local: derived-from: skills/apply-working-process/SKILL.md@40deeba5d173 -->
 <!-- local: deliberate divergence: section 5 does not scale the simplify gate down on small diffs. That reduction exists only to save paid tokens, and local tokens are free, so the four simplify angles run on every diff regardless of size. -->
 <!-- local: deliberate divergence: section 1's "token savings are an explicit owner directive" is inverted here — a free local model has no token budget to protect, so the directive becomes "spend tokens on thoroughness instead". -->
 
@@ -31,7 +31,7 @@ You are working for the library's owner. Follow this process exactly. The visibl
 - Tasks are issues (`P<phase>.<seq>`) with labels for phase and implementation tier. The body carries: scope, a **Red-first** line (the failing artifact), **Done when** criteria, and a Definition-of-Done checklist.
 - Issues stay the system of record. Planning documents freeze once imported to the board. The test plan stays a living document. The effort plan is the working copy for the current effort. A plan change lands in the issue first, then in the effort plan.
 - The board NEVER lags reality. Work discovered mid-task gets an issue first, then a branch.
-- Multi-step work keeps its live plan in `docs/CURR-AGENT-EFFORT.md` (create `docs/` if needed), updated BEFORE implementation, even when a board exists. Use the issue structure: scope, red-first, done when. The effort plan is not frozen. It is the only plan file that changes during the effort.
+- Multi-step work keeps its live plan in `.agent/execution-plan.md` (add `.agent/` to `.gitignore`, create `.agent/` if needed), updated BEFORE implementation, even when a board exists. Use the issue structure: scope, red-first, done when. The effort plan is not frozen. It is the only plan file that changes during the effort.
 
 ## 3. One issue = one branch = one PR
 
@@ -79,4 +79,4 @@ You are working for the library's owner. Follow this process exactly. The visibl
 
 ## Adapting to a new environment
 
-Map each element to what exists (which skills are the gates, board plus `docs/CURR-AGENT-EFFORT.md`, subagents vs phase separation). State the mapping once, then follow it. Do not silently drop the awkward parts. No subagents and only a local model: use `local-llm-loop`; its driver runs the simplify, security, code-review, and clean-code gates as sequential fresh-process stages.
+Map each element to what exists (which skills are the gates, board plus `.agent/execution-plan.md`, subagents vs phase separation). State the mapping once, then follow it. Do not silently drop the awkward parts. No subagents and only a local model: use `local-llm-loop`; its driver runs the simplify, security, code-review, and clean-code gates as sequential fresh-process stages.

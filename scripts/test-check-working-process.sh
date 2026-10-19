@@ -11,7 +11,7 @@ fail=0
 fixture=""
 out=""
 
-REQ='CURR-AGENT-EFFORT clean-code ste-writing plain-language. Four gates before anything merges.'
+REQ='.agent/execution-plan.md clean-code ste-writing plain-language. Four gates before anything merges.'
 
 new_fixture() { # builds a clean tracked fixture repo in $fixture
   fixture="$(mktemp -d -p "$work")"
@@ -88,7 +88,7 @@ new_fixture; rm "$fixture/skills-local/apply-working-process/SKILL.md"; track
 expect "missing required file fails" 1 "skills-local/apply-working-process/SKILL.md: missing"
 
 new_fixture; printf 'Four gates only\n' > "$fixture/skills/apply-working-process/SKILL.md"; track
-expect "missing required terms fail" 1 "lacks CURR-AGENT-EFFORT"
+expect "missing required terms fail" 1 "lacks .agent/execution-plan.md"
 
 # New banned patterns.
 i=0
@@ -105,6 +105,8 @@ see prd/DECISIONS for the log
 keep a decisions log
 Keeps a decision log
 same-session decision logging
+see docs/CURR-AGENT-EFFORT.md for the plan
+keep a CURR-AGENT-EFFORT file
 PATTERNS
 
 new_fixture; printf 'Do not create a decisions log.\n' > "$fixture/docs/ok.md"; track

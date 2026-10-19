@@ -72,7 +72,7 @@ REFERENCE_ALLOWLIST = {
     "FINDINGS.md": {("skills", "local-llm-loop")},
     "REJECTED_FINDINGS.md": {("skills", "local-llm-loop")},
     "NEEDS_HUMAN.md": {("skills", "local-llm-loop")},
-    "CURR-AGENT-EFFORT.md": {("skills", "apply-working-process"), ("skills-local", "apply-working-process")},
+    "execution-plan.md": {("skills", "apply-working-process"), ("skills-local", "apply-working-process")},
     "TASKS.md": {("skills", "breakdown")},
     "SPEC.md": {("skills", "spec"), ("skills-local", "spec")},
     "ROUTING.md": {("skills", "apply-working-process")},

@@ -9,7 +9,7 @@ Checks:
   - No tracked text file names the old plan file or the old decision log,
     says "three gates" (also "3 gates", also across a line break), or
     tells the reader to keep a decisions log.
-  - The canonical skill and its local twin name CURR-AGENT-EFFORT,
+  - The canonical skill and its local twin name .agent/execution-plan.md,
     clean-code, ste-writing, plain-language, and "Four gates".
   - With --owner-file PATH, the same checks run on that file when it exists.
     An absent owner file is skipped silently.
@@ -50,12 +50,13 @@ EXEMPT_COMMON = HISTORY_FILES + SELF_FILES
 # they are names: the skill is `clean-code`, the heading is "Four gates".
 BANNED = [
     (re.compile(r"WORKPLAN\.md", re.IGNORECASE), "names the old plan file", EXEMPT_COMMON),
+    (re.compile(r"CURR-AGENT-EFFORT(?:\.md)?", re.IGNORECASE), "names the old effort-plan file", EXEMPT_COMMON),
     (re.compile(r"DECISIONS\.md|prd/DECISIONS", re.IGNORECASE), "names the old decision log", EXEMPT_COMMON),
     (re.compile(r"\b(?:three|3)[-\s]+gates?\b", re.IGNORECASE), 'says "three gates"', EXEMPT_COMMON),
     (re.compile(r"\bkeeps?\s+a\s+decisions?\s+log\b", re.IGNORECASE), "tells the reader to keep a decisions log", EXEMPT_COMMON),
     (re.compile(r"\bsame-session\s+decision", re.IGNORECASE), "names same-session decision logging", EXEMPT_COMMON),
 ]
-REQUIRED = ["CURR-AGENT-EFFORT", "clean-code", "ste-writing", "plain-language", "Four gates"]
+REQUIRED = [".agent/execution-plan.md", "clean-code", "ste-writing", "plain-language", "Four gates"]
 REQUIRED_FILES = ["skills/apply-working-process/SKILL.md", "skills-local/apply-working-process/SKILL.md"]
 TEXT_SUFFIXES = {".md", ".mdc", ".mdx", ".py", ".sh", ".json", ".yaml", ".yml", ".txt", ".toml"}
 SKIPPED_TOP_DIRS = {".git", "build", "node_modules"}
