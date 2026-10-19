@@ -5,6 +5,14 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-10-19
+
+- **`apply-working-process` uses `.agent/execution-plan.md`** (#58). Replaced
+  `docs/CURR-AGENT-EFFORT.md` with `.agent/execution-plan.md`. Added `.agent/` to
+  `.gitignore` so live task execution tracking remains a local runtime scratchpad
+  without cluttering git trees or PR diffs. Updated `scripts/check-working-process.py`,
+  reference allowlists, test suites, and the `skills-local` twin.
+
 ## [0.19.0] - 2026-10-14
 
 - **`local-llm-loop` has a clean-code gate** (#55). The driver runs a fourth
