@@ -11,7 +11,7 @@ fail=0
 fixture=""
 out=""
 
-REQ='.agent/execution-plan.md clean-code ste-writing plain-language. Four gates before anything merges.'
+REQ='.agent/execution-plan.md clean-code ste-writing plain-language prove. Five gates before anything merges.'
 
 new_fixture() { # builds a clean tracked fixture repo in $fixture
   fixture="$(mktemp -d -p "$work")"
@@ -87,7 +87,7 @@ expect "non-UTF-8 file fails with cause" 1 "docs/bin.md: unreadable (.*utf-8"
 new_fixture; rm "$fixture/skills-local/apply-working-process/SKILL.md"; track
 expect "missing required file fails" 1 "skills-local/apply-working-process/SKILL.md: missing"
 
-new_fixture; printf 'Four gates only\n' > "$fixture/skills/apply-working-process/SKILL.md"; track
+new_fixture; printf 'Five gates only\n' > "$fixture/skills/apply-working-process/SKILL.md"; track
 expect "missing required terms fail" 1 "lacks .agent/execution-plan.md"
 
 # New banned patterns.

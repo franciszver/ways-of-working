@@ -10,7 +10,7 @@ Checks:
     says "three gates" (also "3 gates", also across a line break), or
     tells the reader to keep a decisions log.
   - The canonical skill and its local twin name .agent/execution-plan.md,
-    clean-code, ste-writing, plain-language, and "Four gates".
+    clean-code, ste-writing, plain-language, and "Five gates".
   - With --owner-file PATH, the same checks run on that file when it exists.
     An absent owner file is skipped silently.
 
@@ -47,7 +47,7 @@ EXEMPT_COMMON = HISTORY_FILES + SELF_FILES
 
 # (pattern, label, exempt paths). BANNED patterns ignore case, because a
 # stale phrase is stale in any case. REQUIRED terms match exactly, because
-# they are names: the skill is `clean-code`, the heading is "Four gates".
+# they are names: the skill is `clean-code`, the heading is "Five gates".
 BANNED = [
     (re.compile(r"WORKPLAN\.md", re.IGNORECASE), "names the old plan file", EXEMPT_COMMON),
     (re.compile(r"CURR-AGENT-EFFORT(?:\.md)?", re.IGNORECASE), "names the old effort-plan file", EXEMPT_COMMON),
@@ -56,7 +56,7 @@ BANNED = [
     (re.compile(r"\bkeeps?\s+a\s+decisions?\s+log\b", re.IGNORECASE), "tells the reader to keep a decisions log", EXEMPT_COMMON),
     (re.compile(r"\bsame-session\s+decision", re.IGNORECASE), "names same-session decision logging", EXEMPT_COMMON),
 ]
-REQUIRED = [".agent/execution-plan.md", "clean-code", "ste-writing", "plain-language", "Four gates"]
+REQUIRED = [".agent/execution-plan.md", "clean-code", "ste-writing", "plain-language", "Five gates", "prove"]
 REQUIRED_FILES = ["skills/apply-working-process/SKILL.md", "skills-local/apply-working-process/SKILL.md"]
 TEXT_SUFFIXES = {".md", ".mdc", ".mdx", ".py", ".sh", ".json", ".yaml", ".yml", ".txt", ".toml"}
 SKIPPED_TOP_DIRS = {".git", "build", "node_modules"}

@@ -2,7 +2,7 @@
 name: apply-working-process
 description: Loads the owner's standard working process (orchestrator-only role split,
   cheap-model implementation with fresh review tiered to what's being checked, board-as-plan
-  issue discipline, red-first TDD, four gates before merge, effort-plan file, no decision
+  issue discipline, red-first TDD, five gates before merge, effort-plan file, no decision
   log). Use when starting work in a repo, planning a feature, or before the first
   edit of a session in a project.
 ---
@@ -50,14 +50,15 @@ This is how the library's owner runs engineering work. It was proven on the Agen
 - Model-inference evals never run in CI: live runs happen locally and record outputs; CI replays recordings through deterministic assertions.
 - This is a conscious owner override of hybrid approaches — the ~20–30% schedule cost is accepted for uniform "no untested line" discipline. Don't relitigate it.
 
-## 5. Four gates before anything merges
+## 5. Five gates before anything merges
 
-- On the full PR diff, in order: **simplify → security review → code review → clean-code review** (in Claude Code: `/simplify` → `/security-review` → `/code-review` → the `clean-code` skill as the review lens; elsewhere use this library's `declutter`, `sec-audit`, `deep-review`, `clean-code`).
+- On the full PR diff, in order: **simplify → security review → code review → clean-code review → prove** (in Claude Code: `/simplify` → `/security-review` → `/code-review` → the `clean-code` skill as the review lens → `/verify`; elsewhere use this library's `declutter`, `sec-audit`, `deep-review`, `clean-code`, `prove`).
 - Run the gates before the PR is created and again before any PR update that changes the diff. A description-only edit uses the prose checks in §3 instead.
 - Every finding fixed, not triaged into follow-ups, and the full test suite re-run green *after* the fixes. Applies to docs PRs too.
 - When a gate finds a real defect, **fix-first beats ship-with-follow-up**, even if the reviewer says shipping is acceptable.
 - **Scale the simplify gate's fan-out to the diff. Security review and code review always run at full strength regardless of size.** Simplify normally fans out to the four simplify angles in parallel (reuse, simplification, efficiency, altitude). On a small diff (roughly under ~150 changed lines, or confined to one or two files) collapse that to a single combined pass covering every angle, on a cheap tier. Larger or structurally significant diffs keep the full parallel fan-out. Structural significance overrides the size heuristic, so a large single-file rewrite is not a small diff. State explicitly when the reduced form is used, so a reduced gate is never mistaken for a full one. This rule applies to simplify only, never to security review or code review, which are the gates that catch defects.
 - The clean-code review is always a single pass. It does not fan out.
+- The prove gate delivers observed evidence for every claim in the requirements ledger, with decisive output quoted verbatim, edge cases tested, and an explicit "I verified / I did not verify" verdict.
 - **Two review→fix rounds on the same diff without convergence is the cap.** Stop and surface the situation to the owner with a recommendation instead of starting a third round. Repeated rounds on one diff are evidence the approach is wrong, not that the fixes are nearly done. When an implementer's measurement against real data contradicts a reviewer's model, the measurement wins (see **Honest measurement** in §7).
 
 ## 6. Rationale goes where reviewers can see it

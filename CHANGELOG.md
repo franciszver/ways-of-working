@@ -5,6 +5,20 @@ All notable changes to this repo are recorded here. Format loosely follows
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-26
+
+- **`apply-working-process` has five gates** (#59). Added `prove` (`/verify` in
+  Claude Code) as the fifth gate before merge. The gate sequence is now:
+  simplify (`declutter` / `/simplify`), security review (`sec-audit` /
+  `/security-review`), code review (`deep-review` / `/code-review`), clean-code
+  review (`clean-code`), and prove (`prove` / `/verify`). The prove gate
+  enforces observed verification evidence for every claim in the requirements
+  ledger, quotes decisive command output verbatim, and delivers honest
+  "I verified / I did not verify" verdicts.
+- Updated `CONTRIBUTING.md`, README files, `scripts/check-working-process.py`,
+  `scripts/test-check-working-process.sh`, `skills-local/apply-working-process`,
+  and rebuilt all generated profile trees.
+
 ## [0.19.1] - 2026-10-19
 
 - **`apply-working-process` uses `.agent/execution-plan.md`** (#58). Replaced

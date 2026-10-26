@@ -34,7 +34,7 @@ deep-review/SKILL.md    Adversarial review: minimum-candidates rule, verify ever
 prove/SKILL.md          Gate before "done": strongest check per claim, verbatim
                         quotes, edge hunt, regression pass, I-verified verdict.
 apply-working-process/SKILL.md  The owner's operating process: roles, board-as-plan,
-                        red-first, four gates, effort plan. Session start, any env.
+                        red-first, five gates, effort plan. Session start, any env.
 ste-writing/SKILL.md    Simplified Technical English spirit for all prose — one word
                         per idea, short active sentences, one topic per paragraph.
 ```

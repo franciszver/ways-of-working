@@ -1,9 +1,9 @@
 ---
 name: apply-working-process
-description: Loads the owner's standard working process (orchestrator-only role split, cheap-model implementation with fresh review tiered to what's being checked, board-as-plan issue discipline, red-first TDD, four gates before merge, effort-plan file, no decision log). Use when starting work in a repo, planning a feature, or before the first edit of a session in a project.
+description: Loads the owner's standard working process (orchestrator-only role split, cheap-model implementation with fresh review tiered to what's being checked, board-as-plan issue discipline, red-first TDD, five gates before merge, effort-plan file, no decision log). Use when starting work in a repo, planning a feature, or before the first edit of a session in a project.
 ---
 
-<!-- local: derived-from: skills/apply-working-process/SKILL.md@40deeba5d173 -->
+<!-- local: derived-from: skills/apply-working-process/SKILL.md@c1875ccf564d -->
 <!-- local: deliberate divergence: section 5 does not scale the simplify gate down on small diffs. That reduction exists only to save paid tokens, and local tokens are free, so the four simplify angles run on every diff regardless of size. -->
 <!-- local: deliberate divergence: section 1's "token savings are an explicit owner directive" is inverted here — a free local model has no token budget to protect, so the directive becomes "spend tokens on thoroughness instead". -->
 
@@ -47,13 +47,14 @@ You are working for the library's owner. Follow this process exactly. The visibl
 - Model-inference evals never run in CI. Record locally, replay in CI.
 - Do not relitigate the schedule cost. It is accepted.
 
-## 5. Four gates before anything merges
+## 5. Five gates before anything merges
 
-- On the full PR diff, in order: simplify (declutter) → security review (sec-audit) → code review (deep-review) → clean-code review (clean-code skill as the lens; one single pass, no fan-out).
+- On the full PR diff, in order: simplify (declutter) → security review (sec-audit) → code review (deep-review) → clean-code review (clean-code skill as the lens; one single pass, no fan-out) → prove (verify claim evidence).
 - Run the gates before the PR is created and again before any PR update that changes the diff. A description-only edit uses the prose checks in section 3 instead.
 - Fix EVERY finding, no triaging into follow-ups, then re-run the full suite green. Docs PRs too. Fix-first beats ship-with-follow-up.
 - Do NOT scale simplify down here. Run the four simplify angles (reuse, simplification, efficiency, altitude) on every diff regardless of size. Local tokens are free, so the paid-tier size exception does not travel.
 - Security review and code review ALWAYS run at full strength regardless of diff size.
+- The prove gate delivers observed evidence for every claim in the requirements ledger, with decisive output quoted verbatim, edge cases tested, and an explicit "I verified / I did not verify" verdict.
 - Two review→fix rounds on one diff without convergence is the cap. Stop and surface to the owner with a recommendation rather than starting a third. Repeated rounds are evidence the approach is wrong, not that the fixes are nearly done.
 
 ## 6. Rationale goes where reviewers can see it
