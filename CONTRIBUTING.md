@@ -1,7 +1,7 @@
 # Contributing to ways-of-working
 
 This file explains how to change a canonical skill, what the frontmatter
-contract requires, how to run the checks, and the four gates every PR
+contract requires, how to run the checks, and the five gates every PR
 passes before merge.
 
 ## Propagating a canonical skill change
@@ -199,7 +199,7 @@ run `python3 scripts/build-profile.py .` (writes) first, commit
 
 All of these run in CI (`.github/workflows/ci.yml`) on every push and PR.
 
-## The four gates
+## The five gates
 
 Run these on the full diff, in order. Timing, the prose checks for
 description-only edits, and the fix rules are in
@@ -211,6 +211,8 @@ description-only edits, and the fix rules are in
 3. **Code review** (`/code-review` or the `deep-review` skill).
 4. **Clean-code review** (the `clean-code` skill as the review lens). One
    single pass.
+5. **Prove** (`/verify` or the `prove` skill). Verifies observed evidence
+   for every claim before merge.
 
 ## Releasing
 
